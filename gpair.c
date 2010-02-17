@@ -1,5 +1,6 @@
 #include "gpair.h"
 #include "getoifits.h"
+#include "nonsense.h"
 
 // Global variables
 int model_image_size;
