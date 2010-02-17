@@ -11,8 +11,10 @@ oi_data data; // stores the data points from oifits files
 data_only current; // stores the powerspectrum and bispectrum derived from the current model
 double complex *visi; // current visibilities
 double *current_image;
-double complex* DFT_table;
 
+// DFT precomputed coefficient tables
+double complex* DFT_tablex;
+double complex* DFT_tabley;
 
 double square( double number )
 {
@@ -21,7 +23,7 @@ double square( double number )
 
 int main(int argc, char *argv[])
 {   
-  register int ii, jj, uu;
+  register int ii, uu;
   double chi2;
  
   // read OIFITS and visibilities
@@ -44,13 +46,19 @@ int main(int argc, char *argv[])
 
   
   // setup precomputed DFT table
-  DFT_table = malloc( data.nuv * model_image_size * model_image_size * sizeof(double complex));
+  DFT_tablex = malloc( data.nuv * model_image_size * sizeof(double complex));
+  DFT_tabley = malloc( data.nuv * model_image_size * sizeof(double complex));
   for(uu=0 ; uu < data.nuv; uu++)
-    for(ii=0; ii < model_image_size; ii++)
-      for(jj=0; jj < model_image_size; jj++)
-	    DFT_table[ model_image_size * model_image_size * uu + model_image_size * ii + jj ] =  
-	  cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * ( data.uv[uu].u * (double) ii + data.uv[uu].v * (double)( jj ) ) )  ;
-
+    {
+      for(ii=0; ii < model_image_size; ii++)
+	{
+	  DFT_tablex[ model_image_size * uu + ii ] =  
+	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * data.uv[uu].u * (double)ii )  ;
+	  DFT_tabley[ model_image_size * uu + ii ] =  
+	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * data.uv[uu].v * (double)ii )  ;
+	}
+    }
+  
   //compute complex visibilities 
   image2vis();
 
@@ -91,7 +99,7 @@ void image2vis( )
       visi[uu] = 0.0 + I * 0.0;
       for(ii=0; ii < model_image_size; ii++)
 	  for(jj=0; jj < model_image_size; jj++)
-		   visi[uu] += current_image[ ii + model_image_size * jj ] *  DFT_table[ model_image_size * model_image_size * uu + model_image_size * ii + jj ]
+	    visi[uu] += current_image[ ii + model_image_size * jj ] *  DFT_tablex[ model_image_size * uu +  ii] * DFT_tablex[ model_image_size * uu +  jj];
       if (v0 > 0.) visi[uu] /= v0;
     }
   

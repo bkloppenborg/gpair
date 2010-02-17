@@ -6,8 +6,6 @@ L_PATH_LOC = /usr/local/lib/
 I_PATH_PG = /opt/local/include/
 L_PATH_PG = /opt/local/lib/
 LIBS_FITS = -lcfitsio
-I_PATH_OPENCL = "/home/bkloppenborg/NVIDIA_GPU_Computing_SDK/OpenCL/common/inc/CL"
-LIBS_OPENCL = -lOpenCL
 
 #ifdef __APPLE__
 LIBS_FITS = ${LIBS_FITS} -lSystemStubs -lX11 
@@ -30,7 +28,7 @@ default: gpair
 all: opt
 
 gpair.o: gpair.c
-	$(CC) $(CFLAGS) -c gpair.c  -I$(I_PATH_LOC) -I$(I_PATH_PG)  -I$(I_PATH_X11) I$(I_PATH_OPENCL)
+	$(CC) $(CFLAGS) -c gpair.c  -I$(I_PATH_LOC) -I$(I_PATH_PG)  -I$(I_PATH_X11)
 
 read_fits.o: read_fits.c
 	$(CC) $(CFLAGS) -c read_fits.c -I$(I_PATH_LOC)  -I$(I_PATH_X11) -I$(I_PATH_PG)
@@ -46,6 +44,6 @@ clean:
 #OPT PROGRAM
 
 gpair: gpair.o read_fits.o getoifits.o
-	$(CC) $(CFLAGS) -o gpair gpair.o read_fits.o getoifits.o  -L$(L_PATH_X11) -L$(L_PATH_PG) -L$(L_PATH_LOC) $(LIBS_FITS) $(LIBS_OPENCL)
+	$(CC) $(CFLAGS) -o gpair gpair.o read_fits.o getoifits.o  -L$(L_PATH_X11) -L$(L_PATH_PG) -L$(L_PATH_LOC) $(LIBS_FITS)
 
 
