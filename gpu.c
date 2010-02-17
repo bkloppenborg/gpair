@@ -24,9 +24,29 @@ void setup_device()
 double data2chi2_gpu()
 {
     // TODO: Pass pointers into this function.
+    // Pointer names: data, model
     // TODO: Move this code out of this function and just keep the data on the GPU:
     // Move the necessary data over to the GPU
     
+    // Create the input and output arrays in device memory for our calculation
+    gpu_data = clCreateBuffer(context,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
+    gpu_model = clCreateBuffer(context,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
+    gpu_result = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) *count, NULL, NULL);
+    if (!input || !output)
+        print_opencl_error("clCreateBuffer", 0);
+
+    // Write our data set into the input array in device memory          [11]
+    err = clEnqueueWriteBuffer(queue, gpu_data, CL_TRUE, 0, sizeof(float) *count, data, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(queue, gpu_model, CL_TRUE, 0, sizeof(float) *count, model, 0, NULL, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("clEnqueueWriteBuffer", err);  
+    
+    // First compute the individual array elements:
+    //  current.pow[ii] - data.pow[ii] ) / data.powerr[ii]
+    
+    // Now square them:
+    
+    // Copy the result back to the host and sum them up
     
     // Now compute the chi2 for the V2
     double chi2v2 = chi2v2_gpu();
@@ -40,6 +60,9 @@ double data2chi2_gpu()
 // Computes the chi2 for the visibilities on the GPU
 double chi2v2_gpu()
 {
+    // TODO: Pass pointers into this function.
+    // TODO: Remove 
+    
     // Variables used in the loop below:
     // current.pow
     // data.pow
