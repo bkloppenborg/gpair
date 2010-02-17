@@ -1,0 +1,549 @@
+swig -python -o oifits_wrap.c oifits.i 
+gcc -Wall -g `pkg-config --cflags glib-2.0` -fPIC -I/usr/include/python2.6 -c oifits_wrap.c
+oifits_wrap.c:124:20: error: Python.h: No such file or directory
+oifits_wrap.c:730: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:785: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:806: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c: In function ‘SWIG_Python_AddErrorMsg’:
+oifits_wrap.c:853: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:853: error: (Each undeclared identifier is reported only once
+oifits_wrap.c:853: error: for each function it appears in.)
+oifits_wrap.c:853: error: ‘type’ undeclared (first use in this function)
+oifits_wrap.c:854: error: ‘value’ undeclared (first use in this function)
+oifits_wrap.c:855: error: ‘traceback’ undeclared (first use in this function)
+oifits_wrap.c:857: warning: implicit declaration of function ‘PyErr_Occurred’
+oifits_wrap.c:857: warning: implicit declaration of function ‘PyErr_Fetch’
+oifits_wrap.c:859: error: ‘old_str’ undeclared (first use in this function)
+oifits_wrap.c:859: warning: implicit declaration of function ‘PyObject_Str’
+oifits_wrap.c:860: warning: implicit declaration of function ‘PyErr_Clear’
+oifits_wrap.c:861: warning: implicit declaration of function ‘Py_XINCREF’
+oifits_wrap.c:862: warning: implicit declaration of function ‘PyErr_Format’
+oifits_wrap.c:862: warning: implicit declaration of function ‘PyString_AsString’
+oifits_wrap.c:863: warning: implicit declaration of function ‘Py_DECREF’
+oifits_wrap.c:866: warning: implicit declaration of function ‘PyErr_SetString’
+oifits_wrap.c:866: error: ‘PyExc_RuntimeError’ undeclared (first use in this function)
+oifits_wrap.c: At top level:
+oifits_wrap.c:1034: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1042: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1053: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1060: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1106: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1208: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1219: error: expected specifier-qualifier-list before ‘PyObject’
+oifits_wrap.c: In function ‘SWIG_Python_CheckImplicit’:
+oifits_wrap.c:1231: error: ‘PySwigClientData’ has no member named ‘implicitconv’
+oifits_wrap.c: At top level:
+oifits_wrap.c:1234: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1243: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c: In function ‘PySwigClientData_Del’:
+oifits_wrap.c:1298: warning: implicit declaration of function ‘Py_XDECREF’
+oifits_wrap.c:1298: error: ‘PySwigClientData’ has no member named ‘newraw’
+oifits_wrap.c:1299: error: ‘PySwigClientData’ has no member named ‘newargs’
+oifits_wrap.c:1300: error: ‘PySwigClientData’ has no member named ‘destroy’
+oifits_wrap.c: At top level:
+oifits_wrap.c:1306: error: expected specifier-qualifier-list before ‘PyObject_HEAD’
+oifits_wrap.c:1313: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1319: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1337: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1343: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1349: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1372: error: expected declaration specifiers or ‘...’ before ‘FILE’
+oifits_wrap.c: In function ‘PySwigObject_print’:
+oifits_wrap.c:1377: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:1377: error: ‘repr’ undeclared (first use in this function)
+oifits_wrap.c:1377: warning: implicit declaration of function ‘PySwigObject_repr’
+oifits_wrap.c:1380: warning: implicit declaration of function ‘fputs’
+oifits_wrap.c:1380: error: ‘fp’ undeclared (first use in this function)
+oifits_wrap.c: At top level:
+oifits_wrap.c:1388: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c: In function ‘PySwigObject_compare’:
+oifits_wrap.c:1399: error: ‘PySwigObject’ has no member named ‘ptr’
+oifits_wrap.c:1400: error: ‘PySwigObject’ has no member named ‘ptr’
+oifits_wrap.c: At top level:
+oifits_wrap.c:1404: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1406: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1413: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1418: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1422: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1456: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1473: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1489: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1501: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1513: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1561: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘swigobject_methods’
+oifits_wrap.c:1573: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1580: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1688: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1706: error: expected specifier-qualifier-list before ‘PyObject_HEAD’
+oifits_wrap.c:1713: error: expected declaration specifiers or ‘...’ before ‘FILE’
+oifits_wrap.c: In function ‘PySwigPacked_print’:
+oifits_wrap.c:1716: error: ‘fp’ undeclared (first use in this function)
+oifits_wrap.c:1717: error: ‘PySwigPacked’ has no member named ‘pack’
+oifits_wrap.c:1717: error: ‘PySwigPacked’ has no member named ‘size’
+oifits_wrap.c:1721: error: ‘PySwigPacked’ has no member named ‘ty’
+oifits_wrap.c: At top level:
+oifits_wrap.c:1726: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1737: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c: In function ‘PySwigPacked_compare’:
+oifits_wrap.c:1751: error: ‘PySwigPacked’ has no member named ‘size’
+oifits_wrap.c:1752: error: ‘PySwigPacked’ has no member named ‘size’
+oifits_wrap.c:1754: error: ‘PySwigPacked’ has no member named ‘pack’
+oifits_wrap.c:1754: error: ‘PySwigPacked’ has no member named ‘pack’
+oifits_wrap.c:1754: error: ‘PySwigPacked’ has no member named ‘size’
+oifits_wrap.c: At top level:
+oifits_wrap.c:1757: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1759: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1766: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1772: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1781: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1851: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1871: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1887: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1893: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:1903: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1954: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:1969: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2060: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2092: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2114: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:2178: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2199: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:2217: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:2238: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c: In function ‘SWIG_Python_GetModule’:
+oifits_wrap.c:2259: warning: implicit declaration of function ‘PyCObject_Import’
+oifits_wrap.c:2260: warning: assignment makes pointer from integer without a cast
+oifits_wrap.c: At top level:
+oifits_wrap.c:2274: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c: In function ‘SWIG_Python_DestroyModule’:
+oifits_wrap.c:2315: warning: implicit declaration of function ‘SWIG_This’
+oifits_wrap.c: In function ‘SWIG_Python_SetModule’:
+oifits_wrap.c:2320: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘swig_empty_runtime_method_table’
+oifits_wrap.c:2320: error: ‘swig_empty_runtime_method_table’ undeclared (first use in this function)
+oifits_wrap.c:2320: error: expected expression before ‘]’ token
+oifits_wrap.c:2322: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:2322: error: ‘module’ undeclared (first use in this function)
+oifits_wrap.c:2322: warning: implicit declaration of function ‘Py_InitModule’
+oifits_wrap.c:2324: error: ‘pointer’ undeclared (first use in this function)
+oifits_wrap.c:2324: warning: implicit declaration of function ‘PyCObject_FromVoidPtr’
+oifits_wrap.c:2326: warning: implicit declaration of function ‘PyModule_AddObject’
+oifits_wrap.c: At top level:
+oifits_wrap.c:2333: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c: In function ‘SWIG_Python_TypeQuery’:
+oifits_wrap.c:2342: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:2342: error: ‘cache’ undeclared (first use in this function)
+oifits_wrap.c:2342: warning: implicit declaration of function ‘SWIG_Python_TypeCache’
+oifits_wrap.c:2343: error: ‘key’ undeclared (first use in this function)
+oifits_wrap.c:2343: warning: implicit declaration of function ‘PyString_FromString’
+oifits_wrap.c:2344: error: ‘obj’ undeclared (first use in this function)
+oifits_wrap.c:2344: warning: implicit declaration of function ‘PyDict_GetItem’
+oifits_wrap.c:2347: warning: implicit declaration of function ‘PyCObject_AsVoidPtr’
+oifits_wrap.c:2347: warning: cast to pointer from integer of different size
+oifits_wrap.c:2353: warning: implicit declaration of function ‘PyDict_SetItem’
+oifits_wrap.c: In function ‘SWIG_Python_AddErrMesg’:
+oifits_wrap.c:2372: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:2372: error: ‘type’ undeclared (first use in this function)
+oifits_wrap.c:2373: error: ‘value’ undeclared (first use in this function)
+oifits_wrap.c:2374: error: ‘traceback’ undeclared (first use in this function)
+oifits_wrap.c:2377: error: ‘old_str’ undeclared (first use in this function)
+oifits_wrap.c: In function ‘SWIG_Python_ArgFail’:
+oifits_wrap.c:2399: warning: implicit declaration of function ‘snprintf’
+oifits_wrap.c:2399: warning: incompatible implicit declaration of built-in function ‘snprintf’
+oifits_wrap.c: At top level:
+oifits_wrap.c:2407: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2415: error: expected declaration specifiers or ‘...’ before ‘PyObject’
+oifits_wrap.c: In function ‘SWIG_Python_TypeError’:
+oifits_wrap.c:2429: error: ‘obj’ undeclared (first use in this function)
+oifits_wrap.c:2431: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:2431: error: ‘str’ undeclared (first use in this function)
+oifits_wrap.c:2434: error: ‘PyExc_TypeError’ undeclared (first use in this function)
+oifits_wrap.c: At top level:
+oifits_wrap.c:2453: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2517:4: error: #error "This python version requires swig to be run with the '-classic' option"
+oifits_wrap.c:2536: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2566: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2596: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2634: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c: In function ‘SWIG_CanCastAsInteger’:
+oifits_wrap.c:2690: error: ‘errno’ undeclared (first use in this function)
+oifits_wrap.c:2690: error: ‘EDOM’ undeclared (first use in this function)
+oifits_wrap.c:2690: error: ‘ERANGE’ undeclared (first use in this function)
+oifits_wrap.c: At top level:
+oifits_wrap.c:2714: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2758: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2779: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:2787: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2847: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:2865: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2904: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2929: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:2944: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:2965: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:3017: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:3080: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3097: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3141: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3163: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3184: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3215: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3254: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3276: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3298: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3305: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3327: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3348: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3379: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3418: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3440: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3462: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3469: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3491: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3512: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3543: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3582: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3604: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3626: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3633: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:3648: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3656: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3687: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3711: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3742: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3766: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3796: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3818: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3848: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3870: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3910: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3939: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3970: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:3983: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4004: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4011: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4041: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4063: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4094: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4118: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4149: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4173: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4203: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4225: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4255: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4277: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4307: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4329: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4359: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4381: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4411: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4433: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4446: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4467: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4474: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4504: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4526: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4557: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4581: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4611: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4633: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4663: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4685: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4715: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4737: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4767: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4789: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4819: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4841: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4871: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4893: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4924: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4948: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:4979: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5003: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5033: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5055: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5085: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5107: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5137: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5159: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5189: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5211: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5241: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5263: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5293: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5315: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5346: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5370: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5401: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5422: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5429: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5459: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5481: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5511: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5533: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5563: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5585: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5598: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5619: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5626: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5656: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5678: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5709: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5733: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5763: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5785: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5815: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5837: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5867: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5889: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5902: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5923: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5930: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5960: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:5982: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6012: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6034: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6064: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6086: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6116: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6138: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6168: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6190: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6220: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6242: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6272: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6294: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6324: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6346: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6376: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6398: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6428: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6450: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6490: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6519: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6549: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6571: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6602: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6615: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6636: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6643: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6673: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6695: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6726: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6750: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6781: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6805: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6836: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6860: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6890: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6912: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6942: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6964: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:6994: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7016: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7029: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7050: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7057: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7087: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7109: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7139: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7161: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7191: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7213: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7243: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7265: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7295: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7317: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7347: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7369: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7399: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7421: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7451: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7473: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7513: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7542: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7572: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7594: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7625: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7638: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7659: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7666: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7696: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7718: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7749: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7773: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7804: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7828: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7859: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7883: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7913: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7935: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7965: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:7987: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8017: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8039: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8052: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8073: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8080: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8110: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8132: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8162: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8184: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8214: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8236: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8266: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8288: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8318: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8340: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8370: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8392: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8422: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8444: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8474: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8496: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8526: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8548: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8578: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8600: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8630: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8652: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8682: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8704: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8744: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8773: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8803: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8825: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8856: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8869: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8890: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8897: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8927: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8949: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:8980: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9004: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9035: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9059: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9090: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9114: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9144: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9166: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9196: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9218: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9248: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9270: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9283: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9304: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9311: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9366: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9412: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9467: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9522: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9577: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9632: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9672: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9724: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9764: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9816: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9856: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9896: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9936: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9976: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:9997: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10018: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10039: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10060: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10081: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10102: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10132: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10154: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10184: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10206: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10236: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10258: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10288: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10310: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10340: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10362: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10392: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10414: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10461: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10492: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10539: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10570: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10617: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10648: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10695: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10726: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10773: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10804: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10850: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10871: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10893: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10945: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10975: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:10997: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11028: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11062: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11105: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11139: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11173: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11207: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11214: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11235: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11278: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11299: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11333: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11376: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11410: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11441: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11463: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11484: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11506: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11528: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11550: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11572: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11594: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:11616: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘SwigMethods’
+oifits_wrap.c:12309: error: expected specifier-qualifier-list before ‘PyObject’
+oifits_wrap.c:12315: error: expected specifier-qualifier-list before ‘PyObject_HEAD’
+oifits_wrap.c:12319: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:12324: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c: In function ‘swig_varlink_print’:
+oifits_wrap.c:12338: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:12338: error: ‘str’ undeclared (first use in this function)
+oifits_wrap.c:12338: warning: implicit declaration of function ‘swig_varlink_str’
+oifits_wrap.c:12340: warning: format ‘%s’ expects type ‘char *’, but argument 3 has type ‘int’
+oifits_wrap.c: In function ‘swig_varlink_dealloc’:
+oifits_wrap.c:12347: error: ‘swig_varlinkobject’ has no member named ‘vars’
+oifits_wrap.c:12349: error: ‘swig_globalvar’ has no member named ‘next’
+oifits_wrap.c: At top level:
+oifits_wrap.c:12356: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:12374: error: expected declaration specifiers or ‘...’ before ‘PyObject’
+oifits_wrap.c: In function ‘swig_varlink_setattr’:
+oifits_wrap.c:12376: error: ‘swig_varlinkobject’ has no member named ‘vars’
+oifits_wrap.c:12379: error: ‘swig_globalvar’ has no member named ‘set_attr’
+oifits_wrap.c:12379: error: ‘p’ undeclared (first use in this function)
+oifits_wrap.c:12382: error: ‘swig_globalvar’ has no member named ‘next’
+oifits_wrap.c:12385: error: ‘PyExc_NameError’ undeclared (first use in this function)
+oifits_wrap.c: At top level:
+oifits_wrap.c:12390: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:12442: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:12452: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:12468: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+oifits_wrap.c:12481: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c:12508: error: expected ‘)’ before ‘*’ token
+oifits_wrap.c: In function ‘init_oifits’:
+oifits_wrap.c:12561: error: ‘PyObject’ undeclared (first use in this function)
+oifits_wrap.c:12561: error: ‘m’ undeclared (first use in this function)
+oifits_wrap.c:12561: error: ‘d’ undeclared (first use in this function)
+oifits_wrap.c:12561: warning: left-hand operand of comma expression has no effect
+oifits_wrap.c:12564: warning: implicit declaration of function ‘SWIG_Python_FixMethods’
+oifits_wrap.c:12564: error: ‘SwigMethods’ undeclared (first use in this function)
+oifits_wrap.c:12567: warning: implicit declaration of function ‘PyModule_GetDict’
+oifits_wrap.c:12570: warning: implicit declaration of function ‘SWIG_Python_InstallConstants’
+oifits_wrap.c:12573: warning: implicit declaration of function ‘PyDict_SetItemString’
+oifits_wrap.c:12573: warning: implicit declaration of function ‘SWIG_globals’
+oifits_wrap.c:12574: warning: implicit declaration of function ‘SWIG_Python_addvarlink’
+oifits_wrap.c:12574: error: ‘Swig_var_oi_hush_errors_get’ undeclared (first use in this function)
+oifits_wrap.c:12574: error: ‘Swig_var_oi_hush_errors_set’ undeclared (first use in this function)
+make: *** [oifits_wrap.o] Error 1
+rm oifits_wrap.c
