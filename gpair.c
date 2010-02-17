@@ -1,5 +1,6 @@
 #include "gpair.h"
 #include "getoifits.h"
+#include <time.h>
 
 // Global variables
 int model_image_size;
@@ -94,11 +95,19 @@ int main(int argc, char *argv[])
 
   // compute mock data, powerspectra + bispectra
   vis2data( );
-  
-  // compute reduced chi2
-  chi2 = data2chi2( )/(float)( npow + 2 * nbis);
-  printf("Reduced chi2 = %f\n", chi2);
 
+  clock_t tick, tock;
+
+  tick = clock();
+
+  // compute reduced chi2
+  for(ii=0; ii < 100000; ii++)
+    chi2 = data2chi2( );
+
+  tock=clock();
+
+  printf("Reduced chi2 = %f\n", chi2/(float)( npow + 2 * nbis));
+  printf("Nb ticks = %ld\n", tock-tick);
   return 1;
 
 }
