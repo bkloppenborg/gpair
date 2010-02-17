@@ -4,17 +4,25 @@
 // Global variables
 int model_image_size;
 double model_image_pixellation;
-oi_data data;
 int status;
 oi_usersel usersel;
-oi_data data; // stores the data points from oifits files
-data_only current; // stores the powerspectrum and bispectrum derived from the current model
+oi_data oifits_info; // stores all the info from oifits files
+
+double *mock; // stores the mock current pseudo-data derived from the image
+double *data; // stores the quantities derived from the data
+double *err; // stores the error bars on the data
+double complex *bisphasor; // bispectrum rotation precomputed value
+
 double complex *visi; // current visibilities
 double *current_image;
 
 // DFT precomputed coefficient tables
 double complex* DFT_tablex;
 double complex* DFT_tabley;
+
+int npow;
+int nbis;
+int nuv;
 
 double square( double number )
 {
@@ -27,12 +35,34 @@ int main(int argc, char *argv[])
   double chi2;
  
   // read OIFITS and visibilities
-  read_oifits(&data);
+  read_oifits(&oifits_info);
   
   // setup visibility/current data matrices
-  visi = malloc( data.nuv * sizeof( double complex));
-  current.pow = malloc( data.npow * sizeof( double ));
-  current.t3 = malloc( data.nbis * sizeof( double complex));   
+
+  npow = oifits_info.npow;
+  nbis = oifits_info.nbis;
+  nuv = oifits_info.nuv;
+
+  visi = malloc( nuv * sizeof( double complex));
+  mock = malloc( (npow + 2 * nbis) * sizeof( double )); // 0:npow-1 == powerspectrum data  npow:npow+2*nbis-1 == bispectrum real/imag
+  data = malloc( (npow + 2 * nbis) * sizeof( double ));
+  err =  malloc( (npow + 2 * nbis) * sizeof( double ));
+  bisphasor = malloc( nbis * sizeof( double complex ));
+
+  for(ii=0; ii < npow; ii++)
+    {
+      data[ii] = oifits_info.pow[ii];
+      err[ii]=  oifits_info.powerr[ii];
+    }
+
+  for(ii = 0; ii < nbis; ii++)
+    {
+      bisphasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
+      data[npow + 2* ii] = oifits_info.bisamp[ii];
+      data[npow + 2* ii + 1 ] = 0.;
+      err[npow + 2* ii]=  oifits_info.bisamperr[ii];
+      err[npow + 2* ii + 1] = oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]  ;      
+    }
 
   // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
   int npix = 128;
@@ -46,16 +76,16 @@ int main(int argc, char *argv[])
 
   
   // setup precomputed DFT table
-  DFT_tablex = malloc( data.nuv * model_image_size * sizeof(double complex));
-  DFT_tabley = malloc( data.nuv * model_image_size * sizeof(double complex));
-  for(uu=0 ; uu < data.nuv; uu++)
+  DFT_tablex = malloc( nuv * model_image_size * sizeof(double complex));
+  DFT_tabley = malloc( nuv * model_image_size * sizeof(double complex));
+  for(uu=0 ; uu < nuv; uu++)
     {
       for(ii=0; ii < model_image_size; ii++)
 	{
 	  DFT_tablex[ model_image_size * uu + ii ] =  
-	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * data.uv[uu].u * (double)ii )  ;
+	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (double)ii )  ;
 	  DFT_tabley[ model_image_size * uu + ii ] =  
-	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * data.uv[uu].v * (double)ii )  ;
+	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (double)ii )  ;
 	}
     }
   
@@ -66,7 +96,7 @@ int main(int argc, char *argv[])
   vis2data( );
   
   // compute reduced chi2
-  chi2 = data2chi2( )/(double)( data.npow + 2.*data.nbis);
+  chi2 = data2chi2( )/(double)( npow + 2.*nbis);
   printf("Reduced chi2 = %f\n", chi2);
 
   return 1;
@@ -78,9 +108,9 @@ int read_oifits()
   // Read the image
   strcpy(usersel.file, "./2004contest1.oifits" );
   get_oi_fits_selection( &usersel , &status );
-  get_oi_fits_data( usersel , &data , &status );
+  get_oi_fits_data( usersel , &oifits_info , &status );
   printf("OIFITS File read\n");  
-  printf("There are %d data : %d powerspectrum and %d bispectrum\n", data.npow + 2 * data.nbis, data.npow, data.nbis);
+  printf("There are %d data : %d powerspectrum and %d bispectrum\n", npow + 2 * nbis, npow, nbis);
   return 1;
 }
 
@@ -92,9 +122,8 @@ void image2vis( )
   
   for(ii=0 ; ii < model_image_size * model_image_size ; ii++) 
     v0 += current_image[ii];
-  printf("v0 == %f\n", v0);
-  printf("%f %f %f\n", data.uv[0].u, data.uv[0].v, model_image_pixellation);
-  for(uu=0 ; uu < data.nuv; uu++)
+
+  for(uu=0 ; uu < nuv; uu++)
     {
       visi[uu] = 0.0 + I * 0.0;
       for(ii=0; ii < model_image_size; ii++)
@@ -109,57 +138,41 @@ void image2vis( )
 void vis2data(  )
 {
   int ii;
-  double complex vab, vbc, vca;
+  double complex vab, vbc, vca, t3;
   
-  for( ii = 0; ii< data.npow; ii++)
+  for( ii = 0; ii< npow; ii++)
     {
-    current.pow[ ii ] = square ( cabs( visi[ii] ) );
+    mock[ ii ] = square ( cabs( visi[ii] ) );
     }
 
-
-  for( ii = 0; ii< data.nbis; ii++)
+  for( ii = 0; ii< nbis; ii++)
     {
-      vab = visi[ data.bsref[ii].ab.uvpnt ];
-      vbc = visi[ data.bsref[ii].bc.uvpnt ];
-      vca = visi[ data.bsref[ii].ca.uvpnt ];	
-      if( data.bsref[ii].ab.sign < 0) vab = conj(vab);
-      if( data.bsref[ii].bc.sign < 0) vbc = conj(vbc);
-      if( data.bsref[ii].ca.sign < 0) vca = conj(vca);
-      current.t3[ ii ] = vab * vbc * vca ;
+      vab = visi[ oifits_info.bsref[ii].ab.uvpnt ];
+      vbc = visi[ oifits_info.bsref[ii].bc.uvpnt ];
+      vca = visi[ oifits_info.bsref[ii].ca.uvpnt ];	
+      if( oifits_info.bsref[ii].ab.sign < 0) vab = conj(vab);
+      if( oifits_info.bsref[ii].bc.sign < 0) vbc = conj(vbc);
+      if( oifits_info.bsref[ii].ca.sign < 0) vca = conj(vca);
+      t3 =  ( vab * vbc * vca ) * bisphasor[ii] ;   
+      mock[ npow + 2 * ii ] = creal(t3) ;
+      mock[ npow + 2 * ii + 1] = cimag(t3) ;
     } 
+
 }
 
 double data2chi2( )
 {
-  double chi2 = 0., chi2v2 = 0., chi2bs = 0. ;
-  double complex t3;
-  //  double t3r, t3i;
+  double chi2 = 0.;
   register int ii;
   
-  for(ii=0; ii< data.npow ; ii++)
+  for(ii=0; ii< npow + 2 * nbis; ii++)
     {
-      chi2v2 += square( ( current.pow[ii] - data.pow[ii] ) / data.powerr[ii] ) ;
+      chi2 += square( ( mock[ii] - data[ii] ) / err[ii] ) ;
     }
- 
-  for(ii =0; ii < data.nbis ; ii++)
-    {
-      
-      t3 = ( current.t3[ ii ] * cexp( - I * data.bisphs[ii] )   - data.bisamp[ii] ) ;
-      t3 = creal(t3) / data.bisamperr[ii] + I * cimag(t3) / ( data.bisamp[ii] * data.bisphserr[ii] );
-      chi2bs += square( cabs(t3 ) );
-      // alternative
-      // data.t3ierr[ii] = data.bisamp[ii] * data.bisphserr[ii];
-      // data.t3rerr[ii] = data.bisamperr[ii];
-      //  data.t3phasor[ii] = cexp( - I * data.bisphs[ii] )
-      // t3= ( current.t3[ ii ] * data.t3phasor[ ii ]   - data.bisamp[ii] ) ;
-      // t3r = creal(t3) / data.realerr[ii];
-      // t3i = cimag(t3) / data.imagerr[ii];
-      // chi2bs += t3r * t3r + t3i * t3i;
-    } 
-  
-  chi2 = chi2v2 + chi2bs;
-  return chi2/(double)( data.npow + 2.*data.nbis);
+
+  return chi2/(double)( npow + 2 * nbis);
 }
+
 
 void write_fits_image( double* image , int* status )
 {
