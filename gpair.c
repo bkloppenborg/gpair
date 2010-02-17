@@ -3,28 +3,28 @@
 
 // Global variables
 int model_image_size;
-double model_image_pixellation;
+float model_image_pixellation;
 int status;
 oi_usersel usersel;
 oi_data oifits_info; // stores all the info from oifits files
 
-double *mock; // stores the mock current pseudo-data derived from the image
-double *data; // stores the quantities derived from the data
-double *err; // stores the error bars on the data
-double complex *bisphasor; // bispectrum rotation precomputed value
+float *mock; // stores the mock current pseudo-data derived from the image
+float *data; // stores the quantities derived from the data
+float *err; // stores the error bars on the data
+float complex *bisphasor; // bispectrum rotation precomputed value
 
-double complex *visi; // current visibilities
-double *current_image;
+float complex *visi; // current visibilities
+float *current_image;
 
 // DFT precomputed coefficient tables
-double complex* DFT_tablex;
-double complex* DFT_tabley;
+float complex* DFT_tablex;
+float complex* DFT_tabley;
 
 int npow;
 int nbis;
 int nuv;
 
-double square( double number )
+float square( float number )
 {
     return number*number;
 }
@@ -32,7 +32,7 @@ double square( double number )
 int main(int argc, char *argv[])
 {   
   register int ii, uu;
-  double chi2;
+  float chi2;
  
   // read OIFITS and visibilities
   read_oifits(&oifits_info);
@@ -43,11 +43,11 @@ int main(int argc, char *argv[])
   nbis = oifits_info.nbis;
   nuv = oifits_info.nuv;
 
-  visi = malloc( nuv * sizeof( double complex));
-  mock = malloc( (npow + 2 * nbis) * sizeof( double )); // 0:npow-1 == powerspectrum data  npow:npow+2*nbis-1 == bispectrum real/imag
-  data = malloc( (npow + 2 * nbis) * sizeof( double ));
-  err =  malloc( (npow + 2 * nbis) * sizeof( double ));
-  bisphasor = malloc( nbis * sizeof( double complex ));
+  visi = malloc( nuv * sizeof( float complex));
+  mock = malloc( (npow + 2 * nbis) * sizeof( float )); // 0:npow-1 == powerspectrum data  npow:npow+2*nbis-1 == bispectrum real/imag
+  data = malloc( (npow + 2 * nbis) * sizeof( float ));
+  err =  malloc( (npow + 2 * nbis) * sizeof( float ));
+  bisphasor = malloc( nbis * sizeof( float complex ));
 
   for(ii=0; ii < npow; ii++)
     {
@@ -66,8 +66,8 @@ int main(int argc, char *argv[])
 
   // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
   int npix = 128;
-  double model_image_pixellation = 0.15 ;
-  current_image = (double*)malloc(npix*npix*sizeof(double));
+  float model_image_pixellation = 0.15 ;
+  current_image = (float*)malloc(npix*npix*sizeof(float));
   for(ii=0; ii< (npix * npix - 1); ii++)
     {
       current_image[ ii ]= 0. ;
@@ -76,16 +76,16 @@ int main(int argc, char *argv[])
 
   
   // setup precomputed DFT table
-  DFT_tablex = malloc( nuv * model_image_size * sizeof(double complex));
-  DFT_tabley = malloc( nuv * model_image_size * sizeof(double complex));
+  DFT_tablex = malloc( nuv * model_image_size * sizeof(float complex));
+  DFT_tabley = malloc( nuv * model_image_size * sizeof(float complex));
   for(uu=0 ; uu < nuv; uu++)
     {
       for(ii=0; ii < model_image_size; ii++)
 	{
 	  DFT_tablex[ model_image_size * uu + ii ] =  
-	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (double)ii )  ;
+	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
 	  DFT_tabley[ model_image_size * uu + ii ] =  
-	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (double)ii )  ;
+	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
 	}
     }
   
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
   vis2data( );
   
   // compute reduced chi2
-  chi2 = data2chi2( )/(double)( npow + 2.*nbis);
+  chi2 = data2chi2( )/(float)( npow + 2 * nbis);
   printf("Reduced chi2 = %f\n", chi2);
 
   return 1;
@@ -118,7 +118,7 @@ void image2vis( )
 {	
   // DFT
   int ii, jj, uu;	
-  double v0 = 0.; // zeroflux 
+  float v0 = 0.; // zeroflux 
   
   for(ii=0 ; ii < model_image_size * model_image_size ; ii++) 
     v0 += current_image[ii];
@@ -138,7 +138,7 @@ void image2vis( )
 void vis2data(  )
 {
   int ii;
-  double complex vab, vbc, vca, t3;
+  float complex vab, vbc, vca, t3;
   
   for( ii = 0; ii< npow; ii++)
     {
@@ -160,21 +160,20 @@ void vis2data(  )
 
 }
 
-double data2chi2( )
+float data2chi2( )
 {
-  double chi2 = 0.;
-  register int ii;
-  
+  float chi2 = 0.;
+  register int ii;  
   for(ii=0; ii< npow + 2 * nbis; ii++)
     {
       chi2 += square( ( mock[ii] - data[ii] ) / err[ii] ) ;
     }
 
-  return chi2/(double)( npow + 2 * nbis);
+  return chi2;
 }
 
 
-void write_fits_image( double* image , int* status )
+void write_fits_image( float* image , int* status )
 {
   fitsfile *fptr;
   int i;
@@ -195,20 +194,20 @@ void write_fits_image( double* image , int* status )
 
   /*Create primary array image*/
   if (*status == 0)
-    fits_create_img(fptr, DOUBLE_IMG, naxis, naxes, status); 
+    fits_create_img(fptr, FLOAT_IMG, naxis, naxes, status); 
   /*Write a keywords (datafile, target, image pixelation) */
   if (*status == 0)
     fits_update_key(fptr, TSTRING, "DATAFILE", "dummy", "Data File Name", status); 
   if (*status == 0)
     fits_update_key(fptr, TSTRING, "TARGET", "dummy", "Target Name", status); 
   if (*status == 0)
-    fits_update_key(fptr, TDOUBLE, "PIXSIZE", &model_image_pixellation, "Pixelation (mas)", status);
+    fits_update_key(fptr, TFLOAT, "PIXSIZE", &model_image_pixellation, "Pixelation (mas)", status);
   if (*status == 0)
     fits_update_key(fptr, TINT, "WIDTH", &model_image_size, "Size (pixels)", status); 
  
   /*Write image*/
   if (*status == 0)
-    fits_write_img(fptr, TDOUBLE, fpixel, nelements, &image[ 0 ], status); 
+    fits_write_img(fptr, TFLOAT, fpixel, nelements, &image[ 0 ], status); 
 
   /*Close file*/
   if (*status == 0)

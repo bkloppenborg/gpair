@@ -12,11 +12,11 @@
 #include "getoifits.h"
 
 
-int compare_uv(oi_uv uv, oi_uv withuv, double thresh)
+int compare_uv(oi_uv uv, oi_uv withuv, float thresh)
 {
-  double sqthresh;
-  double pcompu,pcompv;
-  double mcompu,mcompv;
+  float sqthresh;
+  float pcompu,pcompv;
+  float mcompu,mcompv;
 
 
   sqthresh = thresh*thresh;
@@ -90,15 +90,15 @@ int get_oi_fits_data(oi_usersel usersel, oi_data* data, int* status)
   }
 
   /* Allocate memory */
-  data->pow = (double*)malloc(usersel.numvis2*sizeof(double));
-  data->powerr = (double*)malloc(usersel.numvis2*sizeof(double));
-  data->bisamp=(double*)malloc(usersel.numt3*sizeof(double));
-  data->bisphs=(double*)malloc(usersel.numt3*sizeof(double));
-  data->bisamperr=(double*)malloc(usersel.numt3*sizeof(double));
-  data->bisphserr=(double*)malloc(usersel.numt3*sizeof(double));
+  data->pow = (float*)malloc(usersel.numvis2*sizeof(float));
+  data->powerr = (float*)malloc(usersel.numvis2*sizeof(float));
+  data->bisamp=(float*)malloc(usersel.numt3*sizeof(float));
+  data->bisphs=(float*)malloc(usersel.numt3*sizeof(float));
+  data->bisamperr=(float*)malloc(usersel.numt3*sizeof(float));
+  data->bisphserr=(float*)malloc(usersel.numt3*sizeof(float));
   data->bsref = (oi_bsref*)malloc(usersel.numt3*sizeof(oi_bsref));
   data->uv = (oi_uv*)malloc((usersel.numvis2+3*usersel.numt3)*sizeof(oi_uv));
-  data->time = (double*)malloc((usersel.numvis2+3*usersel.numt3)*sizeof(double));
+  data->time = (float*)malloc((usersel.numvis2+3*usersel.numt3)*sizeof(float));
 
   /* Allocate as much space for UV as possible initially and then reallocate in the end */
   /* Read in visibility */
@@ -125,13 +125,13 @@ int get_oi_fits_data(oi_usersel usersel, oi_data* data, int* status)
 			{
 			  if(((wave.eff_wave[k]*billion)>usersel.minband)&&((wave.eff_wave[k]*billion)<usersel.maxband)&&(!(vis2.record[i].flag[k])))
 			    {
-			      data->pow[data->npow] = (double)vis2.record[i].vis2data[k];
-			      data->powerr[data->npow] = (double)vis2.record[i].vis2err[k];
+			      data->pow[data->npow] = (float)vis2.record[i].vis2data[k];
+			      data->powerr[data->npow] = (float)vis2.record[i].vis2err[k];
 			      
-			      data->uv[data->nuv].u = (double)(vis2.record[i].ucoord/wave.eff_wave[k]); 
-			      data->uv[data->nuv].v = (double)(vis2.record[i].vcoord/wave.eff_wave[k]);
+			      data->uv[data->nuv].u = (float)(vis2.record[i].ucoord/wave.eff_wave[k]); 
+			      data->uv[data->nuv].v = (float)(vis2.record[i].vcoord/wave.eff_wave[k]);
 			      
-			      data->time[data->npow] = (double)vis2.record[i].time;
+			      data->time[data->npow] = (float)vis2.record[i].time;
 			      
 			      /* flip into +u half plane */
 			      if(data->uv[data->nuv].u<0.0)
@@ -177,10 +177,10 @@ int get_oi_fits_data(oi_usersel usersel, oi_data* data, int* status)
 
 			  if(((wave.eff_wave[k]*billion)>usersel.minband)&&((wave.eff_wave[k]*billion)<usersel.maxband)&&(!(t3.record[i].flag[k])))
 			    {
-			      data->bisamp[data->nbis]=(double)(t3.record[i].t3amp[k]);
-			      data->bisphs[data->nbis]=(double)(t3.record[i].t3phi[k]) * PI / 180.;
-			      data->bisamperr[data->nbis]=(double)(t3.record[i].t3amperr[k]) ;
-			      data->bisphserr[data->nbis]=(double)(t3.record[i].t3phierr[k]) * PI / 180.;
+			      data->bisamp[data->nbis]=(float)(t3.record[i].t3amp[k]);
+			      data->bisphs[data->nbis]=(float)(t3.record[i].t3phi[k]) * PI / 180.;
+			      data->bisamperr[data->nbis]=(float)(t3.record[i].t3amperr[k]) ;
+			      data->bisphserr[data->nbis]=(float)(t3.record[i].t3phierr[k]) * PI / 180.;
 			      data->time[data->npow+data->nbis] = t3.record[i].time;
 
 			      if(isnan(t3.record[i].t3amp[k]))
@@ -192,10 +192,10 @@ int get_oi_fits_data(oi_usersel usersel, oi_data* data, int* status)
 			      /* Read UV coords and check if they exist. If do not exist -> update UV.
 			       * Set the bsref.
 			       */
-			      puv1.u = (double)(t3.record[i].u1coord/wave.eff_wave[k]);
-			      puv1.v = (double)(t3.record[i].v1coord/wave.eff_wave[k]);
-			      puv2.u = (double)(t3.record[i].u2coord/wave.eff_wave[k]);
-			      puv2.v = (double)(t3.record[i].v2coord/wave.eff_wave[k]);
+			      puv1.u = (float)(t3.record[i].u1coord/wave.eff_wave[k]);
+			      puv1.v = (float)(t3.record[i].v1coord/wave.eff_wave[k]);
+			      puv2.u = (float)(t3.record[i].u2coord/wave.eff_wave[k]);
+			      puv2.v = (float)(t3.record[i].v2coord/wave.eff_wave[k]);
 			      puv3.u = -(puv1.u+puv2.u);
 			      puv3.v = -(puv1.v+puv2.v);
 			      
@@ -750,12 +750,12 @@ void free_oi_data(oi_data *data)
   free(data->bsref);
 }
 
-void read_fits_image(char* fname, double* img, int* n, int* status)
+void read_fits_image(char* fname, float* img, int* n, int* status)
 {
   fitsfile *fptr;       /* pointer to the FITS file, defined in fitsio.h */
   int  nfound, anynull;
   long naxes[2], fpixel, npixels;
-  double nullval;
+  float nullval;
 
   if (*status==0)fits_open_file(&fptr, fname, READONLY, status);
 
@@ -781,7 +781,7 @@ void read_fits_image(char* fname, double* img, int* n, int* status)
     {
       *n = naxes[0];
       /* Allocate enough memory outside of this routine */
-      if(*status==0)fits_read_img(fptr, TDOUBLE, fpixel, npixels, &nullval, img, &anynull, status);
+      if(*status==0)fits_read_img(fptr, TFLOAT, fpixel, npixels, &nullval, img, &anynull, status);
       if(*status==0)fits_close_file(fptr, status);
     }
 }
