@@ -1,6 +1,7 @@
 #include "gpair.h"
 #include "getoifits.h"
 #include <time.h>
+#include "gpu.h"
 
 // Global variables
 int model_image_size;
@@ -32,31 +33,31 @@ float square( float number )
 
 int main(int argc, char *argv[])
 {   
-  register int ii, uu;
-  float chi2;
- 
-  // read OIFITS and visibilities
-  read_oifits(&oifits_info);
-  
-  // setup visibility/current data matrices
+    register int ii, uu;
+    float chi2;
 
-  npow = oifits_info.npow;
-  nbis = oifits_info.nbis;
-  nuv = oifits_info.nuv;
+    // read OIFITS and visibilities
+    read_oifits(&oifits_info);
 
-  visi = malloc( nuv * sizeof( float complex));
-  mock = malloc( (npow + 2 * nbis) * sizeof( float )); // 0:npow-1 == powerspectrum data  npow:npow+2*nbis-1 == bispectrum real/imag
-  data = malloc( (npow + 2 * nbis) * sizeof( float ));
-  err =  malloc( (npow + 2 * nbis) * sizeof( float ));
-  bisphasor = malloc( nbis * sizeof( float complex ));
+    // setup visibility/current data matrices
 
-  for(ii=0; ii < npow; ii++)
+    npow = oifits_info.npow;
+    nbis = oifits_info.nbis;
+    nuv = oifits_info.nuv;
+
+    visi = malloc( nuv * sizeof( float complex));
+    mock = malloc( (npow + 2 * nbis) * sizeof( float )); // 0:npow-1 == powerspectrum data  npow:npow+2*nbis-1 == bispectrum real/imag
+    data = malloc( (npow + 2 * nbis) * sizeof( float ));
+    err =  malloc( (npow + 2 * nbis) * sizeof( float ));
+    bisphasor = malloc( nbis * sizeof( float complex ));
+
+    for(ii=0; ii < npow; ii++)
     {
       data[ii] = oifits_info.pow[ii];
       err[ii]=  oifits_info.powerr[ii];
     }
 
-  for(ii = 0; ii < nbis; ii++)
+    for(ii = 0; ii < nbis; ii++)
     {
       bisphasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
       data[npow + 2* ii] = oifits_info.bisamp[ii];
@@ -65,50 +66,60 @@ int main(int argc, char *argv[])
       err[npow + 2* ii + 1] = oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]  ;      
     }
 
-  // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
-  int npix = 128;
-  float model_image_pixellation = 0.15 ;
-  current_image = (float*)malloc(npix*npix*sizeof(float));
-  for(ii=0; ii< (npix * npix - 1); ii++)
+    // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
+    int npix = 128;
+    float model_image_pixellation = 0.15 ;
+    current_image = (float*)malloc(npix*npix*sizeof(float));
+    for(ii=0; ii< (npix * npix - 1); ii++)
     {
       current_image[ ii ]= 0. ;
     }  
-  current_image[(npix * (npix + 1 ) )/ 2 ] = 1.0;
+    current_image[(npix * (npix + 1 ) )/ 2 ] = 1.0;
 
-  
-  // setup precomputed DFT table
-  DFT_tablex = malloc( nuv * model_image_size * sizeof(float complex));
-  DFT_tabley = malloc( nuv * model_image_size * sizeof(float complex));
-  for(uu=0 ; uu < nuv; uu++)
+
+    // setup precomputed DFT table
+    DFT_tablex = malloc( nuv * model_image_size * sizeof(float complex));
+    DFT_tabley = malloc( nuv * model_image_size * sizeof(float complex));
+    for(uu=0 ; uu < nuv; uu++)
     {
       for(ii=0; ii < model_image_size; ii++)
-	{
-	  DFT_tablex[ model_image_size * uu + ii ] =  
-	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
-	  DFT_tabley[ model_image_size * uu + ii ] =  
-	    cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
-	}
+    {
+      DFT_tablex[ model_image_size * uu + ii ] =  
+        cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
+      DFT_tabley[ model_image_size * uu + ii ] =  
+        cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
     }
-  
-  //compute complex visibilities 
-  image2vis();
+    }
 
-  // compute mock data, powerspectra + bispectra
-  vis2data( );
+    //compute complex visibilities 
+    image2vis();
 
-  clock_t tick, tock;
+    // compute mock data, powerspectra + bispectra
+    vis2data( );
 
-  tick = clock();
+    clock_t tick, tock;
 
-  // compute reduced chi2
-  for(ii=0; ii < 100000; ii++)
+    tick = clock();
+
+    // compute reduced chi2
+    for(ii=0; ii < 100000; ii++)
     chi2 = data2chi2( );
 
-  tock=clock();
+    tock=clock();
 
-  printf("Reduced chi2 = %f\n", chi2/(float)( npow + 2 * nbis));
-  printf("Nb ticks = %ld\n", tock-tick);
-  return 1;
+    printf("Reduced chi2 = %f\n", chi2/(float)( npow + 2 * nbis));
+    printf("Nb ticks = %ld\n", tock-tick);
+
+    // GPU Code:  
+    init_gpu();
+    load_data_gpu(data, err);
+    tick = clock();
+    float chi2_gpu = data2chi2_gpu(data, err, mock, npow, nbis);
+    tock = clock();
+    printf("Reduced chi2_gpu = %f\n", chi2_gpu);
+    printf("Nb ticks = %ld\n", tock-tick);
+
+    return 1;
 
 }
 
