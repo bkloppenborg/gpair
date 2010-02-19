@@ -53,17 +53,17 @@ int main(int argc, char *argv[])
 
     for(ii=0; ii < npow; ii++)
     {
-      data[ii] = oifits_info.pow[ii];
-      err[ii]=  oifits_info.powerr[ii];
+        data[ii] = oifits_info.pow[ii];
+        err[ii]=  oifits_info.powerr[ii];
     }
 
     for(ii = 0; ii < nbis; ii++)
     {
-      bisphasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
-      data[npow + 2* ii] = oifits_info.bisamp[ii];
-      data[npow + 2* ii + 1 ] = 0.;
-      err[npow + 2* ii]=  oifits_info.bisamperr[ii];
-      err[npow + 2* ii + 1] = oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]  ;      
+        bisphasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
+        data[npow + 2* ii] = oifits_info.bisamp[ii];
+        data[npow + 2* ii + 1 ] = 0.;
+        err[npow + 2* ii]=  oifits_info.bisamperr[ii];
+        err[npow + 2* ii + 1] = oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]  ;      
     }
 
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     current_image = (float*)malloc(npix*npix*sizeof(float));
     for(ii=0; ii< (npix * npix - 1); ii++)
     {
-      current_image[ ii ]= 0. ;
+        current_image[ ii ]= 0. ;
     }  
     current_image[(npix * (npix + 1 ) )/ 2 ] = 1.0;
 
@@ -82,13 +82,13 @@ int main(int argc, char *argv[])
     DFT_tabley = malloc( nuv * model_image_size * sizeof(float complex));
     for(uu=0 ; uu < nuv; uu++)
     {
-      for(ii=0; ii < model_image_size; ii++)
-    {
-      DFT_tablex[ model_image_size * uu + ii ] =  
-        cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
-      DFT_tabley[ model_image_size * uu + ii ] =  
-        cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
-    }
+        for(ii=0; ii < model_image_size; ii++)
+        {
+            DFT_tablex[ model_image_size * uu + ii ] =  
+                cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
+            DFT_tabley[ model_image_size * uu + ii ] =  
+                cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
+        }
     }
 
     //compute complex visibilities 
@@ -102,8 +102,8 @@ int main(int argc, char *argv[])
     tick = clock();
 
     // compute reduced chi2
-    for(ii=0; ii < 100000; ii++)
-    chi2 = data2chi2( );
+    for(ii=0; ii < 1000; ii++)
+        chi2 = data2chi2( );
 
     tock=clock();
 
@@ -115,9 +115,12 @@ int main(int argc, char *argv[])
     float chi2_gpu = 0;
     gpu_init();
     gpu_copy_data(data, err, npow, nbis);
+    gpu_build_kernels();
     
     tick = clock();
-    chi2_gpu = gpu_data2chi2(mock, npow, nbis);
+    for(ii=0; ii < 1000; ii++)
+        chi2_gpu = gpu_data2chi2(mock, npow, nbis);
+    
     tock = clock();
     
     printf("Reduced chi2_gpu = %f\n", chi2_gpu);
@@ -141,20 +144,20 @@ int read_oifits()
 
 void image2vis( )
 {	
-  // DFT
-  int ii, jj, uu;	
-  float v0 = 0.; // zeroflux 
-  
-  for(ii=0 ; ii < model_image_size * model_image_size ; ii++) 
-    v0 += current_image[ii];
+    // DFT
+    int ii, jj, uu;	
+    float v0 = 0.; // zeroflux 
 
-  for(uu=0 ; uu < nuv; uu++)
+    for(ii=0 ; ii < model_image_size * model_image_size ; ii++) 
+        v0 += current_image[ii];
+
+    for(uu=0 ; uu < nuv; uu++)
     {
-      visi[uu] = 0.0 + I * 0.0;
-      for(ii=0; ii < model_image_size; ii++)
-	  for(jj=0; jj < model_image_size; jj++)
-	    visi[uu] += current_image[ ii + model_image_size * jj ] *  DFT_tablex[ model_image_size * uu +  ii] * DFT_tablex[ model_image_size * uu +  jj];
-      if (v0 > 0.) visi[uu] /= v0;
+        visi[uu] = 0.0 + I * 0.0;
+        for(ii=0; ii < model_image_size; ii++)
+            for(jj=0; jj < model_image_size; jj++)
+                visi[uu] += current_image[ ii + model_image_size * jj ] *  DFT_tablex[ model_image_size * uu +  ii] * DFT_tablex[ model_image_size * uu +  jj];
+        if (v0 > 0.) visi[uu] /= v0;
     }
   
   printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
@@ -162,39 +165,43 @@ void image2vis( )
 
 void vis2data(  )
 {
-  int ii;
-  float complex vab, vbc, vca, t3;
-  
-  for( ii = 0; ii< npow; ii++)
+    int ii;
+    float complex vab, vbc, vca, t3;
+
+    for( ii = 0; ii< npow; ii++)
     {
-    mock[ ii ] = square ( cabs( visi[ii] ) );
+        mock[ ii ] = square ( cabs( visi[ii] ) );
     }
 
-  for( ii = 0; ii< nbis; ii++)
+    for( ii = 0; ii< nbis; ii++)
     {
-      vab = visi[ oifits_info.bsref[ii].ab.uvpnt ];
-      vbc = visi[ oifits_info.bsref[ii].bc.uvpnt ];
-      vca = visi[ oifits_info.bsref[ii].ca.uvpnt ];	
-      if( oifits_info.bsref[ii].ab.sign < 0) vab = conj(vab);
-      if( oifits_info.bsref[ii].bc.sign < 0) vbc = conj(vbc);
-      if( oifits_info.bsref[ii].ca.sign < 0) vca = conj(vca);
-      t3 =  ( vab * vbc * vca ) * bisphasor[ii] ;   
-      mock[ npow + 2 * ii ] = creal(t3) ;
-      mock[ npow + 2 * ii + 1] = cimag(t3) ;
+        vab = visi[ oifits_info.bsref[ii].ab.uvpnt ];
+        vbc = visi[ oifits_info.bsref[ii].bc.uvpnt ];
+        vca = visi[ oifits_info.bsref[ii].ca.uvpnt ];	
+        if( oifits_info.bsref[ii].ab.sign < 0) 
+            vab = conj(vab);
+        if( oifits_info.bsref[ii].bc.sign < 0) 
+            vbc = conj(vbc);
+        if( oifits_info.bsref[ii].ca.sign < 0) 
+            vca = conj(vca);
+            
+        t3 =  ( vab * vbc * vca ) * bisphasor[ii] ;   
+        mock[ npow + 2 * ii ] = creal(t3) ;
+        mock[ npow + 2 * ii + 1] = cimag(t3) ;
     } 
 
 }
 
 float data2chi2( )
 {
-  float chi2 = 0.;
-  register int ii;  
-  for(ii=0; ii< npow + 2 * nbis; ii++)
+    float chi2 = 0.;
+    register int ii;  
+    for(ii=0; ii< npow + 2 * nbis; ii++)
     {
-      chi2 += square( ( mock[ii] - data[ii] ) / err[ii] ) ;
+        chi2 += square( ( mock[ii] - data[ii] ) / err[ii] ) ;
     }
 
-  return chi2;
+    return chi2;
 }
 
 

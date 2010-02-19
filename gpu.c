@@ -6,26 +6,27 @@
 
 // Load the OCL kernel:
 const char *ocl_kernel_chi2 = "\n" \
-"__kernel void chi2(                                                \n" \
-"    __global float* data,                                          \n" \
-"    __global float* data_err,                                      \n" \
-"    __global float* curr_model,                                    \n" \
-"    __global float* output,                                        \n" \
-"    const unsigned int count)                                      \n" \
-"{                                                                  \n" \
-"    int i = get_global_id(0);                                      \n" \
-"    if(i < count)                                                  \n" \
-"        output[i] = (curr_model[i] - data[i]) / data_err[i];       \n" \
-"        output[i] = pown(output[i], 2);                            \n" \
-"}                                                                  \n" \
+"__kernel void chi2(                                                    \n" \
+"    __global float* data,                                              \n" \
+"    __global float* data_err,                                          \n" \
+"    __global float* curr_model,                                        \n" \
+"    __global float* output,                                            \n" \
+"    const unsigned int count)                                          \n" \
+"{                                                                      \n" \
+"    int i = get_global_id(0);                                          \n" \
+"    if(i < count)                                                      \n" \
+"        output[i] = pown((curr_model[i] - data[i]) / data_err[i], 2);  \n" \
+"}                                                                      \n" \
 "\n";       
 
-
+// Global variables
 cl_device_id * pDevice_id;           // device ID
 cl_context * pContext;               // context
 cl_command_queue * pQueue;           // command queue
 cl_mem * pGpu_data;
 cl_mem * pGpu_data_err;
+cl_kernel * pKernel_chi2;
+cl_program * pPro_chi2;
 
 // A quick way to output an error from an OpenCL function:
 void print_opencl_error(char* error_message, int error_code)
@@ -65,6 +66,39 @@ void gpu_init()
     pQueue = &queue;
 }
 
+void gpu_build_kernels()
+{
+    static cl_program pro_chi2; 
+    static cl_kernel kernel_chi2;
+    
+    int err = 0;
+     // Create the compute program from the source buffer                 
+    pro_chi2 = clCreateProgramWithSource(*pContext, 1, (const char **) & ocl_kernel_chi2, NULL, &err);     
+    if (err != CL_SUCCESS)   
+        print_opencl_error("clCreateProgramWithSource", err);    
+        
+    // Build the program executable for the start of the chi2 computation.
+    err = clBuildProgram(pro_chi2, 0, NULL, NULL, NULL, NULL);
+    if (err != CL_SUCCESS)
+    {
+        size_t len;
+        char buffer[2048];
+
+        printf("Error: Failed to build program executable\n");          
+        clGetProgramBuildInfo(pro_chi2, *pDevice_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
+        printf("%s\n", buffer);
+        exit(1);
+    }
+   
+    // Create the compute kernel in the program we wish to run           
+    kernel_chi2 = clCreateKernel(pro_chi2, "chi2", &err);
+    if (!kernel_chi2 || err != CL_SUCCESS)
+        print_opencl_error("clCreateKernel", err); 
+        
+    pKernel_chi2 = &kernel_chi2;
+    pPro_chi2 = &pro_chi2;
+}
+
 void gpu_copy_data(float *data, float *data_err, int npow, int nbis)
 {
     int count = npow+2*nbis;
@@ -89,10 +123,18 @@ void gpu_copy_data(float *data, float *data_err, int npow, int nbis)
 
 void gpu_cleanup()
 {
+    // Release program and kernel objects:
+    clReleaseProgram(*pPro_chi2);
+    clReleaseKernel(*pKernel_chi2);
+
+    // Releate Memory objects:
     clReleaseMemObject(*pGpu_data);
     clReleaseMemObject(*pGpu_data_err);
+    
+    // Release the command queue and context:
     clReleaseCommandQueue(*pQueue);
     clReleaseContext(*pContext);
+    
 }
 
 
@@ -106,42 +148,11 @@ double gpu_data2chi2(float *mock, int npow, int nbis)
     size_t global;                    // global domain size for our calculation
     size_t local;                     // local domain size for our calculation
 
-    cl_program pro_chi2;               // program
-    cl_kernel kernel_chi2;                 // kernel
-
     cl_mem gpu_model;
     cl_mem gpu_result;            // device memory used for the output array
     int count = npow+2*nbis;               // the length of the data
     float results[count]; 
-        
-    // TODO: Pass pointers into this function.
-    // Pointer names: data, model
-    // TODO: Move this code out of this function and just keep the data on the GPU:
-    // Move the necessary data over to the GPU
- 
-     // Create the compute program from the source buffer                 
-    pro_chi2 = clCreateProgramWithSource(*pContext, 1, (const char **) & ocl_kernel_chi2, NULL, &err);     
-    if (err != CL_SUCCESS)   
-        print_opencl_error("clCreateProgramWithSource", err);    
-        
-    // Build the program executable for the start of the chi2 computation.
-    err = clBuildProgram(pro_chi2, 0, NULL, NULL, NULL, NULL);
-    if (err != CL_SUCCESS)
-    {
-        size_t len;
-        char buffer[2048];
-
-        printf("Error: Failed to build program executable\n");          
-        clGetProgramBuildInfo(pro_chi2, *pDevice_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
-        printf("%s\n", buffer);
-        exit(1);
-    }
-   
-
-    // Create the compute kernel in the program we wish to run           
-    kernel_chi2 = clCreateKernel(pro_chi2, "chi2", &err);
-    if (!kernel_chi2 || err != CL_SUCCESS)
-        print_opencl_error("clCreateKernel", err);   
+          
     
     // Create the input and output arrays in device memory for our calculation 
     gpu_model = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
@@ -157,22 +168,22 @@ double gpu_data2chi2(float *mock, int npow, int nbis)
 
     // Set the arguments to our compute kernel                         
     err = 0;
-    err  = clSetKernelArg(kernel_chi2, 0, sizeof(cl_mem), pGpu_data);
-    err |= clSetKernelArg(kernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
-    err |= clSetKernelArg(kernel_chi2, 2, sizeof(cl_mem), &gpu_model);
-    err |= clSetKernelArg(kernel_chi2, 3, sizeof(cl_mem), &gpu_result);
-    err |= clSetKernelArg(kernel_chi2, 4, sizeof(unsigned int), &count);
+    err  = clSetKernelArg(*pKernel_chi2, 0, sizeof(cl_mem), pGpu_data);
+    err |= clSetKernelArg(*pKernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
+    err |= clSetKernelArg(*pKernel_chi2, 2, sizeof(cl_mem), &gpu_model);
+    err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), &gpu_result);
+    err |= clSetKernelArg(*pKernel_chi2, 4, sizeof(unsigned int), &count);
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);
 
     // Get the maximum work-group size for executing the kernel on the device
-    err = clGetKernelWorkGroupInfo(kernel_chi2, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+    err = clGetKernelWorkGroupInfo(*pKernel_chi2, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
     // Execute the kernel over the entire range of the data set        
     global = count;
-    err = clEnqueueNDRangeKernel(*pQueue, kernel_chi2, 1, NULL, &global, NULL, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_chi2, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("clEnqueueNDRangeKernel chi2", err);
 
@@ -193,8 +204,6 @@ double gpu_data2chi2(float *mock, int npow, int nbis)
     // Shut down and clean up
     clReleaseMemObject(gpu_model);
     clReleaseMemObject(gpu_result);
-    clReleaseProgram(pro_chi2);
-    clReleaseKernel(kernel_chi2);
         
     return chi2_temp/(double)(count);  
 }
