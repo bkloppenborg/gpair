@@ -111,14 +111,19 @@ int main(int argc, char *argv[])
     printf("Nb ticks = %ld\n", tock-tick);
 
     // GPU Code:  
-    init_gpu();
-    load_data_gpu(data, err);
+   
+    float chi2_gpu = 0;
+    gpu_init();
+    gpu_copy_data(data, err, npow, nbis);
+    
     tick = clock();
-    float chi2_gpu = data2chi2_gpu(data, err, mock, npow, nbis);
+    chi2_gpu = gpu_data2chi2(mock, npow, nbis);
     tock = clock();
+    
     printf("Reduced chi2_gpu = %f\n", chi2_gpu);
     printf("Nb ticks = %ld\n", tock-tick);
-
+    gpu_cleanup();
+    
     return 1;
 
 }

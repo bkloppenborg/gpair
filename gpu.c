@@ -1,5 +1,4 @@
 #include "gpu.h"
-#include "cl.h" // OpenCL header file
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -22,7 +21,11 @@ const char *ocl_kernel_chi2 = "\n" \
 "\n";       
 
 
-
+cl_device_id * pDevice_id;           // device ID
+cl_context * pContext;               // context
+cl_command_queue * pQueue;           // command queue
+cl_mem * pGpu_data;
+cl_mem * pGpu_data_err;
 
 // A quick way to output an error from an OpenCL function:
 void print_opencl_error(char* error_message, int error_code)
@@ -32,19 +35,69 @@ void print_opencl_error(char* error_message, int error_code)
     exit(0);
 }
 
-/*// A function to setup the OpenCL device with all of our kernels*/
-/*void setup_device()*/
-/*{*/
-/*    cl_device_id device_id;           // device ID*/
-/*    cl_context context;               // context*/
-/*    cl_command_queue queue;           // command queue*/
-/*    cl_program program;               // program*/
-/*    cl_kernel kernel;                 // kernel*/
-/*}*/
+void gpu_init()
+{
+    // Init a few variables.  Static so they won't go out of scope.
+    static cl_device_id device_id;           // device ID
+    static cl_context context;               // context
+    static cl_command_queue queue;           // command queue
+    
+    int err = 0;
+    
+    // Get an ID for the device                                   a
+    err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+    if (err != CL_SUCCESS)   //      [3]
+        print_opencl_error("Unable to get GPU Device", err);                                      
+
+    // Create a context                                           
+    context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
+    if(err != CL_SUCCESS)
+        print_opencl_error("Unable to create OpenCL context", err);      
+
+    // Create a command queue                                          
+    queue = clCreateCommandQueue(context, device_id, 0, &err);
+    if (err != CL_SUCCESS)   
+        print_opencl_error("Unable to create command queue", err); 
+    
+    // Set the pointers.    
+    pDevice_id = &device_id;
+    pContext = &context;
+    pQueue = &queue;
+}
+
+void gpu_copy_data(float *data, float *data_err, int npow, int nbis)
+{
+    int count = npow+2*nbis;
+    int err = 0;
+
+    static cl_mem gpu_data;
+    static cl_mem gpu_data_err;  
+    
+    gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
+    gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL); 
+    if (!gpu_data || !gpu_data_err)
+        print_opencl_error("clCreateBuffer", 0);
+    
+    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) *count, data, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_TRUE, 0, sizeof(float) *count, data_err, 0, NULL, NULL);
+        if (err != CL_SUCCESS)
+        print_opencl_error("clEnqueueWriteBuffer", err);     
+        
+    pGpu_data = &gpu_data;
+    pGpu_data_err = &gpu_data_err; 
+}
+
+void gpu_cleanup()
+{
+    clReleaseMemObject(*pGpu_data);
+    clReleaseMemObject(*pGpu_data_err);
+    clReleaseCommandQueue(*pQueue);
+    clReleaseContext(*pContext);
+}
 
 
 // Compute the chi2 of the data using a GPU
-double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nbis)
+double gpu_data2chi2(float *mock, int npow, int nbis)
 {
 
     // TODO: Move this elsewhere later.
@@ -53,35 +106,13 @@ double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nb
     size_t global;                    // global domain size for our calculation
     size_t local;                     // local domain size for our calculation
 
-    cl_device_id device_id;           // device ID
-    cl_context context;               // context
-    cl_command_queue queue;           // command queue
     cl_program pro_chi2;               // program
     cl_kernel kernel_chi2;                 // kernel
 
-    cl_mem gpu_data;
-    cl_mem gpu_data_err;    
     cl_mem gpu_model;
     cl_mem gpu_result;            // device memory used for the output array
     int count = npow+2*nbis;               // the length of the data
-    float results[count];
-
-    // Get an ID for the device                                   
-    int gpu = 1;
-    err = clGetDeviceIDs(NULL, gpu ? CL_DEVICE_TYPE_GPU : CL_DEVICE_TYPE_CPU, 1, &device_id, NULL);
-    if (err != CL_SUCCESS)   //      [3]
-        print_opencl_error("clGetDeviceIDs", err);                                      
-
-    // Create a context                                           
-    context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
-    if(err != CL_SUCCESS)
-        print_opencl_error("clCreateContext", err);      
-
-    // Create a command queue                                          
-
-    queue = clCreateCommandQueue(context, device_id, 0, &err);
-    if (err != CL_SUCCESS)   
-        print_opencl_error("clCreateCommandQueue", err);  
+    float results[count]; 
         
     // TODO: Pass pointers into this function.
     // Pointer names: data, model
@@ -89,7 +120,7 @@ double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nb
     // Move the necessary data over to the GPU
  
      // Create the compute program from the source buffer                 
-    pro_chi2 = clCreateProgramWithSource(context, 1, (const char **) & ocl_kernel_chi2, NULL, &err);     
+    pro_chi2 = clCreateProgramWithSource(*pContext, 1, (const char **) & ocl_kernel_chi2, NULL, &err);     
     if (err != CL_SUCCESS)   
         print_opencl_error("clCreateProgramWithSource", err);    
         
@@ -101,7 +132,7 @@ double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nb
         char buffer[2048];
 
         printf("Error: Failed to build program executable\n");          
-        clGetProgramBuildInfo(pro_chi2, device_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
+        clGetProgramBuildInfo(pro_chi2, *pDevice_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
         printf("%s\n", buffer);
         exit(1);
     }
@@ -112,26 +143,22 @@ double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nb
     if (!kernel_chi2 || err != CL_SUCCESS)
         print_opencl_error("clCreateKernel", err);   
     
-    // Create the input and output arrays in device memory for our calculation
-    gpu_data = clCreateBuffer(context,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
-    gpu_data_err = clCreateBuffer(context,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);    
-    gpu_model = clCreateBuffer(context,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
-    gpu_result = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) *count, NULL, NULL);
-    if (!gpu_data || !gpu_model || !gpu_result)
+    // Create the input and output arrays in device memory for our calculation 
+    gpu_model = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
+    gpu_result = clCreateBuffer(*pContext, CL_MEM_WRITE_ONLY, sizeof(float) *count, NULL, NULL);
+    if (!gpu_model || !gpu_result)
         print_opencl_error("clCreateBuffer", 0);
 
-    // Write our data set into the input array in device memory        
-    err = clEnqueueWriteBuffer(queue, gpu_data, CL_TRUE, 0, sizeof(float) *count, data, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(queue, gpu_data_err, CL_TRUE, 0, sizeof(float) *count, data_err, 0, NULL, NULL);    
-    err |= clEnqueueWriteBuffer(queue, gpu_model, CL_TRUE, 0, sizeof(float) *count, mock, 0, NULL, NULL);
+    // Write our data set into the input array in device memory          
+    err = clEnqueueWriteBuffer(*pQueue, gpu_model, CL_TRUE, 0, sizeof(float) *count, mock, 0, NULL, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("clEnqueueWriteBuffer", err);  
     
 
     // Set the arguments to our compute kernel                         
     err = 0;
-    err  = clSetKernelArg(kernel_chi2, 0, sizeof(cl_mem), &gpu_data);
-    err |= clSetKernelArg(kernel_chi2, 1, sizeof(cl_mem), &gpu_data_err);
+    err  = clSetKernelArg(kernel_chi2, 0, sizeof(cl_mem), pGpu_data);
+    err |= clSetKernelArg(kernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
     err |= clSetKernelArg(kernel_chi2, 2, sizeof(cl_mem), &gpu_model);
     err |= clSetKernelArg(kernel_chi2, 3, sizeof(cl_mem), &gpu_result);
     err |= clSetKernelArg(kernel_chi2, 4, sizeof(unsigned int), &count);
@@ -139,22 +166,22 @@ double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nb
         print_opencl_error("clSetKernelArg", err);
 
     // Get the maximum work-group size for executing the kernel on the device
-    err = clGetKernelWorkGroupInfo(kernel_chi2, device_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+    err = clGetKernelWorkGroupInfo(kernel_chi2, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
     // Execute the kernel over the entire range of the data set        
     global = count;
-    err = clEnqueueNDRangeKernel(queue, kernel_chi2, 1, NULL, &global, NULL, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, kernel_chi2, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("clEnqueueNDRangeKernel chi2", err);
 
     
     // Wait for the command queue to get serviced before reading back results
-    clFinish(queue);
+    clFinish(*pQueue);
 
     // Read the results from the device                                  
-    err = clEnqueueReadBuffer(queue, gpu_result, CL_TRUE, 0, sizeof(float) *count, results, 0, NULL, NULL );
+    err = clEnqueueReadBuffer(*pQueue, gpu_result, CL_TRUE, 0, sizeof(float) *count, results, 0, NULL, NULL );
     if (err != CL_SUCCESS)
         print_opencl_error("clEnqueueReadBuffer", err);
         
@@ -164,14 +191,10 @@ double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nb
         chi2_temp += results[i];
     
     // Shut down and clean up
-    clReleaseMemObject(gpu_data);
-    clReleaseMemObject(gpu_data_err);
     clReleaseMemObject(gpu_model);
     clReleaseMemObject(gpu_result);
     clReleaseProgram(pro_chi2);
     clReleaseKernel(kernel_chi2);
-    clReleaseCommandQueue(queue);
-    clReleaseContext(context);
         
     return chi2_temp/(double)(count);  
 }

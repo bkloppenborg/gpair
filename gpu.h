@@ -1,5 +1,12 @@
-
+#include "cl.h" // OpenCL header file
 
 // Funcion declairations
 void print_opencl_error(char* error_message, int error_code);
-double data2chi2_gpu(float *data, float *data_err, float *mock, int npow, int nbis);
+
+
+void gpu_copy_data(float *data, float *data_err, int npow, int nbis);
+void gpu_cleanup();
+
+double gpu_data2chi2(float *mock, int npow, int nbis);
+
+void gpu_init();
