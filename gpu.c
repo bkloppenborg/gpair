@@ -15,7 +15,8 @@ const char *ocl_kernel_chi2 = "\n" \
 "{                                                                      \n" \
 "    int i = get_global_id(0);                                          \n" \
 "    if(i < count)                                                      \n" \
-"        output[i] = pown((curr_model[i] - data[i]) / data_err[i], 2);  \n" \
+"        output[i] = (curr_model[i] - data[i]) / data_err[i];           \n" \
+"        output[i] *= output[i];                                        \n" \
 "}                                                                      \n" \
 "\n";       
 

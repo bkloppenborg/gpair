@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     tick = clock();
 
     // compute reduced chi2
-    for(ii=0; ii < 1000; ii++)
+    for(ii=0; ii < 10000; ii++)
         chi2 = data2chi2( );
 
     tock=clock();
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
     gpu_build_kernels();
     
     tick = clock();
-    for(ii=0; ii < 1000; ii++)
+    for(ii=0; ii < 10000; ii++)
         chi2_gpu = gpu_data2chi2(mock, npow, nbis);
     
     tock = clock();
