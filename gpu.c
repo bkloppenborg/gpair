@@ -24,10 +24,13 @@ const char *ocl_kernel_chi2 = "\n" \
 cl_device_id * pDevice_id;           // device ID
 cl_context * pContext;               // context
 cl_command_queue * pQueue;           // command queue
-cl_mem * pGpu_data;
-cl_mem * pGpu_data_err;
+cl_mem * pGpu_data;             // Pointer to GPU Memory location of OIFITS Data
+cl_mem * pGpu_data_err;         // Pointer to GPU Memory location of OIFITS Data Error
+cl_mem * pGpu_data_bsp;           // Pointer to GPU Memory location of OIFITS Data Biphasor
+
 cl_kernel * pKernel_chi2;
 cl_program * pPro_chi2;
+
 
 // A quick way to output an error from an OpenCL function:
 void print_opencl_error(char* error_message, int error_code)
@@ -100,26 +103,30 @@ void gpu_build_kernels()
     pPro_chi2 = &pro_chi2;
 }
 
-void gpu_copy_data(float *data, float *data_err, int npow, int nbis)
+void gpu_copy_data(float *data, float *data_err, float * biphasor, int npow, int nbis)
 {
     int count = npow+2*nbis;
     int err = 0;
 
     static cl_mem gpu_data;
     static cl_mem gpu_data_err;  
+    static cl_mem gpu_data_bsp;
     
     gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
     gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL); 
+    gpu_data_bsp = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *nbis, NULL, NULL); 
     if (!gpu_data || !gpu_data_err)
         print_opencl_error("clCreateBuffer", 0);
     
     err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) *count, data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_TRUE, 0, sizeof(float) *count, data_err, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bsp, CL_TRUE, 0, sizeof(float) *count, biphasor, 0, NULL, NULL);
         if (err != CL_SUCCESS)
         print_opencl_error("clEnqueueWriteBuffer", err);     
         
     pGpu_data = &gpu_data;
     pGpu_data_err = &gpu_data_err; 
+    pGpu_data_bsp = &gpu_data_bsp;
 }
 
 void gpu_cleanup()

@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    
     float chi2_gpu = 0;
     gpu_init();
-    gpu_copy_data(data, err, npow, nbis);
+    gpu_copy_data(data, err, bisphasor, npow, nbis);
     gpu_build_kernels();
     
     tick = clock();
