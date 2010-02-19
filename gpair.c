@@ -98,24 +98,40 @@ int main(int argc, char *argv[])
     vis2data( );
 
     clock_t tick, tock;
-
     tick = clock();
-
-    // compute reduced chi2
     for(ii=0; ii < 10000; ii++)
         chi2 = data2chi2( );
-
+        
     tock=clock();
-
     printf("Reduced chi2 = %f\n", chi2/(float)( npow + 2 * nbis));
     printf("Nb ticks = %ld\n", tock-tick);
 
+
     // GPU Code:  
-   
+    
+    // Convert visi over to a cl_float2
+    cl_float2 gpu_visi[nuv];
+    int i;
+    for(i = 0; i < nuv; i++)
+    {
+        gpu_visi[i][0] = __real__ visi[i];
+        gpu_visi[i][1] = __imag__ visi[i];
+    }
+        
+    cl_float2 gpu_bisphasor[nbis];
+    for(i = 0; i < nbis; i++)
+    {
+        gpu_bisphasor[i][0] = __real__ bisphasor[i];
+        gpu_bisphasor[i][1] = __imag__ bisphasor[i];
+    }
+    
+    
     float chi2_gpu = 0;
     gpu_init();
-    gpu_copy_data(data, err, bisphasor, npow, nbis);
+    gpu_copy_data(data, err, gpu_bisphasor, npow, nbis);    // Copy the OIFITS data over to the GPU
     gpu_build_kernels();
+    
+    gpu_vis2data(gpu_visi, nuv, npow, nbis);
     
     tick = clock();
     for(ii=0; ii < 10000; ii++)
