@@ -109,29 +109,49 @@ int main(int argc, char *argv[])
 
     // GPU Code:  
     
-    // Convert visi over to a cl_float2
-    cl_float2 gpu_visi[nuv];
+    // Convert visi over to a cl_float2 in format <real, imaginary>
+    cl_float2 * gpu_visi;
+    gpu_visi = malloc(nuv * sizeof(cl_float2));
     int i;
     for(i = 0; i < nuv; i++)
     {
         gpu_visi[i][0] = __real__ visi[i];
         gpu_visi[i][1] = __imag__ visi[i];
     }
-        
-    cl_float2 gpu_bisphasor[nbis];
+    
+    // Convert the biphasor over to a cl_float2 in format <real, imaginary>    
+    cl_float2 * gpu_bisphasor;
+    gpu_bisphasor = malloc(nbis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
         gpu_bisphasor[i][0] = __real__ bisphasor[i];
         gpu_bisphasor[i][1] = __imag__ bisphasor[i];
     }
     
+    // We will also need the uvpnt and sign information for bisepctrum computations.
+    cl_long * gpu_bsref_uvpnt;
+    gpu_bsref_uvpnt = malloc(3*nbis * sizeof(cl_long));
+    cl_short * gpu_bsref_sign;
+    gpu_bsref_sign = malloc(3*nbis * sizeof(cl_short));
+    for(i = 0; i < nbis; i++)
+    {
+        gpu_bsref_uvpnt[i] = oifits_info.bsref[i].ab.uvpnt;
+        gpu_bsref_uvpnt[i+1] = oifits_info.bsref[i].bc.uvpnt;
+        gpu_bsref_uvpnt[i+2] = oifits_info.bsref[i].ca.uvpnt;
+
+        gpu_bsref_sign[i] = oifits_info.bsref[i].ab.sign;
+        gpu_bsref_sign[i+1] = oifits_info.bsref[i].bc.sign;
+        gpu_bsref_sign[i+2] = oifits_info.bsref[i].ca.sign;
+    } 
+        
+        
     
     float chi2_gpu = 0;
     gpu_init();
-    gpu_copy_data(data, err, gpu_bisphasor, npow, nbis);    // Copy the OIFITS data over to the GPU
+    gpu_copy_data(data, err, gpu_bisphasor, gpu_bsref_uvpnt, gpu_bsref_sign, npow, nbis);   
     gpu_build_kernels();
     
-    gpu_vis2data(gpu_visi, nuv, npow, nbis);
+    //gpu_vis2data(gpu_visi, nuv, npow, nbis);
     
     tick = clock();
     for(ii=0; ii < 10000; ii++)
