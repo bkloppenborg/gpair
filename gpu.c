@@ -25,46 +25,18 @@ static char * LoadProgramSourceFromFile(const char *filename)
     return source;
 }
 
-
-/*void vis2data(  )*/
-/*{*/
-/*    int ii;*/
-/*    float complex vab, vbc, vca, t3;*/
-
-/*    for( ii = 0; ii< npow; ii++)*/
-/*    {*/
-/*        mock[ ii ] = square ( cabs( visi[ii] ) );*/
-/*    }*/
-
-/*    for( ii = 0; ii< nbis; ii++)*/
-/*    {*/
-/*        vab = visi[ oifits_info.bsref[ii].ab.uvpnt ];*/
-/*        vbc = visi[ oifits_info.bsref[ii].bc.uvpnt ];*/
-/*        vca = visi[ oifits_info.bsref[ii].ca.uvpnt ];	*/
-/*        if( oifits_info.bsref[ii].ab.sign < 0) */
-/*            vab = conj(vab);*/
-/*        if( oifits_info.bsref[ii].bc.sign < 0) */
-/*            vbc = conj(vbc);*/
-/*        if( oifits_info.bsref[ii].ca.sign < 0) */
-/*            vca = conj(vca);*/
-/*            */
-/*        t3 =  ( vab * vbc * vca ) * bisphasor[ii] ;   */
-/*        mock[ npow + 2 * ii ] = creal(t3) ;*/
-/*        mock[ npow + 2 * ii + 1] = cimag(t3) ;*/
-/*    } */
-
-/*}*/
-
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
 cl_context * pContext = NULL;               // context
 cl_command_queue * pQueue = NULL;           // command queue
 
 // Pointers for programs and kernels:
-cl_kernel * pKernel_chi2 = NULL;
-cl_kernel * pKernel_powspec = NULL;
 cl_program * pPro_chi2 = NULL;
+cl_kernel * pKernel_chi2 = NULL;
 cl_program * pPro_powspec = NULL;
+cl_kernel * pKernel_powspec = NULL;
+cl_program * pPro_bispec  = NULL;
+cl_kernel * pKernel_bispec  = NULL;
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -96,7 +68,7 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
     if (err != CL_SUCCESS)   
         print_opencl_error("clCreateProgramWithSource", err);    
         
-    // Build the program executable for the start of the chi2 computation.
+    // Build the program executable
     err = clBuildProgram(*program, 0, NULL, NULL, NULL, NULL);
     if (err != CL_SUCCESS)
     {
@@ -117,20 +89,26 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
 
 void gpu_build_kernels()
 {
+    // Kernel and program for computing chi2:
     static cl_program pro_chi2;
     static cl_kernel kern_chi2;
-    
-    // Kernel and program for computing chi2:
     gpu_build_kernel(&pro_chi2, &kern_chi2, "compute_chi2", "./kernel_chi2.cl");
     pPro_chi2 = &pro_chi2;
     pKernel_chi2 = &kern_chi2;
     
+    // Kernel and program for computing the power spectrum
     static cl_program pro_powspec;
     static cl_kernel kern_powspec;
-    // Kernel and program for computing the power spectrum
     gpu_build_kernel(&pro_powspec, &kern_powspec, "compute_pow_spec", "./kernel_pow_spec.cl");
     pPro_powspec = &pro_powspec;
     pKernel_powspec = &kern_powspec;   
+    
+    // Kernel and program for computing the bispectrum
+    static cl_program pro_bispec;
+    static cl_kernel kern_bispec;
+    gpu_build_kernel(&pro_bispec, &kern_bispec, "compute_bispec", "./kernel_bispec.cl");
+    pPro_bispec = &pro_bispec;
+    pKernel_bispec = &kern_bispec;
 }
 
 void gpu_cleanup()
@@ -194,8 +172,8 @@ void gpu_copy_data(float *data, float *data_err, \
     gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL);
     gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL); 
     gpu_data_bip = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * nbis, NULL, NULL); 
-    gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * nbis, NULL, NULL);
-    gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * nbis, NULL, NULL);
+    gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * 3 * nbis, NULL, NULL);
+    gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * 3 * nbis, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * count, NULL, NULL);
     if (!gpu_data || !gpu_data_err)
         print_opencl_error("Error: gpu_copy_data.  Create Buffer.", 0);
@@ -204,11 +182,11 @@ void gpu_copy_data(float *data, float *data_err, \
     err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * count, data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_TRUE, 0, sizeof(float) * count, data_err, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bip, CL_TRUE, 0, sizeof(float) * nbis, data_bip, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_TRUE, 0, sizeof(long) * nbis, data_uvpnt, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_TRUE, 0, sizeof(short) * nbis, data_sign, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_TRUE, 0, sizeof(long) * 3 * nbis, data_uvpnt, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_TRUE, 0, sizeof(short) * 3 nbis, data_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_TRUE, 0, sizeof(float) * count, mock_data, 0, NULL, NULL);    
     if (err != CL_SUCCESS)
-        print_opencl_error("Error: gpu_copy_data. Write Buffer", err);     
+        print_opencl_error("Error: gpu_copy_data. Write Buffer", err);    
         
     pGpu_data = &gpu_data;
     pGpu_data_err = &gpu_data_err; 
@@ -222,36 +200,37 @@ void gpu_copy_data(float *data, float *data_err, \
 // Compute the chi2 of the data using a GPU
 double gpu_data2chi2(float *mock, int npow, int nbis)
 {
-
-    // TODO: Move this elsewhere later.
     int err;                          // error code returned from api calls
 
     size_t global;                    // global domain size for our calculation
     size_t local;                     // local domain size for our calculation
 
-    cl_mem gpu_model;
+    //cl_mem gpu_model;
     cl_mem gpu_result;            // device memory used for the output array
     int count = npow+2*nbis;               // the length of the data
-    float results[count]; 
+    
+    // TODO: Remove this later.
+    float * results;
+    results = malloc(count * sizeof(float));
           
     
     // Create the input and output arrays in device memory for our calculation 
-    gpu_model = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
+    //gpu_model = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) *count, NULL, NULL);
     gpu_result = clCreateBuffer(*pContext, CL_MEM_WRITE_ONLY, sizeof(float) *count, NULL, NULL);
-    if (!gpu_model || !gpu_result)
+    if (!gpu_result)
         print_opencl_error("clCreateBuffer", 0);
 
     // Write our data set into the input array in device memory          
-    err = clEnqueueWriteBuffer(*pQueue, gpu_model, CL_TRUE, 0, sizeof(float) *count, mock, 0, NULL, NULL);
-    if (err != CL_SUCCESS)
-        print_opencl_error("clEnqueueWriteBuffer", err);  
+    //err = clEnqueueWriteBuffer(*pQueue, gpu_model, CL_TRUE, 0, sizeof(float) *count, mock, 0, NULL, NULL);
+    //if (err != CL_SUCCESS)
+    //    print_opencl_error("clEnqueueWriteBuffer gpu_model", err);  
     
 
     // Set the arguments to our compute kernel                         
     err = 0;
     err  = clSetKernelArg(*pKernel_chi2, 0, sizeof(cl_mem), pGpu_data);
     err |= clSetKernelArg(*pKernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
-    err |= clSetKernelArg(*pKernel_chi2, 2, sizeof(cl_mem), &gpu_model);
+    err |= clSetKernelArg(*pKernel_chi2, 2, sizeof(cl_mem), pGpu_mock_data);
     err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), &gpu_result);
     err |= clSetKernelArg(*pKernel_chi2, 4, sizeof(unsigned int), &count);
     if (err != CL_SUCCESS)
@@ -276,7 +255,7 @@ double gpu_data2chi2(float *mock, int npow, int nbis)
     // Read the results from the device                                  
     err = clEnqueueReadBuffer(*pQueue, gpu_result, CL_TRUE, 0, sizeof(float) *count, results, 0, NULL, NULL );
     if (err != CL_SUCCESS)
-        print_opencl_error("clEnqueueReadBuffer", err);
+        print_opencl_error("clEnqueueReadBuffer gpu_result", err);
         
     float chi2_temp = 0;
     int i;
@@ -284,7 +263,7 @@ double gpu_data2chi2(float *mock, int npow, int nbis)
         chi2_temp += results[i];
     
     // Shut down and clean up
-    clReleaseMemObject(gpu_model);
+    //clReleaseMemObject(gpu_model);
     clReleaseMemObject(gpu_result);
         
     return chi2_temp/(double)(count);  
@@ -300,7 +279,7 @@ void gpu_init()
     
     int err = 0;
     
-    // Get an ID for the device                                   a
+    // Get an ID for the device
     err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
     if (err != CL_SUCCESS)   //      [3]
         print_opencl_error("Unable to get GPU Device", err);                                      
@@ -331,33 +310,60 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
     size_t global;                    // global domain size for our calculation
     size_t local;                     // local domain size for our calculation
     
+    // ############
+    // First we run a kernel to compute the powerspectrum:
+    // ############
     gpu_vis = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * nuv, NULL, NULL);
     if (!gpu_vis)
         print_opencl_error("clCreateBuffer", 0);
     
     err |= clEnqueueWriteBuffer(*pQueue, gpu_vis, CL_TRUE, 0, sizeof(cl_float2) * nuv, vis, 0, NULL, NULL);
     if (err != CL_SUCCESS)
-        print_opencl_error("clEnqueueWriteBuffer", err);     
+        print_opencl_error("clEnqueueWriteBuffer gpu_vis", err);     
 
-
-    
     err  = clSetKernelArg(*pKernel_powspec, 0, sizeof(cl_mem), &gpu_vis);
     err |= clSetKernelArg(*pKernel_powspec, 1, sizeof(cl_mem), pGpu_mock_data);    // Output is stored on the GPU.
-    err |= clSetKernelArg(*pKernel_powspec, 2, sizeof(unsigned int), &nuv);
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);    
  
 
- 
    // Get the maximum work-group size for executing the kernel on the device
     err = clGetKernelWorkGroupInfo(*pKernel_powspec, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
     // Execute the kernel over the entire range of the data set        
-    global = count;
+    global = npow;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("clEnqueueNDRangeKernel vis", err);   
+        
+    clFinish(*pQueue);
+        
+    // ############
+    // Now we run a kernel to compute the bispectrum:
+    // ############
+    err  = clSetKernelArg(*pKernel_bispec, 0, sizeof(cl_mem), &gpu_vis);
+    err |= clSetKernelArg(*pKernel_bispec, 1, sizeof(cl_mem), pGpu_data_bip);
+    err |= clSetKernelArg(*pKernel_bispec, 2, sizeof(cl_mem), pGpu_data_uvpnt);
+    err |= clSetKernelArg(*pKernel_bispec, 3, sizeof(cl_mem), pGpu_data_sign);
+    err |= clSetKernelArg(*pKernel_bispec, 4, sizeof(cl_mem), pGpu_mock_data);
+    err |= clSetKernelArg(*pKernel_bispec, 5, sizeof(int), &npow);    // Output is stored on the GPU.
+    if (err != CL_SUCCESS)
+        print_opencl_error("clSetKernelArg", err); 
+ 
+   // Get the maximum work-group size for executing the kernel on the device
+    err = clGetKernelWorkGroupInfo(*pKernel_bispec, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("clGetKernelWorkGroupInfo", err);
+
+    // Execute the kernel over the entire range of the data set        
+    global = nbis;
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_bispec, 1, NULL, &global, NULL, 0, NULL, NULL);
+    if (err)
+        print_opencl_error("clEnqueueNDRangeKernel vis", err);   
+        
+    clReleaseMemObject(gpu_vis);
+    clFinish(*pQueue);    
 }
 

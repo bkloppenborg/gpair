@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
 
     clock_t tick, tock;
     tick = clock();
-    for(ii=0; ii < 10000; ii++)
+    //for(ii=0; ii < 10000; ii++)
         chi2 = data2chi2( );
         
     tock=clock();
@@ -135,15 +135,14 @@ int main(int argc, char *argv[])
     gpu_bsref_sign = malloc(3*nbis * sizeof(cl_short));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bsref_uvpnt[i] = oifits_info.bsref[i].ab.uvpnt;
-        gpu_bsref_uvpnt[i+1] = oifits_info.bsref[i].bc.uvpnt;
-        gpu_bsref_uvpnt[i+2] = oifits_info.bsref[i].ca.uvpnt;
+        gpu_bsref_uvpnt[3*i] = oifits_info.bsref[i].ab.uvpnt;
+        gpu_bsref_uvpnt[3*i+1] = oifits_info.bsref[i].bc.uvpnt;
+        gpu_bsref_uvpnt[3*i+2] = oifits_info.bsref[i].ca.uvpnt;
 
-        gpu_bsref_sign[i] = oifits_info.bsref[i].ab.sign;
-        gpu_bsref_sign[i+1] = oifits_info.bsref[i].bc.sign;
-        gpu_bsref_sign[i+2] = oifits_info.bsref[i].ca.sign;
-    } 
-        
+        gpu_bsref_sign[3*i] = oifits_info.bsref[i].ab.sign;
+        gpu_bsref_sign[3*i+1] = oifits_info.bsref[i].bc.sign;
+        gpu_bsref_sign[3*i+2] = oifits_info.bsref[i].ca.sign;
+    }        
         
     
     float chi2_gpu = 0;
@@ -151,10 +150,10 @@ int main(int argc, char *argv[])
     gpu_copy_data(data, err, gpu_bisphasor, gpu_bsref_uvpnt, gpu_bsref_sign, npow, nbis);   
     gpu_build_kernels();
     
-    //gpu_vis2data(gpu_visi, nuv, npow, nbis);
+    gpu_vis2data(gpu_visi, nuv, npow, nbis);
     
     tick = clock();
-    for(ii=0; ii < 10000; ii++)
+    //for(ii=0; ii < 10000; ii++)
         chi2_gpu = gpu_data2chi2(mock, npow, nbis);
     
     tock = clock();
@@ -225,6 +224,13 @@ void vis2data(  )
         mock[ npow + 2 * ii ] = creal(t3) ;
         mock[ npow + 2 * ii + 1] = cimag(t3) ;
     } 
+    
+    // Uncomment to see the mock data array.
+/*    int count = npow + 2 * nbis;*/
+/*    for(ii = 0; ii < count; ii++)     */
+/*        printf("%i %f \n", ii, mock[ii]);*/
+/*        */
+/*    printf("\n");*/
 
 }
 
