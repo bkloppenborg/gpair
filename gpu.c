@@ -221,6 +221,7 @@ double gpu_data2chi2(int npow, int nbis)
     //if (err != CL_SUCCESS)
     //    print_opencl_error("clEnqueueWriteBuffer gpu_model", err);  
     
+    int local_size = 16;    // TODO: Figure this out dynamically.
 
     // Set the arguments to our compute kernel                         
     err = 0;
@@ -228,18 +229,19 @@ double gpu_data2chi2(int npow, int nbis)
     err |= clSetKernelArg(*pKernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
     err |= clSetKernelArg(*pKernel_chi2, 2, sizeof(cl_mem), pGpu_mock_data);
     err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), &gpu_result);
-    err |= clSetKernelArg(*pKernel_chi2, 4, sizeof(unsigned int), &count);
+    err |= clSetKernelArg(*pKernel_chi2, 4, sizeof(float) * 3 * local_size, NULL);
+    err |= clSetKernelArg(*pKernel_chi2, 5, sizeof(unsigned int), &count);
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);
 
     // Get the maximum work-group size for executing the kernel on the device
-    err = clGetKernelWorkGroupInfo(*pKernel_chi2, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
-    if (err != CL_SUCCESS)
-        print_opencl_error("clGetKernelWorkGroupInfo", err);
+    //err = clGetKernelWorkGroupInfo(*pKernel_chi2, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+    //if (err != CL_SUCCESS)
+    //    print_opencl_error("clGetKernelWorkGroupInfo", err);
 
 
     // Execute the kernel over the entire range of the data set        
-    global = count;
+    global = local_size;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_chi2, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("clEnqueueNDRangeKernel chi2", err);
