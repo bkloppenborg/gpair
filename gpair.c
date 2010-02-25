@@ -95,11 +95,14 @@ int main(int argc, char *argv[])
     image2vis();
 
     // compute mock data, powerspectra + bispectra
-    vis2data( );
-
     clock_t tick, tock;
     tick = clock();
-    //for(ii=0; ii < 10000; ii++)
+    vis2data( );
+    tock = clock();
+    printf("CPU Mock Data ticks = %ld\n", tock-tick);
+    
+    tick = clock();
+    for(ii=0; ii < 10000; ii++)
         chi2 = data2chi2( );
         
     tock=clock();
@@ -150,11 +153,14 @@ int main(int argc, char *argv[])
     gpu_copy_data(data, err, gpu_bisphasor, gpu_bsref_uvpnt, gpu_bsref_sign, npow, nbis);   
     gpu_build_kernels();
     
+    //tick = clock();
     gpu_vis2data(gpu_visi, nuv, npow, nbis);
+    tock = clock();
+    printf("GPU Mock Data ticks = %ld\n", tock-tick);
     
     tick = clock();
-    //for(ii=0; ii < 10000; ii++)
-        chi2_gpu = gpu_data2chi2(mock, npow, nbis);
+    for(ii=0; ii < 10000; ii++)
+        chi2_gpu = gpu_data2chi2(npow, nbis);
     
     tock = clock();
     

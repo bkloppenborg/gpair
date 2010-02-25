@@ -13,8 +13,12 @@ void gpu_copy_data(float *data, float *data_err, \
 
 void gpu_cleanup();
 
-double gpu_data2chi2(float *mock, int npow, int nbis);
+double gpu_data2chi2(int npow, int nbis);
 
 void gpu_init();
 
 void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis);
+
+static char * LoadProgramSourceFromFile(const char *filename);
+
+gpu_device_stats(cl_device_id device_id);

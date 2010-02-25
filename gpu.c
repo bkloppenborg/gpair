@@ -3,27 +3,8 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-// TODO: Move the kernels elsewhere.
-
-// Load the OCL kernel:
-
-static char * LoadProgramSourceFromFile(const char *filename)
-{
-    struct stat statbuf;
-    FILE        *fh;
-    char        *source;
-
-    fh = fopen(filename, "r");
-    if (fh == 0)
-        return 0;
-
-    stat(filename, &statbuf);
-    source = (char *) malloc(statbuf.st_size + 1);
-    fread(source, statbuf.st_size, 1, fh);
-    source[statbuf.st_size] = '\0';
-
-    return source;
-}
+// Global variable to enable/disable debugging output:
+int gpu_enable_verbose = 1;
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -46,6 +27,9 @@ cl_mem * pGpu_data_uvpnt = NULL;       // OIFITS UV Point indicies for bispectru
 cl_mem * pGpu_data_sign = NULL;        // OIFITS UV Point signs.
 cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
 
+#define SEP printf("-----------------------------------------------------------\n")
+
+
 // A quick way to output an error from an OpenCL function:
 void print_opencl_error(char* error_message, int error_code)
 {
@@ -60,6 +44,8 @@ void print_opencl_error(char* error_message, int error_code)
 void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_name, char * filename)
 {   
     int err = 0;
+    if(gpu_enable_verbose)
+        printf("Loading and compiling program '%s'\n\n", filename);
     
     // Load the kernel source:
     char * kernel_source = LoadProgramSourceFromFile(filename);
@@ -113,6 +99,9 @@ void gpu_build_kernels()
 
 void gpu_cleanup()
 {
+    if(gpu_enable_verbose)
+        printf("Freeing program, kernel, and device objects. \n");
+        
     // Release program and kernel objects:
     if(pPro_chi2 != NULL)
         clReleaseProgram(*pPro_chi2);
@@ -168,6 +157,10 @@ void gpu_copy_data(float *data, float *data_err, \
     for(i = 0; i < count; i++)
         mock_data[i] = 0; 
     
+    // Output some additional information if we are in verbose mode
+    if(gpu_enable_verbose)
+        printf("Creating buffers on the device. \n");
+    
     // Create buffers on the device:    
     gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL);
     gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL); 
@@ -178,12 +171,15 @@ void gpu_copy_data(float *data, float *data_err, \
     if (!gpu_data || !gpu_data_err)
         print_opencl_error("Error: gpu_copy_data.  Create Buffer.", 0);
 
+    if(gpu_enable_verbose)
+        printf("Copying data to device. \n");
+
     // Copy the data over to the device:
     err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * count, data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_TRUE, 0, sizeof(float) * count, data_err, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bip, CL_TRUE, 0, sizeof(float) * nbis, data_bip, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_TRUE, 0, sizeof(long) * 3 * nbis, data_uvpnt, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_TRUE, 0, sizeof(short) * 3 nbis, data_sign, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_TRUE, 0, sizeof(short) * 3 * nbis, data_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_TRUE, 0, sizeof(float) * count, mock_data, 0, NULL, NULL);    
     if (err != CL_SUCCESS)
         print_opencl_error("Error: gpu_copy_data. Write Buffer", err);    
@@ -198,7 +194,7 @@ void gpu_copy_data(float *data, float *data_err, \
 
 
 // Compute the chi2 of the data using a GPU
-double gpu_data2chi2(float *mock, int npow, int nbis)
+double gpu_data2chi2(int npow, int nbis)
 {
     int err;                          // error code returned from api calls
 
@@ -269,6 +265,80 @@ double gpu_data2chi2(float *mock, int npow, int nbis)
     return chi2_temp/(double)(count);  
 }
 
+int gpu_device_stats(cl_device_id device_id)
+{	
+	int err;
+	int i;
+	size_t j;
+	size_t returned_size;
+	
+	printf("\n");
+	// Report the device vendor and device name
+    // 
+    cl_char vendor_name[1024] = {0};
+    cl_char device_name[1024] = {0};
+	cl_char device_profile[1024] = {0};
+	cl_char device_extensions[1024] = {0};
+	cl_device_local_mem_type local_mem_type;
+	
+    cl_ulong global_mem_size, global_mem_cache_size;
+	cl_ulong max_mem_alloc_size;
+	
+	cl_uint clock_frequency, vector_width, max_compute_units;
+	
+	size_t max_work_item_dims,max_work_group_size, max_work_item_sizes[3];
+	
+	cl_uint vector_types[] = {CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT,CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG,CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT,CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE}; 
+	char *vector_type_names[] = {"char","short","int","long","float","double"};
+	
+	err = clGetDeviceInfo(device_id, CL_DEVICE_VENDOR, sizeof(vendor_name), vendor_name, &returned_size);
+    err|= clGetDeviceInfo(device_id, CL_DEVICE_NAME, sizeof(device_name), device_name, &returned_size);
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_PROFILE, sizeof(device_profile), device_profile, &returned_size);
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, sizeof(device_extensions), device_extensions, &returned_size);
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_LOCAL_MEM_TYPE, sizeof(local_mem_type), &local_mem_type, &returned_size);
+	
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(global_mem_size), &global_mem_size, &returned_size);
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(global_mem_cache_size), &global_mem_cache_size, &returned_size);
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(max_mem_alloc_size), &max_mem_alloc_size, &returned_size);
+	
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(clock_frequency), &clock_frequency, &returned_size);
+	
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(max_work_group_size), &max_work_group_size, &returned_size);
+	
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(max_work_item_dims), &max_work_item_dims, &returned_size);
+	
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(max_work_item_sizes), max_work_item_sizes, &returned_size);
+	
+	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(max_compute_units), &max_compute_units, &returned_size);
+	
+	printf("Vendor: %s\n", vendor_name);
+	printf("Device Name: %s\n", device_name);
+	printf("Profile: %s\n", device_profile);
+	printf("Supported Extensions: %s\n\n", device_extensions);
+	
+	printf("Local Mem Type (Local=1, Global=2): %i\n",(int)local_mem_type);
+	printf("Global Mem Size (MB): %i\n",(int)global_mem_size/(1024*1024));
+	printf("Global Mem Cache Size (Bytes): %i\n",(int)global_mem_cache_size);
+	printf("Max Mem Alloc Size (MB): %ld\n",(long int)max_mem_alloc_size/(1024*1024));
+	
+	printf("Clock Frequency (MHz): %i\n\n",clock_frequency);
+	
+	for(i = 0; i < 6; i++)
+	{
+		err|= clGetDeviceInfo(device_id, vector_types[i], sizeof(clock_frequency), &vector_width, &returned_size);
+		printf("Vector type width for: %s = %i\n",vector_type_names[i],vector_width);
+	}
+	
+	printf("\nMax Work Group Size: %lu\n",max_work_group_size);
+	printf("Max Work Item Dims: %lu\n",max_work_item_dims);
+	for(j = 0; j < max_work_item_dims; j++) 
+		printf("Max Work Items in Dim %lu: %lu\n",(long unsigned)(j+1),(long unsigned)max_work_item_sizes[j]);
+	
+	printf("Max Compute Units: %i\n",max_compute_units);
+	printf("\n");
+	
+	return CL_SUCCESS;
+}
 
 void gpu_init()
 {
@@ -282,7 +352,11 @@ void gpu_init()
     // Get an ID for the device
     err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
     if (err != CL_SUCCESS)   //      [3]
-        print_opencl_error("Unable to get GPU Device", err);                                      
+        print_opencl_error("Unable to get GPU Device", err);    
+    
+    // Output some information about the card if we are in debug mode.    
+    if(gpu_enable_verbose)
+        gpu_device_stats(device_id);                                  
 
     // Create a context                                           
     context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -304,7 +378,6 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
 {
     // Begin by copying vis over to the GPU
     cl_mem gpu_vis;
-    int count = npow+2*nbis;               // the length of the data
     int err = 0;
 
     size_t global;                    // global domain size for our calculation
@@ -364,6 +437,24 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
         print_opencl_error("clEnqueueNDRangeKernel vis", err);   
         
     clReleaseMemObject(gpu_vis);
-    clFinish(*pQueue);    
+    clFinish(*pQueue);
 }
 
+// Load the OCL kernel:
+static char * LoadProgramSourceFromFile(const char *filename)
+{
+    struct stat statbuf;
+    FILE        *fh;
+    char        *source;
+
+    fh = fopen(filename, "r");
+    if (fh == 0)
+        return 0;
+
+    stat(filename, &statbuf);
+    source = (char *) malloc(statbuf.st_size + 1);
+    fread(source, statbuf.st_size, 1, fh);
+    source[statbuf.st_size] = '\0';
+
+    return source;
+}

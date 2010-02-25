@@ -4,7 +4,7 @@ __kernel void compute_bispec(
     __global long * data_uvpnt,
     __global short * data_sign,
     __global float * mock_data_bs,
-    __global int array_offset)
+    __global const int array_offset)
 {   
     int i = get_global_id(0);
 
@@ -12,9 +12,9 @@ __kernel void compute_bispec(
     float2 vbc = vis[data_uvpnt[3*i + 1]];
     float2 vca = vis[data_uvpnt[3*i + 2]];
     
-    //vab[1] *= data_sign[3*i];
-    //vbc[1] *= data_sign[3*i + 1];
-    //vca[1] *= data_sign[3*i + 2];
+    vab[1] *= data_sign[3*i];
+    vbc[1] *= data_sign[3*i + 1];
+    vca[1] *= data_sign[3*i + 2];
     
     // Now compute the triple amplitude and assign the real and imaginary
     // portions to the mock data array. 
