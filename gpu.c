@@ -232,7 +232,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
 }
 
 // Compute the chi2 of the data using a GPU
-double gpu_data2chi2(int data_size)
+void gpu_data2chi2(int data_size)
 {
     int err;                          // error code returned from api calls
 
@@ -268,7 +268,7 @@ double gpu_data2chi2(int data_size)
         int i;
         float * results;
         results = malloc(data_size * sizeof(float));
-        err = clEnqueueReadBuffer(*pQueue, gpu_result, CL_TRUE, 0, sizeof(float) * data_size, results, 0, NULL, NULL );
+        err = clEnqueueReadBuffer(*pQueue, *pGpu_result, CL_TRUE, 0, sizeof(float) * data_size, results, 0, NULL, NULL );
             if (err != CL_SUCCESS)
                 print_opencl_error("clEnqueueReadBuffer gpu_result", err);
         
@@ -276,14 +276,12 @@ double gpu_data2chi2(int data_size)
         for(i = 0; i < data_size; i++)
               chi2 += results[i];
               
-        printf("GPU Chi2: %f (summed on the CPU)\n", 0);
+        printf("GPU Chi2: %f (summed on the CPU)\n", 0.0);
     }
     
     // Now start up the partial sum kernel:
 
 
-        
-    }
 }
 
 void gpu_device_stats(cl_device_id device_id)
