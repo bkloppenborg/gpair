@@ -6,6 +6,7 @@ void print_opencl_error(char* error_message, int error_code);
 
 void gpu_build_kernels();
 
+void gpu_compare_data(int size, float * cpu_data, cl_mem * gpu_data);
 void gpu_copy_data(float *data, float *data_err, \
                     cl_float2 * bisphasor, \
                     long * gpu_bsref_uvpnt, short * gpu_bsref_sign, \
@@ -13,7 +14,7 @@ void gpu_copy_data(float *data, float *data_err, \
 
 void gpu_cleanup();
 
-double gpu_data2chi2(int npow, int nbis);
+double gpu_data2chi2(int data_size);
 
 void gpu_init();
 
