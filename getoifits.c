@@ -434,7 +434,7 @@ int get_oi_fits_selection(oi_usersel *usersel, int* status)
 	  usersel->target_id = targets.targ[0].target_id;
 	  strcpy(usersel->target,zerostring);
 	  strcpy(usersel->target,targets.targ[0].target);
-	  getchar();
+	  // TODO: re-enable getchar();
 	}
       printf("\n");
       /* free memory */
@@ -582,29 +582,30 @@ int get_oi_fits_selection(oi_usersel *usersel, int* status)
     AGAIN2:
       printf("Select a wavelength range (default value = 1 50000) :");
       /* printf("%.0f %.0f ) : ",(wave.eff_wave[0]-wave.eff_band[0]/2.)*billion,(wave.eff_wave[0]+wave.eff_band[0]/2.)*billion); */
-      fgets(commstring,100,stdin);
-      tmpi = sscanf(commstring,"%lf %lf",&usersel->minband,&usersel->maxband);
-      if(tmpi == 2)
-	{
-	  if((usersel->maxband <= usersel->minband)||(usersel->minband < 0.0))
-	    {
-	      printf("Invalid band selection!\n");
-	      goto AGAIN2;
-	    }
-	}    
-      
-      else if(tmpi == -1)
-	{
-	  printf("1 50000");
-	  usersel->minband = 1. ; /* (wave.eff_wave[0]-wave.eff_band[0]/2.)*billion ; */
-	  usersel->maxband = 50000. ; /*(wave.eff_wave[0]+wave.eff_band[0]/2.)*billion ; */
-	}
-      else
-	{ 
-	  printf("Invalid band selection!\n");
-	  goto AGAIN2;
-	}
-      printf("\n");
+      // TODO: Renable
+      //fgets(commstring,100,stdin);
+      tmpi = -1; //sscanf(commstring,"%lf %lf",&usersel->minband,&usersel->maxband);
+    if(tmpi == 2)
+    {
+        if((usersel->maxband <= usersel->minband)||(usersel->minband < 0.0))
+        {
+          printf("Invalid band selection!\n");
+          goto AGAIN2;
+        }
+    }    
+
+    else if(tmpi == -1)
+    {
+        printf("1 50000");
+        usersel->minband = 1. ; /* (wave.eff_wave[0]-wave.eff_band[0]/2.)*billion ; */
+        usersel->maxband = 50000. ; /*(wave.eff_wave[0]+wave.eff_band[0]/2.)*billion ; */
+    }
+    else
+    { 
+        printf("Invalid band selection!\n");
+        goto AGAIN2;
+    }
+    printf("\n");
     }
 
   /* Count number of vis2 and t3 available in this range for this target */

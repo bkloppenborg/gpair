@@ -157,12 +157,10 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * gpu_data)
 }
 
 // Copy data over to the GPU's global memory.
-void gpu_copy_data(float *data, float *data_err, \
-                    cl_float2 * data_bip, \
-                    long * data_uvpnt, short * data_sign, \
-                    int npow, int nbis)
+void gpu_copy_data(float *data, float *data_err, int data_size,\
+                    cl_float2 * data_bis, int bis_size,\
+                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size)
 {
-    int count = npow+2*nbis;
     int err = 0;
 
     static cl_mem gpu_data;         // Data
@@ -175,8 +173,8 @@ void gpu_copy_data(float *data, float *data_err, \
     // Init some mock data (to allow resumes in the future I suppose...)
     int i = 0;
     float * mock_data;
-    mock_data = malloc(count * sizeof(float));
-    for(i = 0; i < count; i++)
+    mock_data = malloc(data_size * sizeof(float));
+    for(i = 0; i < data_size; i++)
         mock_data[i] = 0; 
     
     // Output some additional information if we are in verbose mode
@@ -184,12 +182,12 @@ void gpu_copy_data(float *data, float *data_err, \
         printf("Creating buffers on the device. \n");
     
     // Create buffers on the device:    
-    gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL);
-    gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL); 
-    gpu_data_bip = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * nbis, NULL, NULL); 
-    gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * 3 * nbis, NULL, NULL);
-    gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * 3 * nbis, NULL, NULL);
-    gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * count, NULL, NULL);
+    gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * data_size, NULL, NULL);
+    gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * data_size, NULL, NULL); 
+    gpu_data_bip = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * bis_size, NULL, NULL); 
+    gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * bsref_size, NULL, NULL);
+    gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * bsref_size, NULL, NULL);
+    gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     if (!gpu_data || !gpu_data_err)
         print_opencl_error("Error: gpu_copy_data.  Create Buffer.", 0);
 
@@ -197,12 +195,12 @@ void gpu_copy_data(float *data, float *data_err, \
         printf("Copying data to device. \n");
 
     // Copy the data over to the device:
-    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * count, data, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_TRUE, 0, sizeof(float) * count, data_err, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bip, CL_TRUE, 0, sizeof(float) * nbis, data_bip, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_TRUE, 0, sizeof(long) * 3 * nbis, data_uvpnt, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_TRUE, 0, sizeof(short) * 3 * nbis, data_sign, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_TRUE, 0, sizeof(float) * count, mock_data, 0, NULL, NULL);    
+    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_TRUE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bip, CL_TRUE, 0, sizeof(float) * bis_size, data_bis, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_TRUE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_TRUE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_TRUE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);    
     if (err != CL_SUCCESS)
         print_opencl_error("Error: gpu_copy_data. Write Buffer", err);    
         
@@ -235,18 +233,12 @@ double gpu_data2chi2(int data_size)
     if (!gpu_result)
         print_opencl_error("clCreateBuffer", 0);
 
-    // Write our data set into the input array in device memory          
-    //err = clEnqueueWriteBuffer(*pQueue, gpu_model, CL_TRUE, 0, sizeof(float) *count, mock, 0, NULL, NULL);
-    //if (err != CL_SUCCESS)
-    //    print_opencl_error("clEnqueueWriteBuffer gpu_model", err);  
-
     // Set the arguments to our compute kernel                         
     err = 0;
     err  = clSetKernelArg(*pKernel_chi2, 0, sizeof(cl_mem), pGpu_data);
     err |= clSetKernelArg(*pKernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
     err |= clSetKernelArg(*pKernel_chi2, 2, sizeof(cl_mem), pGpu_mock_data);
     err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), &gpu_result);
-    err |= clSetKernelArg(*pKernel_chi2, 5, sizeof(unsigned int), &data_size);
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);
 
@@ -255,13 +247,13 @@ double gpu_data2chi2(int data_size)
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
+    cl_event event;
 
     // Execute the kernel over the entire range of the data set        
     global = data_size;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_chi2, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
         print_opencl_error("clEnqueueNDRangeKernel chi2", err);
-
     
     // Wait for the command queue to finish
     clFinish(*pQueue);
@@ -285,7 +277,7 @@ double gpu_data2chi2(int data_size)
     return chi2_temp/(double)(data_size);  
 }
 
-int gpu_device_stats(cl_device_id device_id)
+void gpu_device_stats(cl_device_id device_id)
 {	
 	int err;
 	int i;
@@ -356,8 +348,6 @@ int gpu_device_stats(cl_device_id device_id)
 	
 	printf("Max Compute Units: %i\n",max_compute_units);
 	printf("\n");
-	
-	return CL_SUCCESS;
 }
 
 void gpu_init()

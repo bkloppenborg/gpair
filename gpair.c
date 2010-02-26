@@ -13,7 +13,7 @@ oi_data oifits_info; // stores all the info from oifits files
 float *mock_data; // stores the mock current pseudo-data derived from the image
 float *data; // stores the quantities derived from the data
 float *data_err; // stores the error bars on the data
-float complex *bisphasor; // bispectrum rotation precomputed value
+float complex *data_bis; // bispectrum rotation precomputed value
 
 float complex *visi; // current visibilities
 float *current_image;
@@ -49,16 +49,22 @@ int main(int argc, char *argv[])
     // the GPU code much easier to speed up.
     int data_size = npow + 2 * nbis;
     int data_alloc = pow(2, ceil(log(data_size) / log(2)));    // Arrays are allocated to be powers of 2
+    int data_alloc_uv = pow(2, ceil(log(nuv) / log(2)));
+    int data_alloc_bis = pow(2, ceil(log(nbis) / log(2)));   
+   
+    // TODO: Only output if we are in a verbose mode.
     printf("Data Size: %i , Data Allocation: %i \n", data_size, data_alloc);
-
-    visi = malloc( nuv * sizeof( float complex));
-    bisphasor = malloc( nbis * sizeof( float complex ));
+    printf("UV Data Size: %i , Allocation: %i \n", nuv, data_alloc_uv);
+    printf("bis Size: %i , Allocation: %i \n", nbis, data_alloc_bis);
 
     // Allocate memory for the data, error, and mock arrays:
     data = malloc(data_alloc * sizeof( float ));
     data_err =  malloc(data_alloc * sizeof( float ));
+    visi = malloc(data_alloc_uv * sizeof( float complex));   
+    data_bis = malloc(data_alloc_bis * sizeof( float complex ));
     mock_data = malloc(data_alloc * sizeof( float ));
-    
+
+         
     // Set elements [0, npow - 1] equal to the power spectrum
     for(ii=0; ii < npow; ii++)
     {
@@ -70,7 +76,7 @@ int main(int argc, char *argv[])
     // Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
     for(ii = 0; ii < nbis; ii++)
     {
-        bisphasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
+        data_bis[ii] = cexp( - I * oifits_info.bisphs[ii] );
         data[npow + 2* ii] = oifits_info.bisamp[ii];
         data[npow + 2* ii + 1 ] = 0.;
         data_err[npow + 2* ii]=  1 / oifits_info.bisamperr[ii];
@@ -130,37 +136,46 @@ int main(int argc, char *argv[])
         
     tock=clock();
     float cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf("-----------------------------------------------------------\n");
-    printf("Reduced chi2 = %f\n", chi2/(float)( npow + 2 * nbis));
-    printf("Cpu time (s): = %f\n", cpu_time_chi2);
 
-    return 0;
     // GPU Code:  
     
     // Convert visi over to a cl_float2 in format <real, imaginary>
     cl_float2 * gpu_visi;
-    gpu_visi = malloc(nuv * sizeof(cl_float2));
+    gpu_visi = malloc(data_alloc_uv * sizeof(cl_float2));
     int i;
     for(i = 0; i < nuv; i++)
     {
         gpu_visi[i][0] = __real__ visi[i];
         gpu_visi[i][1] = __imag__ visi[i];
     }
+    // Pad the remainder
+    for(i = nuv; i < data_alloc_uv; i++)
+    {
+        gpu_visi[i][0] = 0;
+        gpu_visi[i][1] = 0;
+    }    
     
     // Convert the biphasor over to a cl_float2 in format <real, imaginary>    
-    cl_float2 * gpu_bisphasor;
-    gpu_bisphasor = malloc(nbis * sizeof(cl_float2));
+    cl_float2 * gpu_bis;
+    gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bisphasor[i][0] = __real__ bisphasor[i];
-        gpu_bisphasor[i][1] = __imag__ bisphasor[i];
+        gpu_bis[i][0] = __real__ data_bis[i];
+        gpu_bis[i][1] = __imag__ data_bis[i];
+    }
+    // Pad the remainder
+    for(i = nbis; i < data_alloc_bis; i++)
+    {
+        gpu_bis[i][0] = 0;
+        gpu_bis[i][1] = 0;
     }
     
     // We will also need the uvpnt and sign information for bisepctrum computations.
     cl_long * gpu_bsref_uvpnt;
-    gpu_bsref_uvpnt = malloc(3*nbis * sizeof(cl_long));
     cl_short * gpu_bsref_sign;
-    gpu_bsref_sign = malloc(3*nbis * sizeof(cl_short));
+    int data_alloc_bsref = 3 * data_alloc_bis;
+    gpu_bsref_uvpnt = malloc(data_alloc_bsref * sizeof(cl_long));
+    gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short));
     for(i = 0; i < nbis; i++)
     {
         gpu_bsref_uvpnt[3*i] = oifits_info.bsref[i].ab.uvpnt;
@@ -175,7 +190,7 @@ int main(int argc, char *argv[])
     
     float chi2_gpu = 0;
     gpu_init();
-    gpu_copy_data(data, data_err, gpu_bisphasor, gpu_bsref_uvpnt, gpu_bsref_sign, npow, nbis);   
+    gpu_copy_data(data, data_err, data_alloc, gpu_bis, data_alloc_bis, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref);  
     gpu_build_kernels();
     
 
@@ -189,13 +204,15 @@ int main(int argc, char *argv[])
     tock = clock();
     float gpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf("-----------------------------------------------------------\n");
+    printf("Reduced chi2 = %f\n", chi2/(float)( npow + 2 * nbis));
+    printf("Cpu time (s): = %f\n", cpu_time_chi2);
     printf("Reduced chi2_gpu = %f\n", chi2_gpu);
     printf("gpu time (s): = %f\n", gpu_time_chi2);
+    
+    
     gpu_cleanup();
     
-    printf("GPU:CPU ratio: %f\n", gpu_time_chi2 / cpu_time_chi2);
-    
-    return 1;
+    return 0;
 
 }
 
@@ -253,7 +270,7 @@ void vis2data(  )
         if( oifits_info.bsref[ii].ca.sign < 0) 
             vca = conj(vca);
             
-        t3 =  ( vab * vbc * vca ) * bisphasor[ii] ;   
+        t3 =  ( vab * vbc * vca ) * data_bis[ii] ;   
         mock_data[ npow + 2 * ii ] = creal(t3) ;
         mock_data[ npow + 2 * ii + 1] = cimag(t3) ;
     } 
