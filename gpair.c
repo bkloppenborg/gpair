@@ -199,15 +199,14 @@ int main(int argc, char *argv[])
     
     tick = clock();
     for(ii=0; ii < iterations; ii++)
-        chi2_gpu = gpu_data2chi2(data_alloc);
+        gpu_data2chi2(data_alloc);
     
     tock = clock();
     float gpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf("-----------------------------------------------------------\n");
-    printf("Reduced chi2 = %f\n", chi2/(float)( npow + 2 * nbis));
-    printf("Cpu time (s): = %f\n", cpu_time_chi2);
-    printf("Reduced chi2_gpu = %f\n", chi2_gpu);
-    printf("gpu time (s): = %f\n", gpu_time_chi2);
+    printf("Chi2 Computations:");
+    printf("CPU time (s): = %f\n", cpu_time_chi2);
+    printf("GPU time (s): = %f\n", gpu_time_chi2);
     
     
     gpu_cleanup();

@@ -4,7 +4,8 @@
 #include <sys/stat.h>
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 0;
+int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -26,6 +27,7 @@ cl_mem * pGpu_data_bip = NULL;         // OIFITS Data Biphasor
 cl_mem * pGpu_data_uvpnt = NULL;       // OIFITS UV Point indicies for bispectrum data 
 cl_mem * pGpu_data_sign = NULL;        // OIFITS UV Point signs.
 cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
+cl_mem * pGpu_result = NULL;
 
 #define SEP "-----------------------------------------------------------\n"
 
@@ -126,6 +128,8 @@ void gpu_cleanup()
         clReleaseMemObject(*pGpu_data_sign);
     if(pGpu_mock_data != NULL)
         clReleaseMemObject(*pGpu_mock_data);
+    if(pGpu_result != NULL)
+        clReleaseMemObject(*pGpu_result);
 
     // Release the command queue and context:
     if(pQueue != NULL)
@@ -136,25 +140,25 @@ void gpu_cleanup()
 }
 
 // Pull the data from the GPU and do a term by term subtraction, reporting the result.
-void gpu_compare_data(int size, float * cpu_data, cl_mem * gpu_data)
-{
-    int err = 0;
-    float * results;
-    results = malloc(size * sizeof(float));    
-    // Read the results from the device                                  
-    err = clEnqueueReadBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * size, results, 0, NULL, NULL );
-    if (err != CL_SUCCESS)
-        print_opencl_error("clEnqueueReadBuffer gpu_result", err);
-        
-    int i;
-    float error = 0;    
-    for(i = 0; i < size; i++)
-        error += cpu_data[i] - results[i];
-        
-    printf(SEP);
-    printf("Total Difference between GPU and CPU data: %f\n", error);
+/*void gpu_compare_data(int size, float * cpu_data, cl_mem * gpu_data)*/
+/*{*/
+/*    int err = 0;*/
+/*    float * results;*/
+/*    results = malloc(size * sizeof(float));    */
+/*    // Read the results from the device                                  */
+/*    err = clEnqueueReadBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * size, results, 0, NULL, NULL );*/
+/*    if (err != CL_SUCCESS)*/
+/*        print_opencl_error("clEnqueueReadBuffer gpu_result", err);*/
+/*        */
+/*    int i;*/
+/*    float error = 0;    */
+/*    for(i = 0; i < size; i++)*/
+/*        error += cpu_data[i] - results[i];*/
+/*        */
+/*    printf(SEP);*/
+/*    printf("Total Difference between GPU and CPU data: %f\n", error);*/
 
-}
+/*}*/
 
 // Copy data over to the GPU's global memory.
 void gpu_copy_data(float *data, float *data_err, int data_size,\
@@ -169,13 +173,23 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     static cl_mem gpu_data_uvpnt;   // UV Points for the bispectrum
     static cl_mem gpu_data_sign;    // Signs for the bispectrum.
     static cl_mem gpu_mock_data;    // Mock Data
+    static cl_mem gpu_result;       // Temporary storage for chi2 computation.
 
     // Init some mock data (to allow resumes in the future I suppose...)
     int i = 0;
     float * mock_data;
+    float * temp;
     mock_data = malloc(data_size * sizeof(float));
+    temp = malloc(data_size * sizeof(float));   
     for(i = 0; i < data_size; i++)
         mock_data[i] = 0; 
+        temp[i] = 0; 
+          
+    
+    // Create the input and output arrays in device memory for our calculation 
+    gpu_result = clCreateBuffer(*pContext, CL_MEM_WRITE_ONLY, sizeof(float) * data_size, NULL, NULL);
+    if (!gpu_result)
+        print_opencl_error("clCreateBuffer", 0);
     
     // Output some additional information if we are in verbose mode
     if(gpu_enable_verbose)
@@ -188,6 +202,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * bsref_size, NULL, NULL);
     gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * bsref_size, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    gpu_result = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     if (!gpu_data || !gpu_data_err)
         print_opencl_error("Error: gpu_copy_data.  Create Buffer.", 0);
 
@@ -195,14 +210,17 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
         printf("Copying data to device. \n");
 
     // Copy the data over to the device:
-    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_TRUE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bip, CL_TRUE, 0, sizeof(float) * bis_size, data_bis, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_TRUE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_TRUE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_TRUE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);    
+    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_FALSE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bip, CL_FALSE, 0, sizeof(float) * bis_size, data_bis, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);    
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_result, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);    
     if (err != CL_SUCCESS)
         print_opencl_error("Error: gpu_copy_data. Write Buffer", err);    
+ 
+    clFinish(*pQueue);
         
     pGpu_data = &gpu_data;
     pGpu_data_err = &gpu_data_err; 
@@ -210,6 +228,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     pGpu_data_uvpnt = &gpu_data_uvpnt;
     pGpu_data_sign = &gpu_data_sign;
     pGpu_mock_data = &gpu_mock_data;
+    pGpu_result = &gpu_result;
 }
 
 // Compute the chi2 of the data using a GPU
@@ -220,25 +239,12 @@ double gpu_data2chi2(int data_size)
     size_t global;                    // global domain size for our calculation
     size_t local;                     // local domain size for our calculation
 
-    //cl_mem gpu_model;
-    cl_mem gpu_result;            // device memory used for the output array
-    
-    // TODO: Remove this later.
-    float * results;
-    results = malloc(data_size * sizeof(float));
-          
-    
-    // Create the input and output arrays in device memory for our calculation 
-    gpu_result = clCreateBuffer(*pContext, CL_MEM_WRITE_ONLY, sizeof(float) * data_size, NULL, NULL);
-    if (!gpu_result)
-        print_opencl_error("clCreateBuffer", 0);
-
     // Set the arguments to our compute kernel                         
     err = 0;
     err  = clSetKernelArg(*pKernel_chi2, 0, sizeof(cl_mem), pGpu_data);
     err |= clSetKernelArg(*pKernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
     err |= clSetKernelArg(*pKernel_chi2, 2, sizeof(cl_mem), pGpu_mock_data);
-    err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), &gpu_result);
+    err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), pGpu_result);
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);
 
@@ -246,8 +252,6 @@ double gpu_data2chi2(int data_size)
     err = clGetKernelWorkGroupInfo(*pKernel_chi2, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
-
-    cl_event event;
 
     // Execute the kernel over the entire range of the data set        
     global = data_size;
@@ -257,24 +261,29 @@ double gpu_data2chi2(int data_size)
     
     // Wait for the command queue to finish
     clFinish(*pQueue);
+
+    // If we have debugging turned on, read in the individual chi2 values and output the summed chi2.
+    if(gpu_enable_debug)
+    {
+        int i;
+        float * results;
+        results = malloc(data_size * sizeof(float));
+        err = clEnqueueReadBuffer(*pQueue, gpu_result, CL_TRUE, 0, sizeof(float) * data_size, results, 0, NULL, NULL );
+            if (err != CL_SUCCESS)
+                print_opencl_error("clEnqueueReadBuffer gpu_result", err);
+        
+        float chi2 = 0;
+        for(i = 0; i < data_size; i++)
+              chi2 += results[i];
+              
+        printf("GPU Chi2: %f (summed on the CPU)\n", 0);
+    }
     
     // Now start up the partial sum kernel:
 
-/*    // Read the results from the device                                  */
-/*    err = clEnqueueReadBuffer(*pQueue, gpu_result, CL_TRUE, 0, sizeof(float) *count, results, 0, NULL, NULL );*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("clEnqueueReadBuffer gpu_result", err);*/
+
         
-    float chi2_temp = 0;
-/*    int i;*/
-/*    for(i = 0; i < count; i++)*/
-/*        chi2_temp += results[i];*/
-    
-    // Shut down and clean up
-    //clReleaseMemObject(gpu_model);
-    clReleaseMemObject(gpu_result);
-        
-    return chi2_temp/(double)(data_size);  
+    }
 }
 
 void gpu_device_stats(cl_device_id device_id)

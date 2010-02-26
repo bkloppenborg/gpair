@@ -13,7 +13,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
 
 void gpu_cleanup();
 
-double gpu_data2chi2(int data_size);
+void gpu_data2chi2(int data_size);
 
 void gpu_init();
 
