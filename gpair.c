@@ -131,7 +131,8 @@ int main(int argc, char *argv[])
 
     
     tick = clock();
-    for(ii=0; ii < iterations; ii++)
+    // TODO: Remove after testing
+    //for(ii=0; ii < iterations; ii++)
         chi2 = data2chi2( );
         
     tock=clock();
@@ -192,21 +193,22 @@ int main(int argc, char *argv[])
     gpu_init();
     gpu_copy_data(data, data_err, data_alloc, gpu_bis, data_alloc_bis, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref);  
     gpu_build_kernels();
-    
+    gpu_build_reduce_kernels(data_alloc);   
 
     gpu_vis2data(gpu_visi, nuv, npow, nbis);
-
     
     tick = clock();
-    for(ii=0; ii < iterations; ii++)
+    // TODO: Remove after testing
+    //for(ii=0; ii < iterations; ii++)
         gpu_data2chi2(data_alloc);
     
     tock = clock();
     float gpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf("-----------------------------------------------------------\n");
     printf("Chi2 Computations:");
-    printf("CPU time (s): = %f\n", cpu_time_chi2);
-    printf("GPU time (s): = %f\n", gpu_time_chi2);
+    printf("Chi2 (CPU): %f \n", chi2);
+    printf("CPU time (s): = %E\n", cpu_time_chi2);
+    printf("GPU time (s): = %E\n", gpu_time_chi2);
     
     
     gpu_cleanup();

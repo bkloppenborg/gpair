@@ -2,10 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+
+#define MAX_GROUPS      (64)
+#define MAX_WORK_ITEMS  (64)
+#define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -19,6 +24,8 @@ cl_program * pPro_powspec = NULL;
 cl_kernel * pKernel_powspec = NULL;
 cl_program * pPro_bispec  = NULL;
 cl_kernel * pKernel_bispec  = NULL;
+cl_program * pPro_reduce_float = NULL;
+cl_kernel * pKernel_reduce_float = NULL;
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -27,9 +34,16 @@ cl_mem * pGpu_data_bip = NULL;         // OIFITS Data Biphasor
 cl_mem * pGpu_data_uvpnt = NULL;       // OIFITS UV Point indicies for bispectrum data 
 cl_mem * pGpu_data_sign = NULL;        // OIFITS UV Point signs.
 cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
-cl_mem * pGpu_result = NULL;
+cl_mem * pGpu_result = NULL;           // result, result_swap and result_output are used for chi2 computation.
+cl_mem * pGpu_result_partials = NULL;
+cl_mem * pGpu_result_output = NULL;
 
-#define SEP "-----------------------------------------------------------\n"
+// Globals for the reduce_float kernel (urgh... globals).
+int pass_count = 0;
+size_t * group_counts = NULL;
+size_t * work_item_counts = NULL;
+int * operation_counts = NULL;
+int * entry_counts = NULL;
 
 
 // A quick way to output an error from an OpenCL function:
@@ -43,7 +57,7 @@ void print_opencl_error(char* error_message, int error_code)
     exit(0);
 }
 
-void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_name, char * filename)
+int gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_name, char * filename)
 {   
     int err = 0;
     if(gpu_enable_verbose)
@@ -66,6 +80,7 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
         printf("Error: Failed to build program executable for %s \n", kernel_name);          
         clGetProgramBuildInfo(*program, *pDevice_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
         printf("%s\n", buffer);
+        gpu_cleanup();
         exit(1);
     }
    
@@ -77,13 +92,13 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
 
 void gpu_build_kernels()
 {
-    // Kernel and program for computing chi2:
+    // Kernel and program for computing the elements of the chi2:
     static cl_program pro_chi2;
     static cl_kernel kern_chi2;
     gpu_build_kernel(&pro_chi2, &kern_chi2, "compute_chi2", "./kernel_chi2.cl");
     pPro_chi2 = &pro_chi2;
     pKernel_chi2 = &kern_chi2;
-    
+        
     // Kernel and program for computing the power spectrum
     static cl_program pro_powspec;
     static cl_kernel kern_powspec;
@@ -99,8 +114,91 @@ void gpu_build_kernels()
     pKernel_bispec = &kern_bispec;
 }
 
+// Builds kernels for summing up large arrays of floats.  Adapted from Apple source code:
+// http://developer.apple.com/Mac/library/samplecode/OpenCL_Parallel_Reduction_Example/index.html
+int gpu_build_reduce_kernels(int data_size)
+{
+    int i = 0;
+    int err = 0;
+    size_t returned_size = 0;
+    size_t max_workgroup_size = 0;
+    err = clGetDeviceInfo(*pDevice_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_workgroup_size, &returned_size);
+    if (err != CL_SUCCESS)
+        print_opencl_error("Error: gpu_build_reduce_kernels.  max_workgroup_size.", 0);
+
+    char *source = LoadProgramSourceFromFile("./kernel_reduce_float.cl");
+
+    gpu_reduction_pass_counts(data_size, max_workgroup_size,  MAX_GROUPS, MAX_WORK_ITEMS, &pass_count, &group_counts,  &work_item_counts, &operation_counts, &entry_counts);
+    
+    cl_program * programs = (cl_program*)malloc(pass_count * sizeof(cl_program));
+    memset(programs, 0, pass_count * sizeof(cl_program));
+
+    cl_kernel * kernels = (cl_kernel*)malloc(pass_count * sizeof(cl_kernel));
+    memset(kernels, 0, pass_count * sizeof(cl_kernel));
+
+    for(i = 0; i < pass_count; i++)
+    {
+        char *block_source = malloc(strlen(source) + 1024);
+        size_t source_length = strlen(source) + 1024;
+        memset(block_source, 0, source_length);
+        
+        // Insert macro definitions to specialize the kernel to a particular group size
+        //
+        const char group_size_macro[] = "#define GROUP_SIZE";
+        const char operations_macro[] = "#define OPERATIONS";
+        sprintf(block_source, "%s (%d) \n%s (%d)\n\n%s\n", 
+            group_size_macro, (int)group_counts[i], 
+            operations_macro, (int)operation_counts[i], 
+            source);
+        
+        // Create the compute program from the source buffer
+        //
+        programs[i] = clCreateProgramWithSource(*pContext, 1, (const char **) & block_source, NULL, &err);
+        if (!programs[i] || err != CL_SUCCESS)
+            print_opencl_error("clCreateKernel for chi2 sum", err); 
+/*        {*/
+/*            printf("%s\n", block_source);*/
+/*            printf("Error: Failed to create compute program!\n");*/
+/*            gpu_cleanup();*/
+/*            return 1;*/
+/*        }*/
+    
+        // Build the program executable
+        //
+        err = clBuildProgram(programs[i], 0, NULL, NULL, NULL, NULL);
+        if (err != CL_SUCCESS)
+        {
+            size_t length;
+            char build_log[2048];
+            printf("%s\n", block_source);
+            printf("Error: Failed to build program executable!\n");
+            clGetProgramBuildInfo(programs[i], *pDevice_id, CL_PROGRAM_BUILD_LOG, sizeof(build_log), build_log, &length);
+            printf("%s\n", build_log);
+            gpu_cleanup();
+            return 1;
+        }
+    
+        // Create the compute kernel from within the program
+        //
+        kernels[i] = clCreateKernel(programs[i], "reduce", &err);
+        if (!kernels[i] || err != CL_SUCCESS)
+        {
+            printf("Error: Failed to create compute kernel!\n");
+            return EXIT_FAILURE;
+        }
+
+        free(block_source);
+    }
+    
+    // Assign the kernels to their pointers.
+    pPro_reduce_float = programs;
+    pKernel_reduce_float = kernels;
+}
+
 void gpu_cleanup()
 {
+    int i;
+    
     if(gpu_enable_verbose)
         printf("Freeing program, kernel, and device objects. \n");
         
@@ -109,11 +207,17 @@ void gpu_cleanup()
         clReleaseProgram(*pPro_chi2);
     if(pPro_powspec != NULL)
         clReleaseProgram(*pPro_powspec);
-    
+    if(pPro_reduce_float != NULL)
+        for(i = 0; i < pass_count; i++)
+            clReleaseProgram(pPro_reduce_float[i]);
+            
     if(pKernel_chi2 != NULL)
         clReleaseKernel(*pKernel_chi2);
     if(pKernel_powspec != NULL)
         clReleaseKernel(*pKernel_powspec);
+    if(pKernel_reduce_float != NULL)
+        for(i = 0; i < pass_count; i++)
+            clReleaseKernel(pKernel_reduce_float[i]);
 
     // Releate Memory objects:
     if(pGpu_data != NULL)
@@ -130,35 +234,24 @@ void gpu_cleanup()
         clReleaseMemObject(*pGpu_mock_data);
     if(pGpu_result != NULL)
         clReleaseMemObject(*pGpu_result);
+    if(pGpu_result_partials != NULL)
+        clReleaseMemObject(*pGpu_result_partials);
+    if(pGpu_result_output != NULL)
+        clReleaseMemObject(*pGpu_result_output);
 
     // Release the command queue and context:
     if(pQueue != NULL)
         clReleaseCommandQueue(*pQueue);
     if(pContext != NULL)
         clReleaseContext(*pContext);
+
+    // Now free global pointers:
+    free(group_counts);
+    free(work_item_counts);
+    free(operation_counts);
+    free(entry_counts);
     
 }
-
-// Pull the data from the GPU and do a term by term subtraction, reporting the result.
-/*void gpu_compare_data(int size, float * cpu_data, cl_mem * gpu_data)*/
-/*{*/
-/*    int err = 0;*/
-/*    float * results;*/
-/*    results = malloc(size * sizeof(float));    */
-/*    // Read the results from the device                                  */
-/*    err = clEnqueueReadBuffer(*pQueue, gpu_data, CL_TRUE, 0, sizeof(float) * size, results, 0, NULL, NULL );*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("clEnqueueReadBuffer gpu_result", err);*/
-/*        */
-/*    int i;*/
-/*    float error = 0;    */
-/*    for(i = 0; i < size; i++)*/
-/*        error += cpu_data[i] - results[i];*/
-/*        */
-/*    printf(SEP);*/
-/*    printf("Total Difference between GPU and CPU data: %f\n", error);*/
-
-/*}*/
 
 // Copy data over to the GPU's global memory.
 void gpu_copy_data(float *data, float *data_err, int data_size,\
@@ -174,6 +267,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     static cl_mem gpu_data_sign;    // Signs for the bispectrum.
     static cl_mem gpu_mock_data;    // Mock Data
     static cl_mem gpu_result;       // Temporary storage for chi2 computation.
+    static cl_mem gpu_result_partials;
+    static cl_mem gpu_result_output;       // Temporary storage for chi2 computation.
 
     // Init some mock data (to allow resumes in the future I suppose...)
     int i = 0;
@@ -203,6 +298,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * bsref_size, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_result = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    gpu_result_partials = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    gpu_result_output = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     if (!gpu_data || !gpu_data_err)
         print_opencl_error("Error: gpu_copy_data.  Create Buffer.", 0);
 
@@ -216,7 +313,9 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);    
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_result, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);    
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_result, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);     
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_result_partials, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL); 
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_result_output, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL); 
     if (err != CL_SUCCESS)
         print_opencl_error("Error: gpu_copy_data. Write Buffer", err);    
  
@@ -229,6 +328,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     pGpu_data_sign = &gpu_data_sign;
     pGpu_mock_data = &gpu_mock_data;
     pGpu_result = &gpu_result;
+    pGpu_result_output = &gpu_result_output;
+    pGpu_result_partials = &gpu_result_partials;
 }
 
 // Compute the chi2 of the data using a GPU
@@ -275,12 +376,24 @@ void gpu_data2chi2(int data_size)
         float chi2 = 0;
         for(i = 0; i < data_size; i++)
               chi2 += results[i];
-              
-        printf("GPU Chi2: %f (summed on the CPU)\n", 0.0);
+        
+        printf(SEP);      
+        printf("GPU Chi2: %f (summed on the CPU)\n", chi2);
     }
     
-    // Now start up the partial sum kernel:
+    // Compute the sum (a parallel sum):
+    cl_mem * output = NULL;
+    gpu_reduction_chi2(pGpu_result, pGpu_result_output, pGpu_result_partials, &output);    
 
+    if(gpu_enable_debug)
+    {
+        float chi2 = 0;
+        err = clEnqueueReadBuffer(*pQueue, *output, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
+        if (err != CL_SUCCESS)
+            print_opencl_error("clEnqueueReadBuffer gpu_result", err);  
+                
+        printf("GPU Chi2: %f (summed on the GPU)\n", chi2);      
+    }
 
 }
 
@@ -391,6 +504,127 @@ void gpu_init()
     pQueue = &queue;
 }
 
+// A function to compute the necessary information for the reduce kernels.
+// Original code pulled from Apple's OpenCL sample code:
+// http://developer.apple.com/Mac/library/samplecode/OpenCL_Parallel_Reduction_Example/index.html
+void gpu_reduction_pass_counts(int count, int max_group_size, int max_groups, int max_work_items, 
+    int *pass_count, size_t **group_counts, size_t **work_item_counts, int **operation_counts, 
+    int **entry_counts)
+{
+    int work_items = (count < max_work_items * 2) ? count / 2 : max_work_items;
+    if(count < 1)
+        work_items = 1;
+        
+    int groups = count / (work_items * 2);
+    groups = max_groups < groups ? max_groups : groups;
+
+    int max_levels = 1;
+    int s = groups;
+
+    while(s > 1) 
+    {
+        int work_items = (s < max_work_items * 2) ? s / 2 : max_work_items;
+        s = s / (work_items*2);
+        max_levels++;
+    }
+ 
+    *group_counts = (size_t*)malloc(max_levels * sizeof(size_t));
+    *work_item_counts = (size_t*)malloc(max_levels * sizeof(size_t));
+    *operation_counts = (int*)malloc(max_levels * sizeof(int));
+    *entry_counts = (int*)malloc(max_levels * sizeof(int));
+
+    (*pass_count) = max_levels;
+    (*group_counts)[0] = groups;
+    (*work_item_counts)[0] = work_items;
+    (*operation_counts)[0] = 1;
+    (*entry_counts)[0] = count;
+    if(max_group_size < work_items)
+    {
+        (*operation_counts)[0] = work_items;
+        (*work_item_counts)[0] = max_group_size;
+    }
+    
+    s = groups;
+    int level = 1;
+   
+    while(s > 1) 
+    {
+        int work_items = (s < max_work_items * 2) ? s / 2 : max_work_items;
+        int groups = s / (work_items * 2);
+        groups = (max_groups < groups) ? max_groups : groups;
+
+        (*group_counts)[level] = groups;
+        (*work_item_counts)[level] = work_items;
+        (*operation_counts)[level] = 1;
+        (*entry_counts)[level] = s;
+        if(max_group_size < work_items)
+        {
+            (*operation_counts)[level] = work_items;
+            (*work_item_counts)[level] = max_group_size;
+        }
+        
+        s = s / (work_items*2);
+        level++;
+    }
+}
+
+// A function to compute the necessary information for the reduce kernels.
+// Modified slightly from the Apple source for use in this program.
+// http://developer.apple.com/Mac/library/samplecode/OpenCL_Parallel_Reduction_Example/index.html
+void gpu_reduction_chi2(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * partials_buffer, cl_mem ** final_output)
+{
+    int i = 0;
+    int err = 0;
+    cl_mem * pass_swap;
+    cl_mem * pass_input = output_buffer;
+    cl_mem * pass_output = input_buffer;
+
+    for(i = 0; i < pass_count; i++)
+    {
+        size_t global = group_counts[i] * work_item_counts[i];        
+        size_t local = work_item_counts[i];
+        unsigned int operations = operation_counts[i];
+        unsigned int entries = entry_counts[i];
+        size_t shared_size = sizeof(float) * local * operations;
+
+        printf("Pass[%4d] Global[%4d] Local[%4d] Groups[%4d] WorkItems[%4d] Operations[%d] Entries[%d]\n",  i, 
+            (int)global, (int)local, (int)group_counts[i], (int)work_item_counts[i], operations, entries);
+
+        // Swap the inputs and outputs for each pass
+        //
+        pass_swap = pass_input;
+        pass_input = pass_output;
+        pass_output = pass_swap;
+        
+        err = CL_SUCCESS;
+        err |= clSetKernelArg(pKernel_reduce_float[i],  0, sizeof(cl_mem), pass_output);  
+        err |= clSetKernelArg(pKernel_reduce_float[i],  1, sizeof(cl_mem), pass_input);
+        err |= clSetKernelArg(pKernel_reduce_float[i],  2, shared_size,    NULL);
+        err |= clSetKernelArg(pKernel_reduce_float[i],  3, sizeof(int),    &entries);
+        if (err != CL_SUCCESS)
+            print_opencl_error("clSetKernelArg chi2 summation", err);
+        
+        // After the first pass, use the partial sums for the next input values
+        //
+        if(pass_input == input_buffer)
+            pass_input = partials_buffer;
+
+       // Get the maximum work-group size for executing the kernel on the device
+        err = clGetKernelWorkGroupInfo(pKernel_reduce_float[i], *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+        if (err != CL_SUCCESS)
+            print_opencl_error("clGetKernelWorkGroupInfo chi2 summation", err);
+        
+        // TODO: Use Local workgroup sizes in the kernels.    
+        err = CL_SUCCESS;
+        err |= clEnqueueNDRangeKernel(*pQueue, pKernel_reduce_float[i], 1, NULL, &global, NULL, 0, NULL, NULL);
+        if (err != CL_SUCCESS)
+            print_opencl_error("clEnqueueNDRangeKernel chi2 summation", err);
+    }
+    
+    clFinish(*pQueue);
+    (*final_output) = pass_output;
+}
+
 void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
 {
     // Begin by copying vis over to the GPU
@@ -422,6 +656,8 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
+
+    // TODO: Compute and use the local workgroup size.
     // Execute the kernel over the entire range of the data set        
     global = npow;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, NULL, 0, NULL, NULL);
@@ -447,6 +683,7 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
+    // TODO: Compute and use the local workgroup size.
     // Execute the kernel over the entire range of the data set        
     global = nbis;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_bispec, 1, NULL, &global, NULL, 0, NULL, NULL);
