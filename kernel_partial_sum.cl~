@@ -1,0 +1,17 @@
+__kernel partial_sum(
+    __global float * data,
+)
+{
+    int stride = 0;
+    int t = get_local_id(0);
+    
+    
+    for(stride = get_local_size(0) >> 1; stride > 0; stride >>= 1)
+    {
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+        if(t < stride)
+            data[t] += data[t + stride];
+    }
+
+}
