@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
     }        
         
     
-    float chi2_gpu = 0;
+    // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
     gpu_copy_data(data, data_err, data_alloc, gpu_bis, data_alloc_bis, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref);  
     gpu_build_kernels(data_alloc);
@@ -203,8 +203,8 @@ int main(int argc, char *argv[])
     
     tock = clock();
     float gpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf("-----------------------------------------------------------\n");
-    printf("Chi2 Computations:");
+    printf("CPU Chi2: %f (CPU only)\n", chi2);
+    printf("-----------------------------------------------------------\n");   
     printf("CPU time (s): = %f\n", cpu_time_chi2);
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
