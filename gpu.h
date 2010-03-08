@@ -3,6 +3,7 @@
 
 // Funcion declairations
 void print_opencl_error(char* error_message, int error_code);
+char * print_cl_errstring(cl_int err);
 
 void gpu_build_kernels(int data_size, int image_size);
 void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kernel ** pKernels, 

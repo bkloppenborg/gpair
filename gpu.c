@@ -9,7 +9,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -134,13 +134,74 @@ void create_reduction_pass_counts(
 // A quick way to output an error from an OpenCL function:
 void print_opencl_error(char* error_message, int error_code)
 {
-    // Something bad happened.  Clean up memory first.
+    // Something bad happened.
+    printf(SEP);
+    printf("Error Detected\n");
+    printf(SEP);
+    
+    // Clean up memory so we can exit somewhat nicely.
     gpu_cleanup();
     
+    char * error_string = print_cl_errstring(error_code);
+    
     printf("%s \n", error_message);
-    printf("OpenCL Error %i \n", error_code);
+    printf("OpenCL Error: %s\n", error_string);
+    printf(SEP);
     exit(0);
 }
+
+char * print_cl_errstring(cl_int err) 
+{
+    switch (err) {
+        case CL_SUCCESS:                          return strdup("Success!");
+        case CL_DEVICE_NOT_FOUND:                 return strdup("Device not found.");
+        case CL_DEVICE_NOT_AVAILABLE:             return strdup("Device not available");
+        case CL_COMPILER_NOT_AVAILABLE:           return strdup("Compiler not available");
+        case CL_MEM_OBJECT_ALLOCATION_FAILURE:    return strdup("Memory object allocation failure");
+        case CL_OUT_OF_RESOURCES:                 return strdup("Out of resources");
+        case CL_OUT_OF_HOST_MEMORY:               return strdup("Out of host memory");
+        case CL_PROFILING_INFO_NOT_AVAILABLE:     return strdup("Profiling information not available");
+        case CL_MEM_COPY_OVERLAP:                 return strdup("Memory copy overlap");
+        case CL_IMAGE_FORMAT_MISMATCH:            return strdup("Image format mismatch");
+        case CL_IMAGE_FORMAT_NOT_SUPPORTED:       return strdup("Image format not supported");
+        case CL_BUILD_PROGRAM_FAILURE:            return strdup("Program build failure");
+        case CL_MAP_FAILURE:                      return strdup("Map failure");
+        case CL_INVALID_VALUE:                    return strdup("Invalid value");
+        case CL_INVALID_DEVICE_TYPE:              return strdup("Invalid device type");
+        case CL_INVALID_PLATFORM:                 return strdup("Invalid platform");
+        case CL_INVALID_DEVICE:                   return strdup("Invalid device");
+        case CL_INVALID_CONTEXT:                  return strdup("Invalid context");
+        case CL_INVALID_QUEUE_PROPERTIES:         return strdup("Invalid queue properties");
+        case CL_INVALID_COMMAND_QUEUE:            return strdup("Invalid command queue");
+        case CL_INVALID_HOST_PTR:                 return strdup("Invalid host pointer");
+        case CL_INVALID_MEM_OBJECT:               return strdup("Invalid memory object");
+        case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:  return strdup("Invalid image format descriptor");
+        case CL_INVALID_IMAGE_SIZE:               return strdup("Invalid image size");
+        case CL_INVALID_SAMPLER:                  return strdup("Invalid sampler");
+        case CL_INVALID_BINARY:                   return strdup("Invalid binary");
+        case CL_INVALID_BUILD_OPTIONS:            return strdup("Invalid build options");
+        case CL_INVALID_PROGRAM:                  return strdup("Invalid program");
+        case CL_INVALID_PROGRAM_EXECUTABLE:       return strdup("Invalid program executable");
+        case CL_INVALID_KERNEL_NAME:              return strdup("Invalid kernel name");
+        case CL_INVALID_KERNEL_DEFINITION:        return strdup("Invalid kernel definition");
+        case CL_INVALID_KERNEL:                   return strdup("Invalid kernel");
+        case CL_INVALID_ARG_INDEX:                return strdup("Invalid argument index");
+        case CL_INVALID_ARG_VALUE:                return strdup("Invalid argument value");
+        case CL_INVALID_ARG_SIZE:                 return strdup("Invalid argument size");
+        case CL_INVALID_KERNEL_ARGS:              return strdup("Invalid kernel arguments");
+        case CL_INVALID_WORK_DIMENSION:           return strdup("Invalid work dimension");
+        case CL_INVALID_WORK_GROUP_SIZE:          return strdup("Invalid work group size");
+        case CL_INVALID_WORK_ITEM_SIZE:           return strdup("Invalid work item size");
+        case CL_INVALID_GLOBAL_OFFSET:            return strdup("Invalid global offset");
+        case CL_INVALID_EVENT_WAIT_LIST:          return strdup("Invalid event wait list");
+        case CL_INVALID_EVENT:                    return strdup("Invalid event");
+        case CL_INVALID_OPERATION:                return strdup("Invalid operation");
+        case CL_INVALID_GL_OBJECT:                return strdup("Invalid OpenGL object");
+        case CL_INVALID_BUFFER_SIZE:              return strdup("Invalid buffer size");
+        case CL_INVALID_MIP_LEVEL:                return strdup("Invalid mip-map level");
+        default:                                  return strdup("Unknown");
+    }
+} 
 
 void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_name, char * filename)
 {   
@@ -210,6 +271,10 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
     // Init a few variables:
     int err = 0;
     int i;
+    
+    if(gpu_enable_debug && gpu_enable_verbose)
+        printf("Loading and Compiling program ./kernel_reduce_float.cl \n");
+        
     char * source = LoadProgramSourceFromFile("./kernel_reduce_float.cl");
 
     size_t returned_size = 0;
@@ -418,7 +483,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
             pass_input = partials_buffer;
             
         err = CL_SUCCESS;
-        err |= clEnqueueNDRangeKernel(*pQueue, pGpu_chi2_kernels[i], 1, NULL, &global, &local, 0, NULL, NULL);
+        err |= clEnqueueNDRangeKernel(*pQueue, pKernels[i], 1, NULL, &global, &local, 0, NULL, NULL);
         if (err != CL_SUCCESS)
             print_opencl_error("Failed to enqueue parallel sum kernels.", err); 
     }
@@ -433,19 +498,19 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
         
     if(gpu_enable_debug)
     {
-        float chi2 = 0;
-        err = clEnqueueReadBuffer(*pQueue, pass_output, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
+        float sum = 0;
+        err = clEnqueueReadBuffer(*pQueue, pass_output, CL_TRUE, 0, sizeof(float), &sum, 0, NULL, NULL );
         if(err != CL_SUCCESS)
             print_opencl_error("Could not read back summed GPU value.", err);
         
-        printf("GPU Sum: %f \n", chi2);
+        printf("GPU Sum: %f (summed on GPU)\n", sum);
 
-        chi2 = 0;
-        err = clEnqueueReadBuffer(*pQueue, *final_buffer, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
+        sum = 0;
+        err = clEnqueueReadBuffer(*pQueue, *final_buffer, CL_TRUE, 0, sizeof(float), &sum, 0, NULL, NULL );
         if(err != CL_SUCCESS)
-            print_opencl_error("Could not read back GPU chi2 value.", err);
+            print_opencl_error("Could not read back GPU SUM value.", err);
         
-        printf("GPU Copied Value: %f \n", chi2);
+        printf("GPU Val: %f (copied value on GPU)\n", sum);
     }        
 }
 
@@ -501,18 +566,19 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * bsref_size, NULL, NULL);
     gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * bsref_size, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    
     gpu_chi2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
     gpu_chi2_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_chi2_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_chi2_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     
-    gpu_flux = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, &err);
-    gpu_flux_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, &err);
-    gpu_flux_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, &err);
-    gpu_flux_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, &err);
+    gpu_flux = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
+    gpu_flux_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
+    gpu_flux_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
+    gpu_flux_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     
-    if (err != CL_SUCCESS)
-        print_opencl_error("Error: gpu_copy_data.  Create Buffer.", err);
+/*    if (err != CL_SUCCESS)*/
+/*        print_opencl_error("Error: gpu_copy_data.  Create Buffer.", err);*/
 
     if(gpu_enable_verbose)
         printf("Copying data to device. \n");
@@ -524,10 +590,12 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);
+    
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);        
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer0, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);  
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer1, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer2, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
+    
     err |= clEnqueueWriteBuffer(*pQueue, gpu_flux, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);        
     err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer0, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);  
     err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer1, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
@@ -619,6 +687,9 @@ void gpu_data2chi2(int data_size)
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
+    if(gpu_enable_debug)
+        printf("%sComputing Chi2 on the GPU.\n%s", SEP, SEP);
+        
     // Execute the kernel over the entire range of the data set        
     global = data_size;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_chi2, 1, NULL, &global, &local, 0, NULL, NULL);
@@ -644,10 +715,8 @@ void gpu_data2chi2(int data_size)
               chi2 += results[i];
               //printf("%f ", results[i]);  // Enable if you want to see the elements of the results array.
         }
-
-        printf("\n");
-        printf(SEP);  
-        printf("GPU Chi2: %f (summed on the CPU)\n", chi2);
+ 
+        printf("GPU Sum: %f (summed on the CPU)\n", chi2);
     }
     
     // Now start up the partial sum kernel:
@@ -764,8 +833,14 @@ void gpu_init()
 
 void gpu_image2vis()
 { 
+    // Say we are computing the flux:
+    if(gpu_enable_debug)
+        printf("%sComputing Flux Sum on the GPU.\n%s", SEP, SEP);
+            
     // First, compute the total flux.  Store the result in the GPU buffer, pGpu_flux
     gpu_compute_sum(pGpu_image, pGpu_flux_buffer1, pGpu_flux_buffer2, pGpu_flux, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
+
+    // Now we compute the DFT
 
     // DFT
 /*    int ii, jj, uu;	*/

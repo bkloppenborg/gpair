@@ -3,6 +3,8 @@
 #include <time.h>
 #include "gpu.h"
 
+#define SEP "-----------------------------------------------------------\n"
+
 // Global variables
 int model_image_size;
 float model_image_pixellation;
@@ -94,19 +96,23 @@ int main(int argc, char *argv[])
     }
 
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
-    int npix = 128;
+    int model_image_size = 128;
     float model_image_pixellation = 0.15 ;
-    current_image = (float*)malloc(npix*npix*sizeof(float));
-    for(ii=0; ii< (npix * npix - 1); ii++)
+    current_image = (float*)malloc(model_image_size * model_image_size * sizeof(float));
+    for(ii=0; ii < (model_image_size * model_image_size - 1); ii++)
     {
         current_image[ ii ]= 0. ;
     }  
-    current_image[(npix * (npix + 1 ) )/ 2 ] = 1.0;
-
+    current_image[(model_image_size * (model_image_size + 1 ) )/ 2 ] = 1.0;
+    // Necessary code for the GPU
+    int image_size = model_image_size * model_image_size;
+    printf("Image Buffer Size %i \n", image_size);
 
     // setup precomputed DFT table
-    DFT_tablex = malloc( nuv * model_image_size * sizeof(float complex));
-    DFT_tabley = malloc( nuv * model_image_size * sizeof(float complex));
+    int dft_size = nuv * model_image_size;
+    int dft_alloc = pow(2, ceil(log(dft_size) / log(2)));   // Amount of space to allocate on the GPU.
+    DFT_tablex = malloc( dft_size * sizeof(float complex));
+    DFT_tabley = malloc( dft_size * sizeof(float complex));
     for(uu=0 ; uu < nuv; uu++)
     {
         for(ii=0; ii < model_image_size; ii++)
@@ -120,7 +126,11 @@ int main(int argc, char *argv[])
 
    
     // TODO: Remove after testing
-    int iterations = 100;
+    int iterations = 1;
+
+    // #########
+    // CPU Code:
+    // #########
 
     // compute mock data, powerspectra + bispectra
     clock_t tick, tock;
@@ -129,15 +139,20 @@ int main(int argc, char *argv[])
     {
         //compute complex visibilities and the chi2
         image2vis();
-        vis2data( );
-        chi2 = data2chi2( );
+        vis2data();
+        chi2 = data2chi2();
     }
         
     tock=clock();
     float cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-
-    // GPU Code:  
+    printf(SEP);
+    printf("CPU Chi2: %f (CPU only)\n", chi2);
+    printf(SEP);
     
+    // #########
+    // GPU Code:  
+    // #########
+        
     // Convert visi over to a cl_float2 in format <real, imaginary>
     cl_float2 * gpu_visi;
     gpu_visi = malloc(data_alloc_uv * sizeof(cl_float2));
@@ -185,15 +200,14 @@ int main(int argc, char *argv[])
         gpu_bsref_sign[3*i+1] = oifits_info.bsref[i].bc.sign;
         gpu_bsref_sign[3*i+2] = oifits_info.bsref[i].ca.sign;
     }        
-        
     
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
-    printf("Image Buffer Size %i", model_image_size);
+
     gpu_copy_data(data, data_err, data_alloc, gpu_bis, data_alloc_bis, 
-        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,  model_image_size); 
+        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,  image_size); 
          
-    gpu_build_kernels(data_alloc, model_image_size);
+    gpu_build_kernels(data_alloc, image_size);
     //gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size);
     
 
@@ -201,7 +215,7 @@ int main(int argc, char *argv[])
     for(ii=0; ii < iterations; ii++)
     {
         // In the final version of the code, the following lines will be iterated.
-        //gpu_copy_image(image, x_size, y_size);
+        gpu_copy_image(current_image, model_image_size, model_image_size);
         gpu_image2vis();
         gpu_vis2data(gpu_visi, nuv, npow, nbis);
 
@@ -211,7 +225,6 @@ int main(int argc, char *argv[])
     }
     tock = clock();
     float gpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf("CPU Chi2: %f (CPU only)\n", chi2);
     printf("-----------------------------------------------------------\n");   
     printf("CPU time (s): = %f\n", cpu_time_chi2);
     printf("GPU time (s): = %f\n", gpu_time_chi2);
