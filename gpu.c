@@ -9,7 +9,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -23,8 +23,10 @@ cl_program * pPro_powspec = NULL;
 cl_kernel * pKernel_powspec = NULL;
 cl_program * pPro_bispec  = NULL;
 cl_kernel * pKernel_bispec  = NULL;
-cl_program * pGpu_reduce_programs = NULL;
-cl_kernel * pGpu_reduce_kernels = NULL;
+cl_program * pGpu_chi2_programs = NULL;
+cl_kernel * pGpu_chi2_kernels = NULL;
+cl_program * pGpu_flux_programs = NULL;
+cl_kernel * pGpu_flux_kernels = NULL;
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -33,18 +35,33 @@ cl_mem * pGpu_data_bip = NULL;         // OIFITS Data Biphasor
 cl_mem * pGpu_data_uvpnt = NULL;       // OIFITS UV Point indicies for bispectrum data 
 cl_mem * pGpu_data_sign = NULL;        // OIFITS UV Point signs.
 cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
+
 cl_mem * pGpu_chi2 = NULL;             // Buffer for storing the (single summed) chi2 value.
-cl_mem * pGpu_buffer0 = NULL;       // Used as input buffer
-cl_mem * pGpu_buffer1 = NULL;       // Used as output buffer
-cl_mem * pGpu_buffer2 = NULL;       // Used as partial sum buffer
+cl_mem * pGpu_chi2_buffer0 = NULL;       // Used as input buffer
+cl_mem * pGpu_chi2_buffer1 = NULL;       // Used as output buffer
+cl_mem * pGpu_chi2_buffer2 = NULL;       // Used as partial sum buffer
+
+cl_mem * pGpu_dft_x = NULL;         // Pointer to Memory for x-DFT table
+cl_mem * pGpu_dft_y = NULL;         // Pointer to Memory for y-DFT table
+cl_mem * pGpu_image = NULL;
+
+cl_mem * pGpu_flux = NULL;          // Buffer storing the (single, summed) flux value.
+cl_mem * pGpu_flux_buffer0 = NULL;  // Used as input buffer
+cl_mem * pGpu_flux_buffer1 = NULL;  // Used as output buffer
+cl_mem * pGpu_flux_buffer2 = NULL;  // Used as partial sum buffer
 
 // Variables for the parallel sum in the chi2 (again, globals... urgh).
-int pass_count = 0;
-size_t * group_counts = 0;
-size_t * work_item_counts = 0;
-int * operation_counts = 0;
-int * entry_counts = 0;
+int Chi2_pass_count = 0;
+size_t * Chi2_group_counts = NULL;
+size_t * Chi2_work_item_counts = NULL;
+int * Chi2_operation_counts = NULL;
+int * Chi2_entry_counts = NULL;
 
+int Flux_pass_count = 0;
+size_t * Flux_group_counts = NULL;
+size_t * Flux_work_item_counts = NULL;
+int * Flux_operation_counts = NULL;
+int * Flux_entry_counts = NULL;
 
 void create_reduction_pass_counts(
     int count, 
@@ -158,7 +175,7 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
         print_opencl_error("clCreateKernel", err); 
 }
 
-void gpu_build_kernels(int data_size)
+void gpu_build_kernels(int data_size, int image_size)
 {
     // Kernel and program for computing chi2:
     static cl_program pro_chi2;
@@ -182,10 +199,13 @@ void gpu_build_kernels(int data_size)
     pKernel_bispec = &kern_bispec;
     
     // Now build the reduction kernels
-    gpu_build_reduction_kernels(data_size);
+    gpu_build_reduction_kernels(data_size, &pGpu_chi2_programs, &pGpu_chi2_kernels, &Chi2_pass_count, &Chi2_group_counts, &Chi2_work_item_counts, &Chi2_operation_counts, &Chi2_entry_counts);
+    gpu_build_reduction_kernels(image_size, &pGpu_flux_programs, &pGpu_flux_kernels, &Flux_pass_count, &Flux_group_counts, &Flux_work_item_counts, &Flux_operation_counts, &Flux_entry_counts);
 }
 
-void gpu_build_reduction_kernels(int data_size)
+void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kernel ** pKernels, 
+    int * pass_count, size_t ** group_counts, size_t ** work_item_counts, 
+    int ** operation_counts, int ** entry_counts)
 {
     // Init a few variables:
     int err = 0;
@@ -199,16 +219,16 @@ void gpu_build_reduction_kernels(int data_size)
         print_opencl_error("Couldn't get maximum work group size from the device.", err); 
     
     // Determine the reduction pass configuration for each level in the pyramid
-    create_reduction_pass_counts(data_size, max_workgroup_size, MAX_GROUPS, MAX_WORK_ITEMS, &pass_count, &group_counts, &work_item_counts, &operation_counts, &entry_counts);
+    create_reduction_pass_counts(data_size, max_workgroup_size, MAX_GROUPS, MAX_WORK_ITEMS, pass_count, group_counts, work_item_counts, operation_counts, entry_counts);
 
     // Create specialized programs and kernels for each level of the reduction
-    cl_program * programs = (cl_program*)malloc(pass_count * sizeof(cl_program));
-    memset(programs, 0, pass_count * sizeof(cl_program));
+    cl_program * programs = (cl_program*)malloc((*pass_count) * sizeof(cl_program));
+    memset(programs, 0, (*pass_count) * sizeof(cl_program));
 
-    cl_kernel * kernels = (cl_kernel*)malloc(pass_count * sizeof(cl_kernel));
-    memset(kernels, 0, pass_count * sizeof(cl_kernel));
+    cl_kernel * kernels = (cl_kernel*)malloc((*pass_count) * sizeof(cl_kernel));
+    memset(kernels, 0, (*pass_count) * sizeof(cl_kernel));
 
-    for(i = 0; i < pass_count; i++)
+    for(i = 0; i < (*pass_count); i++)
     {
         char *block_source = malloc(strlen(source) + 1024);
         size_t source_length = strlen(source) + 1024;
@@ -219,8 +239,8 @@ void gpu_build_reduction_kernels(int data_size)
         const char group_size_macro[] = "#define GROUP_SIZE";
         const char operations_macro[] = "#define OPERATIONS";
         sprintf(block_source, "%s (%d) \n%s (%d)\n\n%s\n", 
-            group_size_macro, (int)group_counts[i], 
-            operations_macro, (int)operation_counts[i], 
+            group_size_macro, (int)(*group_counts)[i], 
+            operations_macro, (int)(*operation_counts)[i], 
             source);
         
         // Create the compute program from the source buffer
@@ -258,8 +278,8 @@ void gpu_build_reduction_kernels(int data_size)
         free(block_source);
     }
     
-    pGpu_reduce_programs = programs;
-    pGpu_reduce_kernels = kernels;
+    (*pPrograms) = programs;
+    (*pKernels) = kernels;
 }
 
 void gpu_cleanup()
@@ -273,21 +293,30 @@ void gpu_cleanup()
         clReleaseProgram(*pPro_chi2);
     if(pPro_powspec != NULL)
         clReleaseProgram(*pPro_powspec);
-    if(pGpu_reduce_programs != NULL)
+    if(pGpu_chi2_programs != NULL)
     {
-        for(i = 0; i < pass_count; i++)
-            clReleaseProgram(pGpu_reduce_programs[i]);
+        for(i = 0; i < Chi2_pass_count; i++)
+            clReleaseProgram(pGpu_chi2_programs[i]);
     }
-
+    if(pGpu_flux_programs != NULL)
+    {
+        for(i = 0; i < Flux_pass_count; i++)
+            clReleaseProgram(pGpu_flux_programs[i]);
+    }
     
     if(pKernel_chi2 != NULL)
         clReleaseKernel(*pKernel_chi2);
     if(pKernel_powspec != NULL)
         clReleaseKernel(*pKernel_powspec);
-    if(pGpu_reduce_kernels != NULL)
+    if(pGpu_chi2_kernels != NULL)
     {
-        for(i = 0; i < pass_count; i++)
-            clReleaseKernel(pGpu_reduce_kernels[i]);
+        for(i = 0; i < Chi2_pass_count; i++)
+            clReleaseKernel(pGpu_chi2_kernels[i]);
+    }
+    if(pGpu_flux_kernels != NULL)
+    {
+        for(i = 0; i < Flux_pass_count; i++)
+            clReleaseKernel(pGpu_flux_kernels[i]);
     }
 
     // Releate Memory objects:
@@ -303,14 +332,35 @@ void gpu_cleanup()
         clReleaseMemObject(*pGpu_data_sign);
     if(pGpu_mock_data != NULL)
         clReleaseMemObject(*pGpu_mock_data);
+
+    if(pGpu_dft_x != NULL)
+        clReleaseMemObject(*pGpu_dft_x);
+    if(pGpu_dft_y != NULL)
+        clReleaseMemObject(*pGpu_dft_y);
+    if(pGpu_image != NULL)
+        clReleaseMemObject(*pGpu_image);
+
+    // Release chi2 memory objects:
     if(pGpu_chi2 != NULL)
         clReleaseMemObject(*pGpu_chi2);
-    if(pGpu_buffer0 != NULL)
-        clReleaseMemObject(*pGpu_buffer0);
-    if(pGpu_buffer1 != NULL)
-        clReleaseMemObject(*pGpu_buffer1);
-    if(pGpu_buffer2 != NULL)
-        clReleaseMemObject(*pGpu_buffer2);
+    if(pGpu_chi2_buffer0 != NULL)
+        clReleaseMemObject(*pGpu_chi2_buffer0);
+    if(pGpu_chi2_buffer1 != NULL)
+        clReleaseMemObject(*pGpu_chi2_buffer1);
+    if(pGpu_chi2_buffer2 != NULL)
+        clReleaseMemObject(*pGpu_chi2_buffer2);
+
+    // Release flux memory objects:
+    if(pGpu_flux != NULL)
+        clReleaseMemObject(*pGpu_flux);
+    if(pGpu_flux_buffer0 != NULL)
+        clReleaseMemObject(*pGpu_flux_buffer0);
+    if(pGpu_flux_buffer1 != NULL)
+        clReleaseMemObject(*pGpu_flux_buffer1);
+    if(pGpu_flux_buffer2 != NULL)
+        clReleaseMemObject(*pGpu_flux_buffer2);
+
+
 
     // Release the command queue and context:
     if(pQueue != NULL)
@@ -320,7 +370,10 @@ void gpu_cleanup()
     
 }
 
-void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer)
+void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * partial_sum_buffer, cl_mem * final_buffer, 
+    cl_kernel * pKernels, 
+    int pass_count, size_t * group_counts, size_t * work_item_counts, 
+    int * operation_counts, int * entry_counts)
 {
     int i;
     int err;
@@ -329,7 +382,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer)
     cl_mem pass_swap;
     cl_mem pass_input = *output_buffer;
     cl_mem pass_output = *input_buffer;
-    cl_mem partials_buffer = *pGpu_buffer2; // Partial sum buffer
+    cl_mem partials_buffer = *partial_sum_buffer; // Partial sum buffer
 
     for(i = 0; i < pass_count; i++)
     {
@@ -352,10 +405,10 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer)
         pass_output = pass_swap;
         
         err = CL_SUCCESS;
-        err |= clSetKernelArg(pGpu_reduce_kernels[i],  0, sizeof(cl_mem), &pass_output);  
-        err |= clSetKernelArg(pGpu_reduce_kernels[i],  1, sizeof(cl_mem), &pass_input);
-        err |= clSetKernelArg(pGpu_reduce_kernels[i],  2, shared_size,    NULL);
-        err |= clSetKernelArg(pGpu_reduce_kernels[i],  3, sizeof(int),    &entries);
+        err |= clSetKernelArg(pKernels[i],  0, sizeof(cl_mem), &pass_output);  
+        err |= clSetKernelArg(pKernels[i],  1, sizeof(cl_mem), &pass_input);
+        err |= clSetKernelArg(pKernels[i],  2, shared_size,    NULL);
+        err |= clSetKernelArg(pKernels[i],  3, sizeof(int),    &entries);
         if (err != CL_SUCCESS)
             print_opencl_error("Failed to set partial sum kernel arguments.", err); 
         
@@ -365,7 +418,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer)
             pass_input = partials_buffer;
             
         err = CL_SUCCESS;
-        err |= clEnqueueNDRangeKernel(*pQueue, pGpu_reduce_kernels[i], 1, NULL, &global, &local, 0, NULL, NULL);
+        err |= clEnqueueNDRangeKernel(*pQueue, pGpu_chi2_kernels[i], 1, NULL, &global, &local, 0, NULL, NULL);
         if (err != CL_SUCCESS)
             print_opencl_error("Failed to enqueue parallel sum kernels.", err); 
     }
@@ -374,32 +427,33 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer)
     clFinish(*pQueue);
 
     // Copy the new chi2 value over to it's final place in GPU memory.
-    err = clEnqueueCopyBuffer(*pQueue, pass_output, *pGpu_chi2, 0, 0, sizeof(float), 0, NULL, NULL);
+    err = clEnqueueCopyBuffer(*pQueue, pass_output, *final_buffer, 0, 0, sizeof(float), 0, NULL, NULL);
     if(err != CL_SUCCESS)
-        print_opencl_error("Could not copy chi2 value to/from buffers on the GPU.", err);
+        print_opencl_error("Could not copy summed value to/from buffers on the GPU.", err);
         
     if(gpu_enable_debug)
     {
         float chi2 = 0;
         err = clEnqueueReadBuffer(*pQueue, pass_output, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
         if(err != CL_SUCCESS)
-            print_opencl_error("Could not read back summed GPU chi2 value.", err);
+            print_opencl_error("Could not read back summed GPU value.", err);
         
-        printf("GPU Chi2: %f (summed on the GPU)\n", chi2);
+        printf("GPU Sum: %f \n", chi2);
 
         chi2 = 0;
-        err = clEnqueueReadBuffer(*pQueue, *pGpu_chi2, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
+        err = clEnqueueReadBuffer(*pQueue, *final_buffer, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
         if(err != CL_SUCCESS)
             print_opencl_error("Could not read back GPU chi2 value.", err);
         
-        printf("GPU Chi2: %f (copied value on GPU)\n", chi2);
+        printf("GPU Copied Value: %f \n", chi2);
     }        
 }
 
 // Init memory locations and copy data over to the GPU.
 void gpu_copy_data(float *data, float *data_err, int data_size,\
                     cl_float2 * data_bis, int bis_size,\
-                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size)
+                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
+                    int image_size)
 {
     int err = 0;
 
@@ -409,10 +463,16 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     static cl_mem gpu_data_uvpnt;   // UV Points for the bispectrum
     static cl_mem gpu_data_sign;    // Signs for the bispectrum.
     static cl_mem gpu_mock_data;    // Mock Data
+    
     static cl_mem gpu_chi2;
-    static cl_mem gpu_buffer0;       // Temporary storage for the chi2 computation.
-    static cl_mem gpu_buffer1;       // Temporary storage for the chi2 computation.
-    static cl_mem gpu_buffer2;
+    static cl_mem gpu_chi2_buffer0;       // Temporary storage for the chi2 computation.
+    static cl_mem gpu_chi2_buffer1;       // Temporary storage for the chi2 computation.
+    static cl_mem gpu_chi2_buffer2;     // Temporary storage for the chi2 computation.
+    
+    static cl_mem gpu_flux;
+    static cl_mem gpu_flux_buffer0;       // Temporary storage for the chi2 computation.
+    static cl_mem gpu_flux_buffer1;       // Temporary storage for the chi2 computation.
+    static cl_mem gpu_flux_buffer2;     // Temporary storage for the chi2 computation.    
 
     // Init some mock data (to allow resumes in the future I suppose...)
     int i = 0;
@@ -424,7 +484,11 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     for(i = 0; i < data_size; i++)
         mock_data[i] = 0; 
         temp[i] = 0; 
-          
+ 
+    float * zero_flux;
+    zero_flux = malloc(image_size * sizeof(float));
+    for(i = 0; i < image_size; i++)
+        zero_flux[i] = 0;        
     
     // Output some additional information if we are in verbose mode
     if(gpu_enable_verbose)
@@ -438,11 +502,17 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * bsref_size, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_chi2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
-    gpu_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
-    gpu_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
-    gpu_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
-    if (!gpu_data || !gpu_data_err)
-        print_opencl_error("Error: gpu_copy_data.  Create Buffer.", 0);
+    gpu_chi2_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    gpu_chi2_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    gpu_chi2_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    
+    gpu_flux = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, &err);
+    gpu_flux_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, &err);
+    gpu_flux_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, &err);
+    gpu_flux_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, &err);
+    
+    if (err != CL_SUCCESS)
+        print_opencl_error("Error: gpu_copy_data.  Create Buffer.", err);
 
     if(gpu_enable_verbose)
         printf("Copying data to device. \n");
@@ -455,9 +525,14 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);        
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_buffer0, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);  
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_buffer1, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_buffer2, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer0, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);  
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer1, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer2, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_flux, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);        
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer0, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);  
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer1, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer2, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
+    
     if (err != CL_SUCCESS)
         print_opencl_error("Error: gpu_copy_data. Write Buffer", err);    
  
@@ -470,9 +545,56 @@ void gpu_copy_data(float *data, float *data_err, int data_size,\
     pGpu_data_sign = &gpu_data_sign;
     pGpu_mock_data = &gpu_mock_data;
     pGpu_chi2 = &gpu_chi2;
-    pGpu_buffer0 = &gpu_buffer0;
-    pGpu_buffer1 = &gpu_buffer1;
-    pGpu_buffer2 = &gpu_buffer2;
+    pGpu_chi2_buffer0 = &gpu_chi2_buffer0;
+    pGpu_chi2_buffer1 = &gpu_chi2_buffer1;
+    pGpu_chi2_buffer2 = &gpu_chi2_buffer2;
+    pGpu_flux = &gpu_flux;   
+    pGpu_flux_buffer0 = &gpu_flux_buffer0;
+    pGpu_flux_buffer1 = &gpu_flux_buffer1;
+    pGpu_flux_buffer2 = &gpu_flux_buffer2;
+}
+
+// Copy the DFT tables over to GPU memory
+void gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size)
+{
+    int err;
+    static cl_mem dft_t_x;  // DFT Table x
+    static cl_mem dft_t_y;  // DFT Table y
+    
+    // Allocate memory on the device:
+    dft_t_x = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * dft_size, NULL, NULL);
+    dft_t_y = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * dft_size, NULL, NULL);
+    
+    // Copy the data over
+    err = clEnqueueWriteBuffer(*pQueue, dft_t_x, CL_FALSE, 0, sizeof(cl_float2) * dft_size, dft_x, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, dft_t_y, CL_FALSE, 0, sizeof(cl_float2) * dft_size, dft_y, 0, NULL, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("Error copying DFT table to the GPU", err);       
+        
+    clFinish(*pQueue);
+    
+    pGpu_dft_x = & dft_t_x;
+    pGpu_dft_y = & dft_t_y;
+}
+
+// Copys an image over to the GPU for analysis
+void gpu_copy_image(float * image, int x_size, int y_size)
+{
+    int size = x_size * y_size * sizeof(float);
+    int err;
+    
+    if(pGpu_image == NULL)
+    {
+        static cl_mem gpu_image;
+        gpu_image = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, size, NULL, NULL);
+        pGpu_image = &gpu_image;
+    }
+    
+    // Copy the data over, do this as a blocking call.
+    err = clEnqueueWriteBuffer(*pQueue, *pGpu_image, CL_TRUE, 0, size, image, 0, NULL, NULL);
+    if(err != CL_SUCCESS)
+        print_opencl_error("Error copying image to the GPU", err);
+    
 }
 
 // Compute the chi2 of the data using a GPU
@@ -488,7 +610,7 @@ void gpu_data2chi2(int data_size)
     err  = clSetKernelArg(*pKernel_chi2, 0, sizeof(cl_mem), pGpu_data);
     err |= clSetKernelArg(*pKernel_chi2, 1, sizeof(cl_mem), pGpu_data_err);
     err |= clSetKernelArg(*pKernel_chi2, 2, sizeof(cl_mem), pGpu_mock_data);
-    err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), pGpu_buffer0);
+    err |= clSetKernelArg(*pKernel_chi2, 3, sizeof(cl_mem), pGpu_chi2_buffer0);
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);
 
@@ -512,7 +634,7 @@ void gpu_data2chi2(int data_size)
         int i;
         float * results;
         results = malloc(data_size * sizeof(float));
-        err = clEnqueueReadBuffer(*pQueue, *pGpu_buffer0, CL_TRUE, 0, sizeof(float) * data_size, results, 0, NULL, NULL );
+        err = clEnqueueReadBuffer(*pQueue, *pGpu_chi2_buffer0, CL_TRUE, 0, sizeof(float) * data_size, results, 0, NULL, NULL );
             if (err != CL_SUCCESS)
                 print_opencl_error("Could not read back GPU chi2 array elements.", err);
         
@@ -529,8 +651,7 @@ void gpu_data2chi2(int data_size)
     }
     
     // Now start up the partial sum kernel:
-    cl_mem * results_buffer;
-    gpu_compute_sum(pGpu_buffer0, pGpu_buffer1);
+    gpu_compute_sum(pGpu_chi2_buffer0, pGpu_chi2_buffer1, pGpu_chi2_buffer2, pGpu_chi2, pGpu_chi2_kernels, Chi2_pass_count, Chi2_group_counts, Chi2_work_item_counts, Chi2_operation_counts, Chi2_entry_counts);
 
 }
 
@@ -639,6 +760,31 @@ void gpu_init()
     pDevice_id = &device_id;
     pContext = &context;
     pQueue = &queue;
+}
+
+void gpu_image2vis()
+{ 
+    // First, compute the total flux.  Store the result in the GPU buffer, pGpu_flux
+    gpu_compute_sum(pGpu_image, pGpu_flux_buffer1, pGpu_flux_buffer2, pGpu_flux, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
+
+    // DFT
+/*    int ii, jj, uu;	*/
+/*    float v0 = 0.; // zeroflux */
+
+/*    for(ii=0 ; ii < model_image_size * model_image_size ; ii++) */
+/*        v0 += current_image[ii];*/
+
+/*    for(uu=0 ; uu < nuv; uu++)*/
+/*    {*/
+/*        visi[uu] = 0.0 + I * 0.0;*/
+/*        for(ii=0; ii < model_image_size; ii++)*/
+/*            for(jj=0; jj < model_image_size; jj++)*/
+/*                visi[uu] += current_image[ ii + model_image_size * jj ] *  DFT_tablex[ model_image_size * uu +  ii] * DFT_tablex[ model_image_size * uu +  jj];*/
+/*        if (v0 > 0.) visi[uu] /= v0;*/
+/*    }*/
+/*  */
+/*  printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));*/
+
 }
 
 void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)

@@ -118,21 +118,20 @@ int main(int argc, char *argv[])
         }
     }
 
-    //compute complex visibilities 
-    image2vis();
-
+   
     // TODO: Remove after testing
-    int iterations = 1;
+    int iterations = 100;
 
     // compute mock data, powerspectra + bispectra
     clock_t tick, tock;
-
-    vis2data( );
-
-    
     tick = clock();
     for(ii=0; ii < iterations; ii++)
+    {
+        //compute complex visibilities and the chi2
+        image2vis();
+        vis2data( );
         chi2 = data2chi2( );
+    }
         
     tock=clock();
     float cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
@@ -190,17 +189,26 @@ int main(int argc, char *argv[])
     
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
-    gpu_copy_data(data, data_err, data_alloc, gpu_bis, data_alloc_bis, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref);  
-    gpu_build_kernels(data_alloc);
+    printf("Image Buffer Size %i", model_image_size);
+    gpu_copy_data(data, data_err, data_alloc, gpu_bis, data_alloc_bis, 
+        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,  model_image_size); 
+         
+    gpu_build_kernels(data_alloc, model_image_size);
+    //gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size);
     
 
-    gpu_vis2data(gpu_visi, nuv, npow, nbis);
-
-    
     tick = clock();
     for(ii=0; ii < iterations; ii++)
+    {
+        // In the final version of the code, the following lines will be iterated.
+        //gpu_copy_image(image, x_size, y_size);
+        gpu_image2vis();
+        gpu_vis2data(gpu_visi, nuv, npow, nbis);
+
         gpu_data2chi2(data_alloc);
-    
+        
+        // Read back the necessary values
+    }
     tock = clock();
     float gpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf("CPU Chi2: %f (CPU only)\n", chi2);
@@ -244,7 +252,7 @@ void image2vis( )
         if (v0 > 0.) visi[uu] /= v0;
     }
   
-  printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
+  //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
 
 void vis2data(  )

@@ -4,13 +4,26 @@
 // Funcion declairations
 void print_opencl_error(char* error_message, int error_code);
 
-void gpu_build_kernels(int data_size);
-void gpu_build_reduction_kernels(int data_size);
+void gpu_build_kernels(int data_size, int image_size);
+void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kernel ** pKernels, 
+    int * pass_counts, size_t ** group_counts, size_t ** work_item_counts, 
+    int ** operation_counts, int ** entry_counts);
 
 void gpu_compare_data(int size, float * cpu_data, cl_mem * gpu_data);
+
+void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * partial_sum_buffer, cl_mem * final_buffer, 
+    cl_kernel * pKernels, 
+    int pass_count, size_t * group_counts, size_t * work_item_counts, 
+    int * operation_counts, int * entry_counts);
+
 void gpu_copy_data(float *data, float *data_err, int data_size,\
-                    cl_float2 * bisphasor, int bip_size,\
-                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size);
+                    cl_float2 * data_bis, int bis_size,\
+                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
+                    int image_size);
+                    
+void gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size);
+
+void gpu_copy_image(float * image, int x_size, int y_size);
 
 void gpu_cleanup();
 
