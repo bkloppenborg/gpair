@@ -18,7 +18,7 @@ float *data_err; // stores the error bars on the data
 float complex *data_bis; // bispectrum rotation precomputed value
 
 float complex *visi; // current visibilities
-float *current_image;
+float * current_image;
 
 // DFT precomputed coefficient tables
 float complex* DFT_tablex;
@@ -35,6 +35,8 @@ float square( float number )
 
 int main(int argc, char *argv[])
 {   
+    // TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
+    // by rounding to the nearest sum of powers of 2 (if it makes sense).
     register int ii, uu;
     float chi2;
 
@@ -98,19 +100,16 @@ int main(int argc, char *argv[])
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
     int model_image_size = 128;
     float model_image_pixellation = 0.15 ;
-    current_image = (float*)malloc(model_image_size * model_image_size * sizeof(float));
-    for(ii=0; ii < (model_image_size * model_image_size - 1); ii++)
-    {
-        current_image[ ii ]= 0. ;
-    }  
-    current_image[(model_image_size * (model_image_size + 1 ) )/ 2 ] = 1.0;
-    // Necessary code for the GPU
     int image_size = model_image_size * model_image_size;
     printf("Image Buffer Size %i \n", image_size);
+    current_image = malloc(model_image_size * model_image_size * sizeof(float));
+    memset(current_image, 0, model_image_size * model_image_size);
+    current_image[(model_image_size * (model_image_size + 1 ) )/ 2 ] = 1.0;
+
 
     // setup precomputed DFT table
     int dft_size = nuv * model_image_size;
-    int dft_alloc = pow(2, ceil(log(dft_size) / log(2)));   // Amount of space to allocate on the GPU.
+    int dft_alloc = pow(2, ceil(log(dft_size) / log(2)));   // Amount of space to allocate on the GPU for each axis of the DFT table. 
     DFT_tablex = malloc( dft_size * sizeof(float complex));
     DFT_tabley = malloc( dft_size * sizeof(float complex));
     for(uu=0 ; uu < nuv; uu++)
@@ -123,6 +122,9 @@ int main(int argc, char *argv[])
                 cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
         }
     }
+
+    // TODO: Only output if we are in a verbose mode.
+    printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
    
     // TODO: Remove after testing
@@ -199,16 +201,43 @@ int main(int argc, char *argv[])
         gpu_bsref_sign[3*i] = oifits_info.bsref[i].ab.sign;
         gpu_bsref_sign[3*i+1] = oifits_info.bsref[i].bc.sign;
         gpu_bsref_sign[3*i+2] = oifits_info.bsref[i].ca.sign;
-    }        
+    }   
+    
+    // Copy the DFT table over to a GPU-friendly format:
+    cl_float2 * gpu_dft_x;
+    cl_float2 * gpu_dft_y;
+    gpu_dft_x = malloc(dft_alloc * sizeof(cl_float2));
+    gpu_dft_y = malloc(dft_alloc * sizeof(cl_float2));
+    for(uu=0 ; uu < nuv; uu++)
+    {
+        for(ii=0; ii < model_image_size; ii++)
+        {
+            i = model_image_size * uu + ii;
+            gpu_dft_x[i][0] = __real__ DFT_tablex[i];
+            gpu_dft_x[i][1] = __imag__ DFT_tablex[i];
+            gpu_dft_y[i][0] = __real__ DFT_tabley[i];
+            gpu_dft_y[i][1] = __imag__ DFT_tabley[i];
+        }
+    }
+    
+    // Pad out the remainder of the array with zeros:
+    for(i = nuv * model_image_size; i < dft_alloc; i++)
+    {
+        gpu_dft_x[i][0] = 0;
+        gpu_dft_x[i][1] = 0;
+        gpu_dft_y[i][0] = 0;
+        gpu_dft_y[i][1] = 0;
+    }
+          
     
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
 
-    gpu_copy_data(data, data_err, data_alloc, gpu_bis, data_alloc_bis, 
+    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_bis, data_alloc_bis, 
         gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,  image_size); 
          
     gpu_build_kernels(data_alloc, image_size);
-    //gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size);
+    gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
     
 
     tick = clock();
@@ -216,7 +245,7 @@ int main(int argc, char *argv[])
     {
         // In the final version of the code, the following lines will be iterated.
         gpu_copy_image(current_image, model_image_size, model_image_size);
-        gpu_image2vis();
+        gpu_image2vis(model_image_size, data_alloc_uv);
         gpu_vis2data(gpu_visi, nuv, npow, nbis);
 
         gpu_data2chi2(data_alloc);
@@ -229,9 +258,9 @@ int main(int argc, char *argv[])
     printf("CPU time (s): = %f\n", cpu_time_chi2);
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
-    
+    // Cleanup, shutdown, were're done.
     gpu_cleanup();
-    
+    // TODO: Need to deallocate CPU-based memory.
     return 0;
 
 }
@@ -256,6 +285,9 @@ void image2vis( )
     for(ii=0 ; ii < model_image_size * model_image_size ; ii++) 
         v0 += current_image[ii];
 
+    printf(SEP);
+    printf("CPU-computed visi\n");
+    printf(SEP);
     for(uu=0 ; uu < nuv; uu++)
     {
         visi[uu] = 0.0 + I * 0.0;
@@ -263,6 +295,8 @@ void image2vis( )
             for(jj=0; jj < model_image_size; jj++)
                 visi[uu] += current_image[ ii + model_image_size * jj ] *  DFT_tablex[ model_image_size * uu +  ii] * DFT_tablex[ model_image_size * uu +  jj];
         if (v0 > 0.) visi[uu] /= v0;
+        
+        //printf("[%i] %f\n", uu, visi[uu]);
     }
   
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));

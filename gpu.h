@@ -18,6 +18,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     int * operation_counts, int * entry_counts);
 
 void gpu_copy_data(float *data, float *data_err, int data_size,\
+                    int data_uv_size,
                     cl_float2 * data_bis, int bis_size,\
                     long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
                     int image_size);
@@ -29,6 +30,8 @@ void gpu_copy_image(float * image, int x_size, int y_size);
 void gpu_cleanup();
 
 void gpu_data2chi2(int data_size);
+
+void gpu_image2vis(int image_width, int data_alloc_uv);
 
 void gpu_init();
 
