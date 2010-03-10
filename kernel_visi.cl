@@ -1,35 +1,39 @@
 __kernel void visi(
-    __global float * current_image,
+    __global float * image,
     __global float2 * dft_x,
     __global float2 * dft_y,
-    __local int model_image_size,
+    __global int * image_size,
     __global float2 * output)
 {
-    __local float2 visi;
+    float2 visi;
     visi[0] = 0;
     visi[1] = 0;
     
+    int image_width = image_size[0];
+    
     float a0, a1, b0, b1, c0, c1;
-    float A, B, C, D;
     
     int h = get_global_id(0);
     int i = 0;
     int j = 0;
+    int col = 0;
     
-    int offset = model_image_size * h;
-    
-    for(i=0;  i < model_image_size; i++)
+    int offset = image_width * h;
+ 
+    for(i=0; i < image_width; i++)
     {
-        for(j=0; j < model_image_size; j++)
+        col = image_width * i;
+        for(j=0; j < image_width; j++)
         {
-            a0 = current_image[model_image_size * j + i];
+            a0 = image[col + j];
+            a1 = 0;
             b0 = dft_x[offset +  i][0];
             b1 = dft_x[offset +  i][1];
             c0 = dft_y[offset +  j][0];
-            c1 = dft_y[offset +  j][1];    
-
-            visi[0] += -1*a0*b0*b1*c0*c1;     // Real
-            //visi[1] += 0;                 // Imaginary (zero by def of product of two complex numbers)
+            c1 = dft_y[offset +  j][1];
+            
+            visi[0] += -1*a0*b1*c1 - a1*b0*c1 - a1*b1*c0 + a0*b0*c0;
+            visi[1] += -1*a1*b1*c1 + a0*b0*c1 + a0*b1*c0 + a1*b0*c0;
         }
     }
     

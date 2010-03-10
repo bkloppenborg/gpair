@@ -9,7 +9,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -53,6 +53,7 @@ cl_mem * pGpu_flux_buffer1 = NULL;  // Used as output buffer
 cl_mem * pGpu_flux_buffer2 = NULL;  // Used as partial sum buffer
 
 cl_mem * pGpu_visi = NULL;          // Used to store on-gpu visibilities.
+cl_mem * pGpu_image_width = NULL;   // Stores the size of the image.
 
 // Variables for the parallel sum in the chi2 (again, globals... urgh).
 int Chi2_pass_count = 0;
@@ -358,6 +359,69 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
     (*pKernels) = kernels;
 }
 
+// A function to double-check computations between the GPU and CPU.
+void gpu_check_data(int nuv, complex * visi)
+{
+    gpu_compare_complex_data(nuv, visi, pGpu_visi);
+}
+
+void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
+{
+    int err = 0;
+    
+    // Init a temporary variable for storing the data:
+    float * gpu_data;
+    gpu_data = malloc(sizeof(float) * size);
+    memset(gpu_data, 0, size);
+    
+    err = clEnqueueReadBuffer(*pQueue, *pGpu_data, CL_TRUE, 0, sizeof(float) * size, gpu_data, 0, NULL, NULL );
+    if (err != CL_SUCCESS)
+        print_opencl_error("Could not read back GPU Data for comparision!", err);    
+        
+    int i;
+    float error = 0;
+    for(i = 0; i < size; i++)
+        error += abs(gpu_data[i] - cpu_data[i]);
+        
+    printf("Compared GPU and CPU data.  Total Difference: %f\n ", error);
+    
+    free(gpu_data);
+}
+
+void gpu_compare_complex_data(int size, complex * cpu_data, cl_mem * pGpu_data)
+{
+    int err = 0;
+    
+    // Init a temporary variable for storing the data:
+    cl_float2 * gpu_data;
+    gpu_data = malloc(sizeof(cl_float2) * size);
+    memset(gpu_data, 0, size);
+    
+    err = clEnqueueReadBuffer(*pQueue, *pGpu_data, CL_TRUE, 0, sizeof(cl_float2) * size, gpu_data, 0, NULL, NULL );
+    if (err != CL_SUCCESS)
+        print_opencl_error("Could not read back GPU Data for comparision!", err);    
+        
+    int i;
+    float real, imag;
+    float error = 0;
+    for(i = 0; i < size; i++)
+    {
+        real = gpu_data[i][0] - __real__ cpu_data[i];
+        imag = gpu_data[i][0] - __imag__ cpu_data[i];
+        error += sqrt(real * real + imag * imag);
+    }   
+        
+    printf("Compared GPU and CPU data.  Total Difference: %f \n", error);
+    
+    if(error > 0)
+    {
+        for(i = 0; i < size; i++)
+            printf("[%i] R(A) %f R(B) %f I(A) %f I(B) %f \n", i, __real__ cpu_data[i], gpu_data[i][0], __imag__ cpu_data[i], gpu_data[i][0]);
+    }
+    
+    free(gpu_data);
+}
+
 void gpu_cleanup()
 {
     int i;
@@ -439,6 +503,9 @@ void gpu_cleanup()
         clReleaseMemObject(*pGpu_flux_buffer1);
     if(pGpu_flux_buffer2 != NULL)
         clReleaseMemObject(*pGpu_flux_buffer2);
+        
+    if(pGpu_image_width != NULL)
+        clReleaseMemObject(*pGpu_image_width);
 
 
 
@@ -533,7 +600,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
 void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv,\
                     cl_float2 * data_bis, int bis_size,\
                     long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
-                    int image_size)
+                    int image_size, int image_width)
 {
     int err = 0;
     int i;
@@ -555,7 +622,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     static cl_mem gpu_flux_buffer1;       // Temporary storage for the chi2 computation.
     static cl_mem gpu_flux_buffer2;     // Temporary storage for the chi2 computation. 
     
-    static cl_mem gpu_visi;         // Used for storing the visibilities   
+    static cl_mem gpu_visi;         // Used for storing the visibilities  
+    static cl_mem gpu_image_width; 
 
     // Init some mock data (to allow resumes in the future I suppose...)
     float zero = 0;
@@ -602,6 +670,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     gpu_flux_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     
     gpu_visi = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(cl_float2) * data_size_uv, NULL, NULL);
+    gpu_image_width = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(float), NULL, NULL);
     
 /*    if (err != CL_SUCCESS)*/
 /*        print_opencl_error("Error: gpu_copy_data.  Create Buffer.", err);*/
@@ -628,6 +697,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer2, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     
     err |= clEnqueueWriteBuffer(*pQueue, gpu_visi, CL_FALSE, 0, sizeof(cl_float2) * data_size_uv, visi, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_image_width, CL_FALSE, 0, sizeof(int), &image_width, 0, NULL, NULL);
     
     if (err != CL_SUCCESS)
         print_opencl_error("Error: gpu_copy_data. Write Buffer", err);    
@@ -649,8 +719,13 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     pGpu_flux_buffer1 = &gpu_flux_buffer1;
     pGpu_flux_buffer2 = &gpu_flux_buffer2;
     pGpu_visi = &gpu_visi;
+    pGpu_image_width = &gpu_image_width;
     
     // Free CPU-based memory:
+    free(mock_data);
+    free(temp);
+    free(zero_flux);
+    free(visi);
 }
 
 // Copy the DFT tables over to GPU memory
@@ -867,7 +942,7 @@ void gpu_init()
     pQueue = &queue;
 }
 
-void gpu_image2vis(int image_width, int data_alloc_uv)
+void gpu_image2vis(int data_alloc_uv)
 { 
     int err = 0;
     size_t global;                    // global domain size for our calculation
@@ -880,12 +955,14 @@ void gpu_image2vis(int image_width, int data_alloc_uv)
     // First, compute the total flux.  Store the result in the GPU buffer, pGpu_flux
     gpu_compute_sum(pGpu_image, pGpu_flux_buffer1, pGpu_flux_buffer2, pGpu_flux, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
 
+    if(gpu_enable_debug)
+        printf("%sComputing DFT on the GPU.\n%s", SEP, SEP);
+
     // Now we compute the DFT
-    
     err  = clSetKernelArg(*pKernel_visi, 0, sizeof(cl_mem), pGpu_image);
     err |= clSetKernelArg(*pKernel_visi, 1, sizeof(cl_mem), pGpu_dft_x);
     err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), pGpu_dft_y);
-    err |= clSetKernelArg(*pKernel_visi, 3, sizeof(int), &image_width);
+    err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), pGpu_image_width);
     err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_visi);
 
    // Get the maximum work-group size for executing the kernel on the device
@@ -895,9 +972,15 @@ void gpu_image2vis(int image_width, int data_alloc_uv)
 
     // Execute the kernel over the entire range of the data set        
     global = data_alloc_uv;
+    if(gpu_enable_debug)
+        printf("Visi Kernel: Global: %i Local %i \n", global, local);
+    
+    // TODO: Figure out a better way of doing this:
+    local = 64;
+        
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_visi, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("clEnqueueNDRangeKernel vis", err);  
+        print_opencl_error("clEnqueueNDRangeKernel visi", err);  
         
     clFinish(*pQueue);
     

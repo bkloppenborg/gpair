@@ -276,7 +276,7 @@ int read_oifits()
   return 1;
 }
 
-void image2vis( )
+void image2vis(float * image, int image_width)
 {	
     // DFT
     int ii, jj, uu;	
