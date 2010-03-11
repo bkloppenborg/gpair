@@ -16,28 +16,28 @@ __kernel void visi(
     int h = get_global_id(0);
     int i = 0;
     int j = 0;
-    int col = 0;
     
     int offset = image_width * h;
  
     for(i=0; i < image_width; i++)
     {
-        col = image_width * i;
         for(j=0; j < image_width; j++)
         {
-            a0 = image[col + j];
+            a0 = image[ i + image_width * j ];
             a1 = 0;
             b0 = dft_x[offset +  i][0];
             b1 = dft_x[offset +  i][1];
-            c0 = dft_y[offset +  j][0];
-            c1 = dft_y[offset +  j][1];
+            c0 = 1; //dft_y[offset +  j][0];
+            c1 = 1; // dft_y[offset +  j][1];
             
             visi[0] += -1*a0*b1*c1 - a1*b0*c1 - a1*b1*c0 + a0*b0*c0;
             visi[1] += -1*a1*b1*c1 + a0*b0*c1 + a0*b1*c0 + a1*b0*c0;
         }
     }
     
-    // TODO: Normalize if (v0 > 0.) visi[uu] /= v0;
+    // TODO: Normalize if (v0 > 0.) visi[h] /= v0;
     output[h][0] = visi[0];
     output[h][1] = visi[1];
 }
+
+

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <complex.h>
 
 #define MAX_GROUPS      (64)
 #define MAX_WORK_ITEMS  (64)
@@ -360,7 +361,7 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
 }
 
 // A function to double-check computations between the GPU and CPU.
-void gpu_check_data(int nuv, complex * visi)
+void gpu_check_data(int nuv, float complex * visi)
 {
     gpu_compare_complex_data(nuv, visi, pGpu_visi);
 }
@@ -388,14 +389,13 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
     free(gpu_data);
 }
 
-void gpu_compare_complex_data(int size, complex * cpu_data, cl_mem * pGpu_data)
+void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data)
 {
     int err = 0;
     
     // Init a temporary variable for storing the data:
     cl_float2 * gpu_data;
     gpu_data = malloc(sizeof(cl_float2) * size);
-    memset(gpu_data, 0, size);
     
     err = clEnqueueReadBuffer(*pQueue, *pGpu_data, CL_TRUE, 0, sizeof(cl_float2) * size, gpu_data, 0, NULL, NULL );
     if (err != CL_SUCCESS)
@@ -416,7 +416,7 @@ void gpu_compare_complex_data(int size, complex * cpu_data, cl_mem * pGpu_data)
     if(error > 0)
     {
         for(i = 0; i < size; i++)
-            printf("[%i] R(A) %f R(B) %f I(A) %f I(B) %f \n", i, __real__ cpu_data[i], gpu_data[i][0], __imag__ cpu_data[i], gpu_data[i][0]);
+            printf("[%i] R(A) %f R(B) %f I(A) %f I(B) %f \n", i, __real__ cpu_data[i], gpu_data[i][0], __imag__ cpu_data[i], gpu_data[i][1]);
     }
     
     free(gpu_data);

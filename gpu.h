@@ -10,7 +10,7 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
     int * pass_counts, size_t ** group_counts, size_t ** work_item_counts, 
     int ** operation_counts, int ** entry_counts);
 
-void gpu_compare_data(int size, float * cpu_data, cl_mem * gpu_data);
+void gpu_check_data(int nuv, float complex * visi);
 
 void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * partial_sum_buffer, cl_mem * final_buffer, 
     cl_kernel * pKernels, 

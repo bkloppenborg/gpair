@@ -2,6 +2,7 @@
 #include "getoifits.h"
 #include <time.h>
 #include "gpu.h"
+#include <complex.h>
 
 #define SEP "-----------------------------------------------------------\n"
 
@@ -98,7 +99,7 @@ int main(int argc, char *argv[])
     }
 
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
-    int model_image_size = 128;
+    model_image_size = 128;
     float model_image_pixellation = 0.15 ;
     int image_size = model_image_size * model_image_size;
     printf("Image Buffer Size %i \n", image_size);
@@ -111,7 +112,9 @@ int main(int argc, char *argv[])
     int dft_size = nuv * model_image_size;
     int dft_alloc = pow(2, ceil(log(dft_size) / log(2)));   // Amount of space to allocate on the GPU for each axis of the DFT table. 
     DFT_tablex = malloc( dft_size * sizeof(float complex));
+    memset(DFT_tablex, 0, dft_size);
     DFT_tabley = malloc( dft_size * sizeof(float complex));
+    memset(DFT_tabley, 0, dft_size);
     for(uu=0 ; uu < nuv; uu++)
     {
         for(ii=0; ii < model_image_size; ii++)
@@ -140,7 +143,7 @@ int main(int argc, char *argv[])
     for(ii=0; ii < iterations; ii++)
     {
         //compute complex visibilities and the chi2
-        image2vis();
+        image2vis(current_image, model_image_size, visi);
         vis2data();
         chi2 = data2chi2();
     }
@@ -234,7 +237,7 @@ int main(int argc, char *argv[])
     gpu_init();
 
     gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_bis, data_alloc_bis, 
-        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,  image_size); 
+        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size, model_image_size); 
          
     gpu_build_kernels(data_alloc, image_size);
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
@@ -245,7 +248,7 @@ int main(int argc, char *argv[])
     {
         // In the final version of the code, the following lines will be iterated.
         gpu_copy_image(current_image, model_image_size, model_image_size);
-        gpu_image2vis(model_image_size, data_alloc_uv);
+        gpu_image2vis(data_alloc_uv);
         gpu_vis2data(gpu_visi, nuv, npow, nbis);
 
         gpu_data2chi2(data_alloc);
@@ -257,6 +260,8 @@ int main(int argc, char *argv[])
     printf("-----------------------------------------------------------\n");   
     printf("CPU time (s): = %f\n", cpu_time_chi2);
     printf("GPU time (s): = %f\n", gpu_time_chi2);
+    
+    gpu_check_data(nuv, visi);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
@@ -276,27 +281,32 @@ int read_oifits()
   return 1;
 }
 
-void image2vis(float * image, int image_width)
+void image2vis(float * image, int image_width, complex * visi)
 {	
     // DFT
     int ii, jj, uu;	
     float v0 = 0.; // zeroflux 
 
-    for(ii=0 ; ii < model_image_size * model_image_size ; ii++) 
-        v0 += current_image[ii];
+    for(ii=0 ; ii < image_width * image_width ; ii++) 
+        v0 += image[ii];
 
     printf(SEP);
     printf("CPU-computed visi\n");
     printf(SEP);
+    
     for(uu=0 ; uu < nuv; uu++)
     {
         visi[uu] = 0.0 + I * 0.0;
-        for(ii=0; ii < model_image_size; ii++)
-            for(jj=0; jj < model_image_size; jj++)
-                visi[uu] += current_image[ ii + model_image_size * jj ] *  DFT_tablex[ model_image_size * uu +  ii] * DFT_tablex[ model_image_size * uu +  jj];
-        if (v0 > 0.) visi[uu] /= v0;
-        
-        //printf("[%i] %f\n", uu, visi[uu]);
+        for(ii=0; ii < image_width; ii++)
+        {
+            for(jj=0; jj < image_width; jj++)
+            {
+                visi[uu] += image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
+                //if(uu == 1709)
+                //    printf("[%i %i %i] %f %f\n", uu, ii, jj, __real__ visi[uu],  __imag__ visi[uu]);
+            }
+        }
+        //if (v0 > 0.) visi[uu] /= v0;
     }
   
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
