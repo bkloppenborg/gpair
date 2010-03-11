@@ -13,9 +13,9 @@ int status;
 oi_usersel usersel;
 oi_data oifits_info; // stores all the info from oifits files
 
-float *mock_data; // stores the mock current pseudo-data derived from the image
-float *data; // stores the quantities derived from the data
-float *data_err; // stores the error bars on the data
+float * mock_data; // stores the mock current pseudo-data derived from the image
+float * data; // stores the quantities derived from the data
+float * data_err; // stores the error bars on the data
 float complex *data_bis; // bispectrum rotation precomputed value
 
 float complex * visi; // current visibilities
@@ -58,9 +58,10 @@ int main(int argc, char *argv[])
     int data_alloc_bis = pow(2, ceil(log(nbis) / log(2)));   
    
     // TODO: Only output if we are in a verbose mode.
-    printf("Data Size: %i , Data Allocation: %i \n", data_size, data_alloc);
-    printf("UV Data Size: %i , Allocation: %i \n", nuv, data_alloc_uv);
-    printf("bis Size: %i , Allocation: %i \n", nbis, data_alloc_bis);
+    printf("Data Size: %i, Data Allocation: %i \n", data_size, data_alloc);
+    printf("UV Data Size: %i, Allocation: %i \n", nuv, data_alloc_uv);
+    printf("Pow DataSize: %i \n", npow);
+    printf("bis Size: %i, Allocation: %i \n", nbis, data_alloc_bis);
 
     // Allocate memory for the data, error, and mock arrays:
     data = malloc(data_alloc * sizeof( float ));
@@ -84,7 +85,7 @@ int main(int argc, char *argv[])
         data_bis[ii] = cexp( - I * oifits_info.bisphs[ii] );
         data[npow + 2* ii] = oifits_info.bisamp[ii];
         data[npow + 2* ii + 1 ] = 0.;
-        data_err[npow + 2* ii]=  1 / oifits_info.bisamperr[ii];
+        data_err[npow + 2* ii] =  1 / oifits_info.bisamperr[ii];
         data_err[npow + 2* ii + 1] = 1 / (oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]);
         mock_data[npow + 2* ii] = 0;
         mock_data[npow + 2* ii + 1] = 0;
@@ -179,8 +180,8 @@ int main(int argc, char *argv[])
     gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bis[i][0] = __real__ data_bis[i];
-        gpu_bis[i][1] = __imag__ data_bis[i];
+        gpu_bis[i][0] = creal(data_bis[i]);
+        gpu_bis[i][1] = cimag(data_bis[i]);
     }
     // Pad the remainder
     for(i = nbis; i < data_alloc_bis; i++)
@@ -262,10 +263,12 @@ int main(int argc, char *argv[])
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
     // Enable for debugging purposes.
-    //gpu_check_data(nuv, visi);
+    gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
+    
+    
     // TODO: Need to deallocate CPU-based memory.
     return 0;
 
@@ -290,10 +293,6 @@ void image2vis(float * image, int image_width, float complex * visi)
 
     for(ii=0 ; ii < image_width * image_width ; ii++) 
         v0 += image[ii];
-
-    printf(SEP);
-    printf("CPU-computed visi\n");
-    printf(SEP);
     
     for(uu=0 ; uu < nuv; uu++)
     {
@@ -305,6 +304,7 @@ void image2vis(float * image, int image_width, float complex * visi)
                 visi[uu] += image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
             }
         }
+        // TODO: Re-enable normalization, implement on the GPU too.
         //if (v0 > 0.) visi[uu] /= v0;
     }
   
@@ -341,7 +341,7 @@ void vis2data(  )
     // Uncomment to see the mock data array.
 /*    int count = npow + 2 * nbis;*/
 /*    for(ii = 0; ii < count; ii++)     */
-/*        printf("%i %f \n", ii, mock[ii]);*/
+/*        printf("%i %f \n", ii, mock_data[ii]);*/
 /*        */
 /*    printf("\n");*/
 
