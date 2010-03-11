@@ -27,8 +27,8 @@ __kernel void visi(
             a1 = 0;
             b0 = dft_x[offset +  i][0];
             b1 = dft_x[offset +  i][1];
-            c0 = 1; //dft_y[offset +  j][0];
-            c1 = 1; // dft_y[offset +  j][1];
+            c0 = dft_y[offset +  j][0];
+            c1 = dft_y[offset +  j][1];
             
             visi[0] += -1*a0*b1*c1 - a1*b0*c1 - a1*b1*c0 + a0*b0*c0;
             visi[1] += -1*a1*b1*c1 + a0*b0*c1 + a0*b1*c0 + a1*b0*c0;

@@ -18,7 +18,7 @@ float *data; // stores the quantities derived from the data
 float *data_err; // stores the error bars on the data
 float complex *data_bis; // bispectrum rotation precomputed value
 
-float complex *visi; // current visibilities
+float complex * visi; // current visibilities
 float * current_image;
 
 // DFT precomputed coefficient tables
@@ -261,7 +261,8 @@ int main(int argc, char *argv[])
     printf("CPU time (s): = %f\n", cpu_time_chi2);
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
-    gpu_check_data(nuv, visi);
+    // Enable for debugging purposes.
+    //gpu_check_data(nuv, visi);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
@@ -281,7 +282,7 @@ int read_oifits()
   return 1;
 }
 
-void image2vis(float * image, int image_width, complex * visi)
+void image2vis(float * image, int image_width, float complex * visi)
 {	
     // DFT
     int ii, jj, uu;	
@@ -302,8 +303,6 @@ void image2vis(float * image, int image_width, complex * visi)
             for(jj=0; jj < image_width; jj++)
             {
                 visi[uu] += image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
-                //if(uu == 1709)
-                //    printf("[%i %i %i] %f %f\n", uu, ii, jj, __real__ visi[uu],  __imag__ visi[uu]);
             }
         }
         //if (v0 > 0.) visi[uu] /= v0;

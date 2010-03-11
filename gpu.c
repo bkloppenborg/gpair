@@ -385,6 +385,12 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
         error += abs(gpu_data[i] - cpu_data[i]);
         
     printf("Compared GPU and CPU data.  Total Difference: %f\n ", error);
+
+    if(error > 0)
+    {
+        for(i = 0; i < size; i++)
+            printf("[%i] A %f B %f \n", i, cpu_data[i], gpu_data[i]);
+    }
     
     free(gpu_data);
 }
@@ -416,7 +422,7 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
     if(error > 0)
     {
         for(i = 0; i < size; i++)
-            printf("[%i] R(A) %f R(B) %f I(A) %f I(B) %f \n", i, __real__ cpu_data[i], gpu_data[i][0], __imag__ cpu_data[i], gpu_data[i][1]);
+            printf("[%i] R(A) %f R(B) %f I(A) %f I(B) %f \n", i, creal(cpu_data[i]), gpu_data[i][0], cimag(cpu_data[i]), gpu_data[i][1]);
     }
     
     free(gpu_data);
