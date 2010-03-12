@@ -443,142 +443,119 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
 
 void gpu_cleanup()
 {
-    int i;
+    int i = 0;
+    int err = 0;
     if(gpu_enable_verbose)
         printf("Freeing program, kernel, and device objects. \n");
         
-    // Release program and kernel objects:
+    // Release programs
     if(pPro_chi2 != NULL)
-        clReleaseProgram(*pPro_chi2);
+        err |= clReleaseProgram(*pPro_chi2);
     if(pPro_powspec != NULL)
-        clReleaseProgram(*pPro_powspec);
+        err |= clReleaseProgram(*pPro_powspec);
+    if(pPro_bispec != NULL)
+        err |= clReleaseProgram(*pPro_bispec);     
     if(pGpu_chi2_programs != NULL)
     {
         for(i = 0; i < Chi2_pass_count; i++)
-            clReleaseProgram(pGpu_chi2_programs[i]);
+            err |= clReleaseProgram(pGpu_chi2_programs[i]);
     }
     if(pGpu_flux_programs != NULL)
     {
         for(i = 0; i < Flux_pass_count; i++)
-            clReleaseProgram(pGpu_flux_programs[i]);
+            err |= clReleaseProgram(pGpu_flux_programs[i]);
     }
     if(pPro_visi != NULL)
-        clReleaseProgram(pPro_visi);
+        err |= clReleaseProgram(pPro_visi);
+        
+    if(err != CL_SUCCESS)
+        printf("Failed to Free GPU Program Memory.\n");
     
+    err = 0;
+    // Release Kernels
     if(pKernel_chi2 != NULL)
-        clReleaseKernel(*pKernel_chi2);
+        err |= clReleaseKernel(*pKernel_chi2);
     if(pKernel_powspec != NULL)
-        clReleaseKernel(*pKernel_powspec);
+        err |= clReleaseKernel(*pKernel_powspec);
+    if(pKernel_bispec != NULL)
+        err |= clReleaseKernel(*pKernel_bispec);
     if(pGpu_chi2_kernels != NULL)
     {
         for(i = 0; i < Chi2_pass_count; i++)
-            clReleaseKernel(pGpu_chi2_kernels[i]);
+            err |= clReleaseKernel(pGpu_chi2_kernels[i]);
     }
     if(pGpu_flux_kernels != NULL)
     {
         for(i = 0; i < Flux_pass_count; i++)
-            clReleaseKernel(pGpu_flux_kernels[i]);
+            err |= clReleaseKernel(pGpu_flux_kernels[i]);
     }
     if(pKernel_visi != NULL)
-        clReleaseKernel(pKernel_visi);
+        err |= clReleaseKernel(pKernel_visi);
+    
+    if(err != CL_SUCCESS)
+        printf("Failed to Free GPU Kernel Memory.\n");
 
     // Releate Memory objects:
+    err = 0;
     if(pGpu_data != NULL)
-        clReleaseMemObject(*pGpu_data);
+        err |= clReleaseMemObject(*pGpu_data);
     if(pGpu_data_err != NULL)
-        clReleaseMemObject(*pGpu_data_err);
+        err |= clReleaseMemObject(*pGpu_data_err);
     if(pGpu_data_bis != NULL)
-        clReleaseMemObject(*pGpu_data_bis);
+        err |= clReleaseMemObject(*pGpu_data_bis);
     if(pGpu_data_uvpnt != NULL)
-        clReleaseMemObject(*pGpu_data_uvpnt);
+        err |= clReleaseMemObject(*pGpu_data_uvpnt);
     if(pGpu_data_sign != NULL)
-        clReleaseMemObject(*pGpu_data_sign);
+        err |= clReleaseMemObject(*pGpu_data_sign);
     if(pGpu_mock_data != NULL)
-        clReleaseMemObject(*pGpu_mock_data);
+        err |= clReleaseMemObject(*pGpu_mock_data);
 
     if(pGpu_dft_x != NULL)
-        clReleaseMemObject(*pGpu_dft_x);
+        err |= clReleaseMemObject(*pGpu_dft_x);
     if(pGpu_dft_y != NULL)
-        clReleaseMemObject(*pGpu_dft_y);
+        err |= clReleaseMemObject(*pGpu_dft_y);
     if(pGpu_image != NULL)
-        clReleaseMemObject(*pGpu_image);
+        err |= clReleaseMemObject(*pGpu_image);
 
     // Release chi2 memory objects:
     if(pGpu_chi2 != NULL)
-        clReleaseMemObject(*pGpu_chi2);
+        err |= clReleaseMemObject(*pGpu_chi2);
     if(pGpu_chi2_buffer0 != NULL)
-        clReleaseMemObject(*pGpu_chi2_buffer0);
+        err |= clReleaseMemObject(*pGpu_chi2_buffer0);
     if(pGpu_chi2_buffer1 != NULL)
-        clReleaseMemObject(*pGpu_chi2_buffer1);
+        err |= clReleaseMemObject(*pGpu_chi2_buffer1);
     if(pGpu_chi2_buffer2 != NULL)
-        clReleaseMemObject(*pGpu_chi2_buffer2);
+        err |= clReleaseMemObject(*pGpu_chi2_buffer2);
 
     // Release flux memory objects:
     if(pGpu_flux != NULL)
-        clReleaseMemObject(*pGpu_flux);
+        err |= clReleaseMemObject(*pGpu_flux);
     if(pGpu_flux_buffer0 != NULL)
-        clReleaseMemObject(*pGpu_flux_buffer0);
+        err |= clReleaseMemObject(*pGpu_flux_buffer0);
     if(pGpu_flux_buffer1 != NULL)
-        clReleaseMemObject(*pGpu_flux_buffer1);
+        err |= clReleaseMemObject(*pGpu_flux_buffer1);
     if(pGpu_flux_buffer2 != NULL)
-        clReleaseMemObject(*pGpu_flux_buffer2);
-        
+        err |= clReleaseMemObject(*pGpu_flux_buffer2);
     if(pGpu_image_width != NULL)
-        clReleaseMemObject(*pGpu_image_width);
+        err |= clReleaseMemObject(*pGpu_image_width);        
+    if(pGpu_visi != NULL)
+        err |= clReleaseMemObject(*pGpu_visi);
+        
+    if(err != CL_SUCCESS)
+        printf("Failed to free GPU Memory Object(s).\n");
 
 
-
+    err = 0;
     // Release the command queue and context:
     if(pQueue != NULL)
-        clReleaseCommandQueue(*pQueue);
+        err |= clReleaseCommandQueue(*pQueue);
     if(pContext != NULL)
-        clReleaseContext(*pContext);
+        err |= clReleaseContext(*pContext);
+
+    if(err != CL_SUCCESS)
+        printf("Failed to free GPU Queue or Context.\n");    
     
-    
-    // Now free global variables
-/*    free(pDevice_id);           // device ID*/
-/*    free(pContext);               // context*/
-/*    free(pQueue);           // command queue*/
-
-    // Pointers for programs and kernels:
-/*    free(pPro_chi2);*/
-/*    free(pKernel_chi2);*/
-/*    free(pPro_powspec);*/
-/*    free(pKernel_powspec);*/
-/*    free(pPro_bispec );*/
-/*    free(pKernel_bispec );*/
-/*    free(pGpu_chi2_programs);*/
-/*    free(pGpu_chi2_kernels);*/
-/*    free(pGpu_flux_programs);*/
-/*    free(pGpu_flux_kernels);*/
-/*    free(pPro_visi);*/
-/*    free(pKernel_visi);*/
-
-    // Pointers for data stored on the GPU
-/*    free(pGpu_data);*/
-/*    free(pGpu_data_err);*/
-/*    free(pGpu_data_bis);*/
-/*    free(pGpu_data_uvpnt);*/
-/*    free(pGpu_data_sign);*/
-/*    free(pGpu_mock_data);*/
-
-/*    free(pGpu_chi2);*/
-/*    free(pGpu_chi2_buffer0);*/
-/*    free(pGpu_chi2_buffer1);*/
-/*    free(pGpu_chi2_buffer2);*/
-
-/*    free(pGpu_dft_x);*/
-/*    free(pGpu_dft_y);*/
-/*    free(pGpu_image);*/
-
-/*    free(pGpu_flux);*/
-/*    free(pGpu_flux_buffer0);*/
-/*    free(pGpu_flux_buffer1);*/
-/*    free(pGpu_flux_buffer2);*/
-
-/*    free(pGpu_visi);*/
-/*    free(pGpu_image_width);*/
-    
+    // Now free global variables    
     free(Chi2_group_counts);
     free(Chi2_work_item_counts);
     free(Chi2_operation_counts);

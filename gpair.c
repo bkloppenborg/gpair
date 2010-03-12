@@ -7,27 +7,27 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variables
-int model_image_size;
-float model_image_pixellation;
-int status;
+int model_image_size = 0;
+float model_image_pixellation = 0;
+int status = 0;
 oi_usersel usersel;
 oi_data oifits_info; // stores all the info from oifits files
 
-float * mock_data; // stores the mock current pseudo-data derived from the image
-float * data; // stores the quantities derived from the data
-float * data_err; // stores the error bars on the data
-float complex *data_bis; // bispectrum rotation precomputed value
+float * mock_data = NULL; // stores the mock current pseudo-data derived from the image
+float * data = NULL; // stores the quantities derived from the data
+float * data_err = NULL; // stores the error bars on the data
+float complex *data_bis = NULL; // bispectrum rotation precomputed value
 
-float complex * visi; // current visibilities
-float * current_image;
+float complex * visi = NULL; // current visibilities
+float * current_image = NULL;
 
 // DFT precomputed coefficient tables
-float complex* DFT_tablex;
-float complex* DFT_tabley;
+float complex* DFT_tablex = NULL;
+float complex* DFT_tabley = NULL;
 
-int npow;
-int nbis;
-int nuv;
+int npow = 0;
+int nbis = 0;
+int nuv = 0;
 
 float square( float number )
 {
@@ -38,8 +38,9 @@ int main(int argc, char *argv[])
 {   
     // TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
     // by rounding to the nearest sum of powers of 2 (if it makes sense).
-    register int ii, uu;
-    float chi2;
+    register int ii = 0;
+    register int uu = 0;
+    float chi2 = 0;
 
     // read OIFITS and visibilities
     read_oifits(&oifits_info);
@@ -56,12 +57,6 @@ int main(int argc, char *argv[])
     int data_alloc = pow(2, ceil(log(data_size) / log(2)));    // Arrays are allocated to be powers of 2
     int data_alloc_uv = pow(2, ceil(log(nuv) / log(2)));
     int data_alloc_bis = pow(2, ceil(log(nbis) / log(2)));   
-   
-    // TODO: Only output if we are in a verbose mode.
-    printf("Data Size: %i, Data Allocation: %i \n", data_size, data_alloc);
-    printf("UV Data Size: %i, Allocation: %i \n", nuv, data_alloc_uv);
-    printf("Pow DataSize: %i \n", npow);
-    printf("bis Size: %i, Allocation: %i \n", nbis, data_alloc_bis);
 
     // Allocate memory for the data, error, and mock arrays:
     data = malloc(data_alloc * sizeof( float ));
@@ -104,8 +99,8 @@ int main(int argc, char *argv[])
     float model_image_pixellation = 0.15 ;
     int image_size = model_image_size * model_image_size;
     printf("Image Buffer Size %i \n", image_size);
-    current_image = malloc(model_image_size * model_image_size * sizeof(float));
-    memset(current_image, 0, model_image_size * model_image_size);
+    current_image = malloc(image_size * sizeof(float));
+    memset(current_image, 0, image_size);
     current_image[(model_image_size * (model_image_size + 1 ) )/ 2 ] = 1.0;
 
 
@@ -128,6 +123,10 @@ int main(int argc, char *argv[])
     }
 
     // TODO: Only output if we are in a verbose mode.
+    printf("Data Size: %i, Data Allocation: %i \n", data_size, data_alloc);
+    printf("UV Size: %i, Allocation: %i \n", nuv, data_alloc_uv);
+    printf("POW Size: %i \n", npow);
+    printf("BIS Size: %i, Allocation: %i \n", nbis, data_alloc_bis);
     printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
    
@@ -139,8 +138,8 @@ int main(int argc, char *argv[])
     // #########
 
     // compute mock data, powerspectra + bispectra
-    clock_t tick, tock;
-    tick = clock();
+    clock_t tick = clock();
+    clock_t tock = 0;
     for(ii=0; ii < iterations; ii++)
     {
         //compute complex visibilities and the chi2
@@ -160,7 +159,7 @@ int main(int argc, char *argv[])
     // #########
         
     // Convert visi over to a cl_float2 in format <real, imaginary>
-    cl_float2 * gpu_visi;
+    cl_float2 * gpu_visi = NULL;
     gpu_visi = malloc(data_alloc_uv * sizeof(cl_float2));
     int i;
     for(i = 0; i < nuv; i++)
@@ -176,7 +175,7 @@ int main(int argc, char *argv[])
     }    
     
     // Convert the biphasor over to a cl_float2 in format <real, imaginary>    
-    cl_float2 * gpu_bis;
+    cl_float2 * gpu_bis = NULL;
     gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
@@ -191,8 +190,8 @@ int main(int argc, char *argv[])
     }
     
     // We will also need the uvpnt and sign information for bisepctrum computations.
-    cl_long * gpu_bsref_uvpnt;
-    cl_short * gpu_bsref_sign;
+    cl_long * gpu_bsref_uvpnt = NULL;
+    cl_short * gpu_bsref_sign = NULL;
     int data_alloc_bsref = 3 * data_alloc_bis;
     gpu_bsref_uvpnt = malloc(data_alloc_bsref * sizeof(cl_long));
     gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short));
@@ -208,8 +207,8 @@ int main(int argc, char *argv[])
     }   
     
     // Copy the DFT table over to a GPU-friendly format:
-    cl_float2 * gpu_dft_x;
-    cl_float2 * gpu_dft_y;
+    cl_float2 * gpu_dft_x = NULL;
+    cl_float2 * gpu_dft_y = NULL;
     gpu_dft_x = malloc(dft_alloc * sizeof(cl_float2));
     gpu_dft_y = malloc(dft_alloc * sizeof(cl_float2));
     for(uu=0 ; uu < nuv; uu++)
@@ -243,6 +242,13 @@ int main(int argc, char *argv[])
     gpu_build_kernels(data_alloc, image_size);
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
     
+    // Free variables used to store values pepared for the GPU
+    free(gpu_visi);
+    free(gpu_bis);
+    free(gpu_bsref_uvpnt);
+    free(gpu_bsref_sign);
+    free(gpu_dft_x);
+    free(gpu_dft_y);
 
     tick = clock();
     for(ii=0; ii < iterations; ii++)
@@ -263,13 +269,22 @@ int main(int argc, char *argv[])
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
     // Enable for debugging purposes.
-    gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
+    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
     
+    // Free CPU-based Memory
     
-    // TODO: Need to deallocate CPU-based memory.
+    free(mock_data);
+    free(data);
+    free(data_err);
+    free(data_bis);
+    free(visi);
+    free(current_image);
+    free(DFT_tablex);
+    free(DFT_tabley);
+    
     return 0;
 
 }
@@ -288,7 +303,9 @@ int read_oifits()
 void image2vis(float * image, int image_width, float complex * visi)
 {	
     // DFT
-    int ii, jj, uu;	
+    int ii = 0;
+    int jj = 0;
+    int uu = 0;
     float v0 = 0.; // zeroflux 
 
     for(ii=0 ; ii < image_width * image_width ; ii++) 
@@ -313,8 +330,11 @@ void image2vis(float * image, int image_width, float complex * visi)
 
 void vis2data(  )
 {
-    int ii;
-    float complex vab, vbc, vca, t3;
+    int ii = 0;
+    float complex vab = 0;
+    float complex vbc = 0;
+    float complex vca = 0;
+    float complex t3 = 0;
 
     for( ii = 0; ii< npow; ii++)
     {
@@ -350,7 +370,7 @@ void vis2data(  )
 float data2chi2( )
 {
     float chi2 = 0.;
-    register int ii;  
+    register int ii = 0;  
     for(ii=0; ii< npow + 2 * nbis; ii++)
     {
         chi2 += square( ( mock_data[ii] - data[ii] ) * data_err[ii] ) ;
