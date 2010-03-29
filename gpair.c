@@ -165,14 +165,14 @@ int main(int argc, char *argv[])
     int i;
     for(i = 0; i < nuv; i++)
     {
-        gpu_visi[i][0] = __real__ visi[i];
-        gpu_visi[i][1] = __imag__ visi[i];
+        gpu_visi[i].s0 = __real__ visi[i];
+        gpu_visi[i].s1 = __imag__ visi[i];
     }
     // Pad the remainder
     for(i = nuv; i < data_alloc_uv; i++)
     {
-        gpu_visi[i][0] = 0;
-        gpu_visi[i][1] = 0;
+        gpu_visi[i].s0 = 0;
+        gpu_visi[i].s1 = 0;
     }    
     
     // Convert the biphasor over to a cl_float2 in format <real, imaginary>    
@@ -180,14 +180,14 @@ int main(int argc, char *argv[])
     gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bis[i][0] = creal(data_bis[i]);
-        gpu_bis[i][1] = cimag(data_bis[i]);
+        gpu_bis[i].s0 = creal(data_bis[i]);
+        gpu_bis[i].s1 = cimag(data_bis[i]);
     }
     // Pad the remainder
     for(i = nbis; i < data_alloc_bis; i++)
     {
-        gpu_bis[i][0] = 0;
-        gpu_bis[i][1] = 0;
+        gpu_bis[i].s0 = 0;
+        gpu_bis[i].s1 = 0;
     }
     
     // We will also need the uvpnt and sign information for bisepctrum computations.
@@ -217,20 +217,20 @@ int main(int argc, char *argv[])
         for(ii=0; ii < model_image_size; ii++)
         {
             i = model_image_size * uu + ii;
-            gpu_dft_x[i][0] = __real__ DFT_tablex[i];
-            gpu_dft_x[i][1] = __imag__ DFT_tablex[i];
-            gpu_dft_y[i][0] = __real__ DFT_tabley[i];
-            gpu_dft_y[i][1] = __imag__ DFT_tabley[i];
+            gpu_dft_x[i].s0 = __real__ DFT_tablex[i];
+            gpu_dft_x[i].s1 = __imag__ DFT_tablex[i];
+            gpu_dft_y[i].s0 = __real__ DFT_tabley[i];
+            gpu_dft_y[i].s1 = __imag__ DFT_tabley[i];
         }
     }
     
     // Pad out the remainder of the array with zeros:
     for(i = nuv * model_image_size; i < dft_alloc; i++)
     {
-        gpu_dft_x[i][0] = 0;
-        gpu_dft_x[i][1] = 0;
-        gpu_dft_y[i][0] = 0;
-        gpu_dft_y[i][1] = 0;
+        gpu_dft_x[i].s0 = 0;
+        gpu_dft_x[i].s1 = 0;
+        gpu_dft_y[i].s0 = 0;
+        gpu_dft_y[i].s1 = 0;
     }
           
     

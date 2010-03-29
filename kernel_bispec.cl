@@ -12,9 +12,9 @@ __kernel void compute_bispec(
     float2 vbc = vis[data_uvpnt[3*i + 1]];
     float2 vca = vis[data_uvpnt[3*i + 2]];
     
-    vab[1] *= data_sign[3*i];
-    vbc[1] *= data_sign[3*i + 1];
-    vca[1] *= data_sign[3*i + 2];
+    vab.s1 *= data_sign[3*i];
+    vbc.s1 *= data_sign[3*i + 1];
+    vca.s1 *= data_sign[3*i + 2];
     
     // Now compute the triple amplitude and assign the real and imaginary
     // portions to the mock data array. 
@@ -32,14 +32,14 @@ __kernel void compute_bispec(
     // data_bip[i][0] = g
     // data_bip[i][1] = h
     
-    float A = vab[1] * vbc[1];
-    float B = vca[1] * data_bip[i][1];
-    float C = vab[0] * vbc[0];
-    float D = vab[0] * vbc[1];
-    float E = vca[0] * data_bip[i][1];
-    float F = vab[1] * vbc[0];
-    float G = vca[1] * data_bip[i][0];
-    float H = vca[0] * data_bip[i][0];
+    float A = vab.s1 * vbc.s1;
+    float B = vca.s1 * data_bip[i].s1;
+    float C = vab.s0 * vbc.s0;
+    float D = vab.s0 * vbc.s1;
+    float E = vca.s0 * data_bip[i].s1;
+    float F = vab.s1 * vbc.s0;
+    float G = vca.s1 * data_bip[i].s0;
+    float H = vca.s0 * data_bip[i].s0;
   
     mock_data_bs[array_offset + 2*i] = A*B - C*B - D*E - F*E - D*G - F*G - A*H + C*H;
     mock_data_bs[array_offset + 2*i + 1] = F*H + D*H + C*G - A*G + C*E - A*E - F*B - D*B;

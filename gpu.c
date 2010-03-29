@@ -9,8 +9,8 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -426,12 +426,12 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
     for(i = 0; i < size; i++)
     {
         error = 0;
-        real = gpu_data[i][0] - creal(cpu_data[i]);
-        imag = gpu_data[i][1] - cimag(cpu_data[i]);
+        real = gpu_data[i].s0 - creal(cpu_data[i]);
+        imag = gpu_data[i].s1 - cimag(cpu_data[i]);
         error += sqrt(real * real + imag * imag);
         
         if(error > 0.01)
-            printf("[%i] %f %f R(A) %f R(B) %f I(A) %f I(B) %f Err: %f\n", i, real, imag, creal(cpu_data[i]), gpu_data[i][0], cimag(cpu_data[i]), gpu_data[i][1], error);
+            printf("[%i] %f %f R(A) %f R(B) %f I(A) %f I(B) %f Err: %f\n", i, real, imag, creal(cpu_data[i]), gpu_data[i].s0, cimag(cpu_data[i]), gpu_data[i].s1, error);
             
         err_sum += error;
     }   
@@ -686,8 +686,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     visi = malloc(data_size_uv * sizeof(cl_float2));
     for(i = 0; i < data_size_uv; i++)
     {   
-        visi[i][0] = 0;
-        visi[i][1] = 0;
+        visi[i].s0 = 0;
+        visi[i].s1 = 0;
     }  
     
     // Output some additional information if we are in verbose mode
@@ -957,15 +957,18 @@ void gpu_init()
     static cl_device_id device_id;           // device ID
     static cl_context context;               // context
     static cl_command_queue queue;           // command queue
+    cl_platform_id platforms;
+    cl_uint num_platforms = 0;
     
     int err = 0;
    
-    cl_platform_id platforms;
-    cl_uint num_platforms = 0;
     // Get a platform ID
-    err = clGetPlatformIDs(10, &platforms, &num_platforms);
+    err = clGetPlatformIDs(2, &platforms, &num_platforms);
     if (err != CL_SUCCESS)   //      [3]
-        print_opencl_error("Unable to get platform", err);    
+        print_opencl_error("Unable to get platform", err);  
+        
+/*    if(num_platforms == 0)*/
+/*        print_opencl_error("No platforms detected, qutting.", 0);  */
 
     // Get an ID for the device
     err = clGetDeviceIDs(platforms, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);

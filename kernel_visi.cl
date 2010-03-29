@@ -25,10 +25,10 @@ __kernel void visi(
         {
             a0 = image[ i + image_width * j ];
             a1 = 0;
-            b0 = dft_x[offset +  i][0];
-            b1 = dft_x[offset +  i][1];
-            c0 = dft_y[offset +  j][0];
-            c1 = dft_y[offset +  j][1];
+            b0 = dft_x[offset +  i].s0;
+            b1 = dft_x[offset +  i].s1;
+            c0 = dft_y[offset +  j].s0;
+            c1 = dft_y[offset +  j].s1;
             
             visi[0] += -1*a0*b1*c1 - a1*b0*c1 - a1*b1*c0 + a0*b0*c0;
             visi[1] += -1*a1*b1*c1 + a0*b0*c1 + a0*b1*c0 + a1*b0*c0;
@@ -36,8 +36,8 @@ __kernel void visi(
     }
     
     // TODO: Normalize if (v0 > 0.) visi[h] /= v0;
-    output[h][0] = visi[0];
-    output[h][1] = visi[1];
+    output[h].s0 = visi[0];
+    output[h].s1 = visi[1];
 }
 
 
