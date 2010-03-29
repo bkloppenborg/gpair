@@ -13,13 +13,14 @@ int status = 0;
 oi_usersel usersel;
 oi_data oifits_info; // stores all the info from oifits files
 
-float * mock_data = NULL; // stores the mock current pseudo-data derived from the image
+float * mock = NULL; // stores the mock current pseudo-data derived from the image
 float * data = NULL; // stores the quantities derived from the data
 float * data_err = NULL; // stores the error bars on the data
-float complex *data_bis = NULL; // bispectrum rotation precomputed value
+float complex *data_phasor = NULL; // bispectrum rotation precomputed value
 
 float complex * visi = NULL; // current visibilities
-float * current_image = NULL;
+float * current_image = NULL; // current image
+float * data_gradient = NULL; // gradient on the likelihood
 
 // DFT precomputed coefficient tables
 float complex* DFT_tablex = NULL;
@@ -38,9 +39,9 @@ int main(int argc, char *argv[])
 {   
     // TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
     // by rounding to the nearest sum of powers of 2 (if it makes sense).
-    register int ii = 0;
-    register int uu = 0;
-    float chi2 = 0;
+    register int ii ;
+    register int uu ;
+    float chi2 ;
 
     // read OIFITS and visibilities
     read_oifits(&oifits_info);
@@ -63,8 +64,8 @@ int main(int argc, char *argv[])
     data = malloc(data_alloc * sizeof( float ));
     data_err =  malloc(data_alloc * sizeof( float ));
     visi = malloc(data_alloc_uv * sizeof( float complex));   
-    data_bis = malloc(data_alloc_bis * sizeof( float complex ));
-    mock_data = malloc(data_alloc * sizeof( float ));
+    data_phasor = malloc(data_alloc_bis * sizeof( float complex ));
+    mock = malloc(data_alloc * sizeof( float ));
 
          
     // Set elements [0, npow - 1] equal to the power spectrum
@@ -72,19 +73,19 @@ int main(int argc, char *argv[])
     {
         data[ii] = oifits_info.pow[ii];
         data_err[ii]=  1 / oifits_info.powerr[ii];
-        mock_data[ii] = 0;
+        mock[ii] = 0;
     }
 
     // Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
     for(ii = 0; ii < nbis; ii++)
     {
-        data_bis[ii] = cexp( - I * oifits_info.bisphs[ii] );
+        data_phasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
         data[npow + 2* ii] = oifits_info.bisamp[ii];
         data[npow + 2* ii + 1 ] = 0.;
         data_err[npow + 2* ii] =  1 / oifits_info.bisamperr[ii];
         data_err[npow + 2* ii + 1] = 1 / (oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]);
-        mock_data[npow + 2* ii] = 0;
-        mock_data[npow + 2* ii + 1] = 0;
+        mock[npow + 2* ii] = 0;
+        mock[npow + 2* ii + 1] = 0;
     }
     
     // Pad the arrays with zeros and ones after this
@@ -92,7 +93,7 @@ int main(int argc, char *argv[])
     {
         data[ii] = 0;
         data_err[ii] = 0;
-        mock_data[ii] = 0;
+        mock[ii] = 0;
     }
 
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
@@ -180,6 +181,8 @@ int main(int argc, char *argv[])
     gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
+        gpu_bis[i][0] = creal(data_phasor[i]);
+        gpu_bis[i][1] = cimag(data_phasor[i]);
         gpu_bis[i].s0 = creal(data_bis[i]);
         gpu_bis[i].s1 = cimag(data_bis[i]);
     }
@@ -270,17 +273,17 @@ int main(int argc, char *argv[])
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
     // Enable for debugging purposes.
-    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
+    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
     
     // Free CPU-based Memory
     
-    free(mock_data);
+    free(mock);
     free(data);
     free(data_err);
-    free(data_bis);
+    free(data_phasor);
     free(visi);
     free(current_image);
     free(DFT_tablex);
@@ -303,10 +306,8 @@ int read_oifits()
 void image2vis(float * image, int image_width, float complex * visi)
 {	
     // DFT
-    int ii = 0;
-    int jj = 0;
-    int uu = 0;
-    float v0 = 0.; // zeroflux 
+  register int ii, jj, uu;
+  float v0 = 0.; // zeroflux 
 
     for(ii=0 ; ii < image_width * image_width ; ii++) 
         v0 += image[ii];
@@ -322,23 +323,20 @@ void image2vis(float * image, int image_width, float complex * visi)
             }
         }
         // TODO: Re-enable normalization, implement on the GPU too.
-        //if (v0 > 0.) visi[uu] /= v0;
+        if (v0 > 0.) visi[uu] /= v0;
+
     }
-  
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
 
 void vis2data(  )
 {
-    int ii = 0;
-    float complex vab = 0;
-    float complex vbc = 0;
-    float complex vca = 0;
-    float complex t3 = 0;
+    register int ii;
+    float complex vab, vbc, vca, t3;
 
     for( ii = 0; ii< npow; ii++)
     {
-        mock_data[ ii ] = square ( cabs( visi[ii] ) );
+        mock[ ii ] = square ( cabs( visi[ii] ) );
     }
 
     for( ii = 0; ii< nbis; ii++)
@@ -353,15 +351,15 @@ void vis2data(  )
         if( oifits_info.bsref[ii].ca.sign < 0) 
             vca = conj(vca);
             
-        t3 =  ( vab * vbc * vca ) * data_bis[ii] ;   
-        mock_data[ npow + 2 * ii ] = creal(t3) ;
-        mock_data[ npow + 2 * ii + 1] = cimag(t3) ;
+        t3 =  ( vab * vbc * vca ) * data_phasor[ii] ;   
+        mock[ npow + 2 * ii ] = creal(t3) ;
+        mock[ npow + 2 * ii + 1] = cimag(t3) ;
     } 
     
     // Uncomment to see the mock data array.
 /*    int count = npow + 2 * nbis;*/
 /*    for(ii = 0; ii < count; ii++)     */
-/*        printf("%i %f \n", ii, mock_data[ii]);*/
+/*        printf("%i %f \n", ii, mock[ii]);*/
 /*        */
 /*    printf("\n");*/
 
@@ -373,7 +371,7 @@ float data2chi2( )
     register int ii = 0;  
     for(ii=0; ii< npow + 2 * nbis; ii++)
     {
-        chi2 += square( ( mock_data[ii] - data[ii] ) * data_err[ii] ) ;
+        chi2 += square( ( mock[ii] - data[ii] ) * data_err[ii] ) ;
     }
 
     return chi2;
@@ -423,4 +421,107 @@ void write_fits_image( float* image , int* status )
   /*Report any errors*/
   fits_report_error(stderr, *status);
 
+}
+
+float flux( )
+{
+  register int ii;
+  float total=0.;
+  for(ii=0; ii < model_image_size * model_image_size; ii++)
+    total += current_image[ii];
+  return total;
+}
+
+void compute_data_gradient() // need to call to vis2data before this
+{
+
+  register int ii, jj, kk;
+  float complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
+
+  for(ii=0; ii < model_image_size; ii++)
+    {
+      for(jj=0; jj < model_image_size; jj++)
+	{
+	  data_gradient[ii + jj * model_image_size] = 0.;
+	  
+	  // Add gradient of chi2v2
+	  for(kk = 0 ; kk < npow; kk++)
+	    {
+	      data_gradient[ii + jj * model_image_size] += 4. / ( data_err[ kk ] * data_err[ kk ] ) 
+		*  ( mock[ kk ] - data[ kk ] ) * creal( conj( visi[ kk ] ) *  DFT_tablex[ model_image_size * kk +  ii ] * DFT_tabley[ model_image_size * kk +  jj ] );
+	    }
+	  
+	  // Add gradient of chi2bs
+	  for(kk = 0 ; kk < nbis; kk++)
+	    {
+	      vab = visi[oifits_info.bsref[kk].ab.uvpnt];
+	      vbc = visi[oifits_info.bsref[kk].bc.uvpnt];
+	      vca = visi[oifits_info.bsref[kk].ca.uvpnt];
+	      if(oifits_info.bsref[kk].ab.sign < 0) { vab = conj(vab);} 
+	      if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}
+	      if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}
+
+	      vabder = DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * model_image_size + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * model_image_size + jj  ];
+	      vbcder = DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * model_image_size + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * model_image_size + jj  ];
+	      vcader = DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * model_image_size + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * model_image_size + jj  ];
+
+	      if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} 
+	      if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
+	      if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}
+	      
+	      t3der = ( ( vabder -  vab ) * vbc * vca + vab * ( vbcder -  vbc ) * vca + vab * vbc * ( vcader -  vca ) ) ;
+	      t3der *= data_phasor[kk];
+	      
+	      // gradient from real part
+	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk] * data_err[2 * kk] ) * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
+	      
+	      // gradient from imaginary part
+	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk + 1] * data_err[2 * kk + 1] )  * mock[ npow + 2 * kk + 1]  * cimag( t3der );			
+	    }
+	}
+    }
+
+  // the current gradient values correspond is with respect to the normalized image
+  // Here we now compute the gradient with respect to unnormalized pixel intensities
+  
+  float grad_correction = 0.;
+  float normalization = 0.; // if the flux has already been computed, we could use this value 
+  for(ii = 0 ; ii < model_image_size * model_image_size ; ii++)
+    {
+    grad_correction += current_image[ ii ] * data_gradient[ ii ];
+    normalization +=  current_image[ ii ];
+    }
+  for(ii = 0 ; ii < model_image_size * model_image_size ; ii++)
+    data_gradient[ ii ]  = ( data_gradient[ ii ] - grad_correction / normalization ) / normalization ;
+
+}	
+
+int read_fits_image(char* fname, float* image, int* n, int* status)
+{
+  fitsfile *fptr;       // pointer to the FITS file, defined in fitsio.h
+  int  nfound, anynull;
+  long naxes[2], npixels; 
+  long fpixel = 1 ;
+  float nullval = 0 ;
+  
+  if (*status==0)fits_open_file(&fptr, fname, READONLY, status);
+  if (*status==0)fits_read_keys_lng(fptr, "NAXIS", 1, 2, naxes, &nfound, status);
+  //  if (*status==0)fits_read_key_str(fptr, "DATAFILE", datafile, comment, status);
+  //  if (*status==0)fits_read_key_str(fptr, "TARGET", target, comment, status);
+  //  if (*status==0)fits_read_key_flt(fptr, "PIXELATION", xyint, comment, status);
+  npixels  = naxes[0] * naxes[1];         /* number of pixels in the image */
+  fpixel   = 1;
+  nullval  = 0;                // don't check for null values in the image
+  
+  if(naxes[0] != naxes[1])
+    {
+      printf("Image dimension are not square.\n");
+      if(*status==0)fits_close_file(fptr, status);
+      return *status;
+    }
+  *n = naxes[0];
+  // Note: you need to allocate enough memory outside of this routine 
+  if(*status==0)fits_read_img(fptr, TFLOAT, fpixel, npixels, &nullval, image, &anynull, status);
+  if(*status==0)fits_close_file(fptr, status);
+  return *status;
 }

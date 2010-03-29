@@ -77,7 +77,8 @@ typedef struct _dataonly
 }data_only;
 
 /* Constants */
-#define PI 3.14159265358979323
+#define EXPON1  2.71828182845904523
+#define PI      3.14159265358979323
 #define RPMAS (3.14159265358979323/180.0)/3600000.0
 #define NMOD 20
 
@@ -93,4 +94,4 @@ void free_oi_data(oi_data *data);
 int count_redundant_bsuv(oi_bsref *bsref, int nbs);
 float bsuv_coverage_quality(oi_bsref *bsref, int nbs, oi_uv *uv, int nuv);
 void write_fits_image( float* image , int* status);
-void read_fits_image(char* fname, float* img, int* n, int* status);
+int read_fits_image(char* fname, float* image, int* n, int* status);
