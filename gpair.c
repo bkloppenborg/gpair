@@ -181,8 +181,8 @@ int main(int argc, char *argv[])
     gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bis[i][0] = creal(data_phasor[i]);
-        gpu_bis[i][1] = cimag(data_phasor[i]);
+        gpu_bis[i].s0 = creal(data_phasor[i]);
+        gpu_bis[i].s1 = cimag(data_phasor[i]);
         gpu_bis[i].s0 = creal(data_bis[i]);
         gpu_bis[i].s1 = cimag(data_bis[i]);
     }
