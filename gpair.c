@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
     npow = oifits_info.npow;
     nbis = oifits_info.nbis;
     nuv = oifits_info.nuv;
-    
+    printf("There are %d data : %d powerspectrum and %d bispectrum\n", npow + 2 * nbis, npow, nbis);
+
     // First thing we do is make all data occupy memory elements that are powers of two.  This makes
     // the GPU code much easier to speed up.
     int data_size = npow + 2 * nbis;
@@ -296,7 +297,6 @@ int read_oifits()
   get_oi_fits_selection( &usersel , &status );
   get_oi_fits_data( usersel , &oifits_info , &status );
   printf("OIFITS File read\n");  
-  printf("There are %d data : %d powerspectrum and %d bispectrum\n", npow + 2 * nbis, npow, nbis);
   return 1;
 }
 

@@ -9,8 +9,8 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -959,9 +959,16 @@ void gpu_init()
     static cl_command_queue queue;           // command queue
     
     int err = 0;
-    
+   
+    cl_platform_id platforms;
+    cl_uint num_platforms = 0;
+    // Get a platform ID
+    err = clGetPlatformIDs(10, &platforms, &num_platforms);
+    if (err != CL_SUCCESS)   //      [3]
+        print_opencl_error("Unable to get platform", err);    
+
     // Get an ID for the device
-    err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+    err = clGetDeviceIDs(platforms, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
     if (err != CL_SUCCESS)   //      [3]
         print_opencl_error("Unable to get GPU Device", err);    
     
