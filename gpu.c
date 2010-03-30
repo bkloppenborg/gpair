@@ -1,6 +1,8 @@
 #include "gpu.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <complex.h>
 
@@ -466,7 +468,7 @@ void gpu_cleanup()
             err |= clReleaseProgram(pGpu_flux_programs[i]);
     }
     if(pPro_visi != NULL)
-        err |= clReleaseProgram(pPro_visi);
+        err |= clReleaseProgram(*pPro_visi);
         
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Program Memory.\n");
@@ -490,7 +492,7 @@ void gpu_cleanup()
             err |= clReleaseKernel(pGpu_flux_kernels[i]);
     }
     if(pKernel_visi != NULL)
-        err |= clReleaseKernel(pKernel_visi);
+        err |= clReleaseKernel(*pKernel_visi);
     
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
@@ -1028,7 +1030,7 @@ void gpu_image2vis(int data_alloc_uv)
     // Execute the kernel over the entire range of the data set        
     global = data_alloc_uv;
     if(gpu_enable_debug && gpu_enable_verbose)
-        printf("Visi Kernel: Global: %i Local %i \n", global, local);
+      printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_visi, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)

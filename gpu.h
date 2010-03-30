@@ -40,3 +40,6 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis);
 static char * LoadProgramSourceFromFile(const char *filename);
 
 void gpu_device_stats(cl_device_id device_id);
+void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
+void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
+

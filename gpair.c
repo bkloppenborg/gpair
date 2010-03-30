@@ -16,7 +16,7 @@ oi_data oifits_info; // stores all the info from oifits files
 float * mock_data = NULL; // stores the mock current pseudo-data derived from the image
 float * data = NULL; // stores the quantities derived from the data
 float * data_err = NULL; // stores the error bars on the data
-float complex *data_bis = NULL; // bispectrum rotation precomputed value
+float complex *data_phasor = NULL; // bispectrum rotation precomputed value
 
 float complex * visi = NULL; // current visibilities
 float * current_image = NULL;
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     data = malloc(data_alloc * sizeof( float ));
     data_err =  malloc(data_alloc * sizeof( float ));
     visi = malloc(data_alloc_uv * sizeof( float complex));   
-    data_bis = malloc(data_alloc_bis * sizeof( float complex ));
+    data_phasor = malloc(data_alloc_bis * sizeof( float complex ));
     mock_data = malloc(data_alloc * sizeof( float ));
 
          
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     // Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
     for(ii = 0; ii < nbis; ii++)
     {
-        data_bis[ii] = cexp( - I * oifits_info.bisphs[ii] );
+        data_phasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
         data[npow + 2* ii] = oifits_info.bisamp[ii];
         data[npow + 2* ii + 1 ] = 0.;
         data_err[npow + 2* ii] =  1 / oifits_info.bisamperr[ii];
@@ -177,18 +177,18 @@ int main(int argc, char *argv[])
     }    
     
     // Convert the biphasor over to a cl_float2 in format <real, imaginary>    
-    cl_float2 * gpu_bis = NULL;
-    gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
+    cl_float2 * gpu_phasor = NULL;
+    gpu_phasor = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bis[i].s0 = creal(data_bis[i]);
-        gpu_bis[i].s1 = cimag(data_bis[i]);
+        gpu_phasor[i].s0 = creal(data_phasor[i]);
+        gpu_phasor[i].s1 = cimag(data_phasor[i]);
     }
     // Pad the remainder
     for(i = nbis; i < data_alloc_bis; i++)
     {
-        gpu_bis[i].s0 = 0;
-        gpu_bis[i].s1 = 0;
+        gpu_phasor[i].s0 = 0;
+        gpu_phasor[i].s1 = 0;
     }
     
     // We will also need the uvpnt and sign information for bisepctrum computations.
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
 
-    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_bis, data_alloc_bis, 
+    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_bis, 
         gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size, model_image_size); 
          
     gpu_build_kernels(data_alloc, image_size);
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
     
     // Free variables used to store values pepared for the GPU
     free(gpu_visi);
-    free(gpu_bis);
+    free(gpu_phasor);
     free(gpu_bsref_uvpnt);
     free(gpu_bsref_sign);
     free(gpu_dft_x);
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
     free(mock_data);
     free(data);
     free(data_err);
-    free(data_bis);
+    free(data_phasor);
     free(visi);
     free(current_image);
     free(DFT_tablex);
@@ -354,7 +354,7 @@ void vis2data(  )
         if( oifits_info.bsref[ii].ca.sign < 0) 
             vca = conj(vca);
             
-        t3 =  ( vab * vbc * vca ) * data_bis[ii] ;   
+        t3 =  ( vab * vbc * vca ) * data_phasor[ii] ;   
         mock_data[ npow + 2 * ii ] = creal(t3) ;
         mock_data[ npow + 2 * ii + 1] = cimag(t3) ;
     } 
@@ -499,32 +499,3 @@ void compute_data_gradient() // need to call to vis2data before this
 
 }	
 
-int read_fits_image(char* fname, float* image, int* n, int* status)
-{
-  fitsfile *fptr;       // pointer to the FITS file, defined in fitsio.h
-  int  nfound, anynull;
-  long naxes[2], npixels; 
-  long fpixel = 1 ;
-  float nullval = 0 ;
-  
-  if (*status==0)fits_open_file(&fptr, fname, READONLY, status);
-  if (*status==0)fits_read_keys_lng(fptr, "NAXIS", 1, 2, naxes, &nfound, status);
-  //  if (*status==0)fits_read_key_str(fptr, "DATAFILE", datafile, comment, status);
-  //  if (*status==0)fits_read_key_str(fptr, "TARGET", target, comment, status);
-  //  if (*status==0)fits_read_key_flt(fptr, "PIXELATION", xyint, comment, status);
-  npixels  = naxes[0] * naxes[1];         /* number of pixels in the image */
-  fpixel   = 1;
-  nullval  = 0;                // don't check for null values in the image
-  
-  if(naxes[0] != naxes[1])
-    {
-      printf("Image dimension are not square.\n");
-      if(*status==0)fits_close_file(fptr, status);
-      return *status;
-    }
-  *n = naxes[0];
-  // Note: you need to allocate enough memory outside of this routine 
-  if(*status==0)fits_read_img(fptr, TFLOAT, fpixel, npixels, &nullval, image, &anynull, status);
-  if(*status==0)fits_close_file(fptr, status);
-  return *status;
-}
