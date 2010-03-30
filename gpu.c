@@ -36,7 +36,8 @@ cl_kernel * pKernel_visi = NULL;
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
 cl_mem * pGpu_data_err = NULL;         // OIFITS Data Error
-cl_mem * pGpu_data_bis = NULL;         // OIFITS Data Biphasor
+cl_mem * pGpu_data_phasor = NULL;         // OIFITS Data Biphasor
+cl_mem * pGpu_phasor_size = NULL;
 cl_mem * pGpu_data_uvpnt = NULL;       // OIFITS UV Point indicies for bispectrum data 
 cl_mem * pGpu_data_sign = NULL;        // OIFITS UV Point signs.
 cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
@@ -363,7 +364,7 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
 }
 
 // A function to double-check computations between the GPU and CPU.
-void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_size, float * mock_data, int nbis, float * data_bis)
+void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_size, float * mock_data, int nbis, float * data_phasor)
 {
     printf(SEP);
     printf("Comparing CPU and GPU DFT table values:\n");
@@ -503,8 +504,10 @@ void gpu_cleanup()
         err |= clReleaseMemObject(*pGpu_data);
     if(pGpu_data_err != NULL)
         err |= clReleaseMemObject(*pGpu_data_err);
-    if(pGpu_data_bis != NULL)
-        err |= clReleaseMemObject(*pGpu_data_bis);
+    if(pGpu_data_phasor != NULL)
+        err |= clReleaseMemObject(*pGpu_data_phasor);
+    if(pGpu_phasor_size != NULL)
+        err |= clReleaseMemObject(*pGpu_phasor_size);
     if(pGpu_data_uvpnt != NULL)
         err |= clReleaseMemObject(*pGpu_data_uvpnt);
     if(pGpu_data_sign != NULL)
@@ -630,20 +633,20 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     if(err != CL_SUCCESS)
         print_opencl_error("Could not copy summed value to/from buffers on the GPU.", err);
         
-    if(gpu_enable_debug)
-    {
+/*    if(gpu_enable_debug)*/
+/*    {*/
         float sum = 0;
         err = clEnqueueReadBuffer(*pQueue, *final_buffer, CL_TRUE, 0, sizeof(float), &sum, 0, NULL, NULL );
         if(err != CL_SUCCESS)
             print_opencl_error("Could not read back GPU SUM value.", err);
         
         printf("GPU Val: %f (copied value on GPU)\n", sum);
-    }        
+/*    }        */
 }
 
 // Init memory locations and copy data over to the GPU.
 void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv,\
-                    cl_float2 * data_bis, int bis_size,\
+                    cl_float2 * data_phasor, int phasor_size,\
                     long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
                     int image_size, int image_width)
 {
@@ -652,7 +655,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
 
     static cl_mem gpu_data;         // Data
     static cl_mem gpu_data_err;     // Data Error
-    static cl_mem gpu_data_bis;     // Biphasor
+    static cl_mem gpu_data_phasor;     // Biphasor
     static cl_mem gpu_data_uvpnt;   // UV Points for the bispectrum
     static cl_mem gpu_data_sign;    // Signs for the bispectrum.
     static cl_mem gpu_mock_data;    // Mock Data
@@ -669,6 +672,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     
     static cl_mem gpu_visi;         // Used for storing the visibilities  
     static cl_mem gpu_image_width; 
+    
+    static cl_mem gpu_phasor_size;
 
     // Init some mock data (to allow resumes in the future I suppose...)
     float zero = 0;
@@ -699,7 +704,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     // Create buffers on the device:    
     gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * data_size, NULL, NULL);
     gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * data_size, NULL, NULL); 
-    gpu_data_bis = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * bis_size, NULL, NULL); 
+    gpu_data_phasor = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * phasor_size, NULL, NULL); 
+    gpu_phasor_size = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(int), NULL, NULL);
     gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * bsref_size, NULL, NULL);
     gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * bsref_size, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
@@ -722,11 +728,13 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
 
     if(gpu_enable_verbose)
         printf("Copying data to device. \n");
+        
 
     // Copy the data over to the device.  (note, non-blocking cals)
     err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_FALSE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_bis, CL_FALSE, 0, sizeof(cl_float2) * bis_size, data_bis, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_phasor, CL_FALSE, 0, sizeof(cl_float2) * phasor_size, data_phasor, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_phasor_size, CL_FALSE, 0, sizeof(int), &phasor_size, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);
@@ -751,7 +759,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
         
     pGpu_data = &gpu_data;
     pGpu_data_err = &gpu_data_err; 
-    pGpu_data_bis = &gpu_data_bis;
+    pGpu_data_phasor = &gpu_data_phasor;
+    pGpu_phasor_size = &gpu_phasor_size;
     pGpu_data_uvpnt = &gpu_data_uvpnt;
     pGpu_data_sign = &gpu_data_sign;
     pGpu_mock_data = &gpu_mock_data;
@@ -901,7 +910,8 @@ void gpu_device_stats(cl_device_id device_id)
 	
 	cl_uint clock_frequency, vector_width, max_compute_units;
 	
-	size_t max_work_item_dims,max_work_group_size, max_work_item_sizes[3];
+	size_t max_work_item_dims = 3;
+	size_t max_work_group_size, max_work_item_sizes[3];
 	
 	cl_uint vector_types[] = {CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT,CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG,CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT,CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE}; 
 	char *vector_type_names[] = {"char","short","int","long","float","double"};
@@ -920,7 +930,8 @@ void gpu_device_stats(cl_device_id device_id)
 	
 	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(max_work_group_size), &max_work_group_size, &returned_size);
 	
-	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(max_work_item_dims), &max_work_item_dims, &returned_size);
+	// TODO: There be a bug here somewhere.  Upgrade to Nvidia driver 195 somehow screwed up this command.
+	//err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(max_work_item_dims), &max_work_item_dims, &returned_size);
 	
 	err|= clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(max_work_item_sizes), max_work_item_sizes, &returned_size);
 	
@@ -959,21 +970,18 @@ void gpu_init()
     static cl_device_id device_id;           // device ID
     static cl_context context;               // context
     static cl_command_queue queue;           // command queue
-    cl_platform_id platforms;
-    cl_uint num_platforms = 0;
+    cl_platform_id cpPlatform;
+
     
     int err = 0;
    
     // Get a platform ID
-    err = clGetPlatformIDs(2, &platforms, &num_platforms);
+    err = clGetPlatformIDs(1, &cpPlatform, NULL);
     if (err != CL_SUCCESS)   //      [3]
         print_opencl_error("Unable to get platform", err);  
-        
-/*    if(num_platforms == 0)*/
-/*        print_opencl_error("No platforms detected, qutting.", 0);  */
 
     // Get an ID for the device
-    err = clGetDeviceIDs(platforms, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+    err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
     if (err != CL_SUCCESS)   //      [3]
         print_opencl_error("Unable to get GPU Device", err);    
     
@@ -1027,6 +1035,9 @@ void gpu_image2vis(int data_alloc_uv)
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
+    // Round down to the nearest power of two.
+    local = pow(2, floor(log(local) / log(2)));
+    
     // Execute the kernel over the entire range of the data set        
     global = data_alloc_uv;
     if(gpu_enable_debug && gpu_enable_verbose)
@@ -1075,11 +1086,11 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
     // Now we run a kernel to compute the bispectrum:
     // ############
     err  = clSetKernelArg(*pKernel_bispec, 0, sizeof(cl_mem), pGpu_visi);
-    err |= clSetKernelArg(*pKernel_bispec, 1, sizeof(cl_mem), pGpu_data_bis);
+    err |= clSetKernelArg(*pKernel_bispec, 1, sizeof(cl_mem), pGpu_data_phasor);
     err |= clSetKernelArg(*pKernel_bispec, 2, sizeof(cl_mem), pGpu_data_uvpnt);
     err |= clSetKernelArg(*pKernel_bispec, 3, sizeof(cl_mem), pGpu_data_sign);
-    err |= clSetKernelArg(*pKernel_bispec, 4, sizeof(cl_mem), pGpu_mock_data);
-    err |= clSetKernelArg(*pKernel_bispec, 5, sizeof(int), &npow);    // Output is stored on the GPU.
+    err |= clSetKernelArg(*pKernel_bispec, 4, sizeof(cl_mem), pGpu_mock_data);      // Output is stored on the GPU.
+    err |= clSetKernelArg(*pKernel_bispec, 5, sizeof(cl_mem), pGpu_phasor_size);    
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err); 
  

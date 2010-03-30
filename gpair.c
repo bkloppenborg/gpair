@@ -58,13 +58,13 @@ int main(int argc, char *argv[])
     int data_size = npow + 2 * nbis;
     int data_alloc = pow(2, ceil(log(data_size) / log(2)));    // Arrays are allocated to be powers of 2
     int data_alloc_uv = pow(2, ceil(log(nuv) / log(2)));
-    int data_alloc_bis = pow(2, ceil(log(nbis) / log(2)));   
+    int data_alloc_phasor = pow(2, ceil(log(nbis) / log(2)));   
 
     // Allocate memory for the data, error, and mock arrays:
     data = malloc(data_alloc * sizeof( float ));
     data_err =  malloc(data_alloc * sizeof( float ));
     visi = malloc(data_alloc_uv * sizeof( float complex));   
-    data_phasor = malloc(data_alloc_bis * sizeof( float complex ));
+    data_phasor = malloc(data_alloc_phasor * sizeof( float complex ));
     mock_data = malloc(data_alloc * sizeof( float ));
 
          
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
     printf("Data Size: %i, Data Allocation: %i \n", data_size, data_alloc);
     printf("UV Size: %i, Allocation: %i \n", nuv, data_alloc_uv);
     printf("POW Size: %i \n", npow);
-    printf("BIS Size: %i, Allocation: %i \n", nbis, data_alloc_bis);
+    printf("BIS Size: %i, Allocation: %i \n", nbis, data_alloc_phasor);
     printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
    
@@ -178,14 +178,14 @@ int main(int argc, char *argv[])
     
     // Convert the biphasor over to a cl_float2 in format <real, imaginary>    
     cl_float2 * gpu_phasor = NULL;
-    gpu_phasor = malloc(data_alloc_bis * sizeof(cl_float2));
+    gpu_phasor = malloc(data_alloc_phasor * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
         gpu_phasor[i].s0 = creal(data_phasor[i]);
         gpu_phasor[i].s1 = cimag(data_phasor[i]);
     }
     // Pad the remainder
-    for(i = nbis; i < data_alloc_bis; i++)
+    for(i = nbis; i < data_alloc_phasor; i++)
     {
         gpu_phasor[i].s0 = 0;
         gpu_phasor[i].s1 = 0;
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
     // We will also need the uvpnt and sign information for bisepctrum computations.
     cl_long * gpu_bsref_uvpnt = NULL;
     cl_short * gpu_bsref_sign = NULL;
-    int data_alloc_bsref = 3 * data_alloc_bis;
+    int data_alloc_bsref = 3 * data_alloc_phasor;
     gpu_bsref_uvpnt = malloc(data_alloc_bsref * sizeof(cl_long));
     gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short));
     for(i = 0; i < nbis; i++)
@@ -232,14 +232,13 @@ int main(int argc, char *argv[])
         gpu_dft_x[i].s1 = 0;
         gpu_dft_y[i].s0 = 0;
         gpu_dft_y[i].s1 = 0;
-    }
-          
+    }    
     
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
 
-    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_bis, 
-        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size, model_image_size); 
+    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor, 
+        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size, model_image_size);    
          
     gpu_build_kernels(data_alloc, image_size);
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
@@ -251,6 +250,7 @@ int main(int argc, char *argv[])
     free(gpu_bsref_sign);
     free(gpu_dft_x);
     free(gpu_dft_y);
+    
 
     tick = clock();
     for(ii=0; ii < iterations; ii++)

@@ -6,8 +6,8 @@ __kernel void visi(
     __global float2 * output)
 {
     float2 visi;
-    visi[0] = 0;
-    visi[1] = 0;
+    visi.s0 = 0;
+    visi.s1 = 0;
     
     int image_width = image_size[0];
     
@@ -30,14 +30,14 @@ __kernel void visi(
             c0 = dft_y[offset +  j].s0;
             c1 = dft_y[offset +  j].s1;
             
-            visi[0] += -1*a0*b1*c1 - a1*b0*c1 - a1*b1*c0 + a0*b0*c0;
-            visi[1] += -1*a1*b1*c1 + a0*b0*c1 + a0*b1*c0 + a1*b0*c0;
+            visi.s0 += -1*a0*b1*c1 - a1*b0*c1 - a1*b1*c0 + a0*b0*c0;
+            visi.s1 += -1*a1*b1*c1 + a0*b0*c1 + a0*b1*c0 + a1*b0*c0;
         }
     }
     
     // TODO: Normalize if (v0 > 0.) visi[h] /= v0;
-    output[h].s0 = visi[0];
-    output[h].s1 = visi[1];
+    output[h].s0 = visi.s0;
+    output[h].s1 = visi.s1;
 }
 
 
