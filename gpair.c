@@ -237,8 +237,9 @@ int main(int argc, char *argv[])
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
 
-    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor, 
-        gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size, model_image_size);    
+    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
+        npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
+        model_image_size);    
          
     gpu_build_kernels(data_alloc, image_size);
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);

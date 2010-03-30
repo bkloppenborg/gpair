@@ -37,7 +37,7 @@ cl_kernel * pKernel_visi = NULL;
 cl_mem * pGpu_data = NULL;             // OIFITS Data
 cl_mem * pGpu_data_err = NULL;         // OIFITS Data Error
 cl_mem * pGpu_data_phasor = NULL;         // OIFITS Data Biphasor
-cl_mem * pGpu_phasor_size = NULL;
+cl_mem * pGpu_pow_size = NULL;
 cl_mem * pGpu_data_uvpnt = NULL;       // OIFITS UV Point indicies for bispectrum data 
 cl_mem * pGpu_data_sign = NULL;        // OIFITS UV Point signs.
 cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
@@ -506,8 +506,8 @@ void gpu_cleanup()
         err |= clReleaseMemObject(*pGpu_data_err);
     if(pGpu_data_phasor != NULL)
         err |= clReleaseMemObject(*pGpu_data_phasor);
-    if(pGpu_phasor_size != NULL)
-        err |= clReleaseMemObject(*pGpu_phasor_size);
+    if(pGpu_pow_size != NULL)
+        err |= clReleaseMemObject(*pGpu_pow_size);
     if(pGpu_data_uvpnt != NULL)
         err |= clReleaseMemObject(*pGpu_data_uvpnt);
     if(pGpu_data_sign != NULL)
@@ -646,7 +646,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
 
 // Init memory locations and copy data over to the GPU.
 void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv,\
-                    cl_float2 * data_phasor, int phasor_size,\
+                    cl_float2 * data_phasor, int phasor_size, int pow_size, \
                     long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
                     int image_size, int image_width)
 {
@@ -734,7 +734,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_FALSE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_phasor, CL_FALSE, 0, sizeof(cl_float2) * phasor_size, data_phasor, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_phasor_size, CL_FALSE, 0, sizeof(int), &phasor_size, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_phasor_size, CL_FALSE, 0, sizeof(int), pow_size, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);
@@ -760,7 +760,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     pGpu_data = &gpu_data;
     pGpu_data_err = &gpu_data_err; 
     pGpu_data_phasor = &gpu_data_phasor;
-    pGpu_phasor_size = &gpu_phasor_size;
+    pGpu_pow_size = &gpu_phasor_size;
     pGpu_data_uvpnt = &gpu_data_uvpnt;
     pGpu_data_sign = &gpu_data_sign;
     pGpu_mock_data = &gpu_mock_data;
@@ -1090,7 +1090,7 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
     err |= clSetKernelArg(*pKernel_bispec, 2, sizeof(cl_mem), pGpu_data_uvpnt);
     err |= clSetKernelArg(*pKernel_bispec, 3, sizeof(cl_mem), pGpu_data_sign);
     err |= clSetKernelArg(*pKernel_bispec, 4, sizeof(cl_mem), pGpu_mock_data);      // Output is stored on the GPU.
-    err |= clSetKernelArg(*pKernel_bispec, 5, sizeof(cl_mem), pGpu_phasor_size);    
+    err |= clSetKernelArg(*pKernel_bispec, 5, sizeof(int), pGpu_pow_size);    
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err); 
  

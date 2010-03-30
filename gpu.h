@@ -19,7 +19,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     int * operation_counts, int * entry_counts);
 
 void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv,\
-                    cl_float2 * data_bis, int bis_size,\
+                    cl_float2 * data_bis, int phasor_size, int pow_size,\
                     long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
                     int image_size, int image_width);
                     
