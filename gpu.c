@@ -12,7 +12,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -633,15 +633,15 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     if(err != CL_SUCCESS)
         print_opencl_error("Could not copy summed value to/from buffers on the GPU.", err);
         
-/*    if(gpu_enable_debug)*/
-/*    {*/
+    if(gpu_enable_debug)
+    {
         float sum = 0;
         err = clEnqueueReadBuffer(*pQueue, *final_buffer, CL_TRUE, 0, sizeof(float), &sum, 0, NULL, NULL );
         if(err != CL_SUCCESS)
             print_opencl_error("Could not read back GPU SUM value.", err);
         
         printf("GPU Val: %f (copied value on GPU)\n", sum);
-/*    }        */
+    }        
 }
 
 // Init memory locations and copy data over to the GPU.
