@@ -13,13 +13,13 @@ int status = 0;
 oi_usersel usersel;
 oi_data oifits_info; // stores all the info from oifits files
 
-float * mock = NULL; // stores the mock current pseudo-data derived from the image
+float * mock_data = NULL; // stores the mock current pseudo-data derived from the image
 float * data = NULL; // stores the quantities derived from the data
 float * data_err = NULL; // stores the error bars on the data
-float complex *data_phasor = NULL; // bispectrum rotation precomputed value
+float complex *data_bis = NULL; // bispectrum rotation precomputed value
 
 float complex * visi = NULL; // current visibilities
-float * current_image = NULL; // current image
+float * current_image = NULL;
 float * data_gradient = NULL; // gradient on the likelihood
 
 // DFT precomputed coefficient tables
@@ -39,9 +39,9 @@ int main(int argc, char *argv[])
 {   
     // TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
     // by rounding to the nearest sum of powers of 2 (if it makes sense).
-    register int ii ;
-    register int uu ;
-    float chi2 ;
+    register int ii = 0;
+    register int uu = 0;
+    float chi2 = 0;
 
     // read OIFITS and visibilities
     read_oifits(&oifits_info);
@@ -64,8 +64,8 @@ int main(int argc, char *argv[])
     data = malloc(data_alloc * sizeof( float ));
     data_err =  malloc(data_alloc * sizeof( float ));
     visi = malloc(data_alloc_uv * sizeof( float complex));   
-    data_phasor = malloc(data_alloc_bis * sizeof( float complex ));
-    mock = malloc(data_alloc * sizeof( float ));
+    data_bis = malloc(data_alloc_bis * sizeof( float complex ));
+    mock_data = malloc(data_alloc * sizeof( float ));
 
          
     // Set elements [0, npow - 1] equal to the power spectrum
@@ -73,19 +73,19 @@ int main(int argc, char *argv[])
     {
         data[ii] = oifits_info.pow[ii];
         data_err[ii]=  1 / oifits_info.powerr[ii];
-        mock[ii] = 0;
+        mock_data[ii] = 0;
     }
 
     // Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
     for(ii = 0; ii < nbis; ii++)
     {
-        data_phasor[ii] = cexp( - I * oifits_info.bisphs[ii] );
+        data_bis[ii] = cexp( - I * oifits_info.bisphs[ii] );
         data[npow + 2* ii] = oifits_info.bisamp[ii];
         data[npow + 2* ii + 1 ] = 0.;
         data_err[npow + 2* ii] =  1 / oifits_info.bisamperr[ii];
         data_err[npow + 2* ii + 1] = 1 / (oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]);
-        mock[npow + 2* ii] = 0;
-        mock[npow + 2* ii + 1] = 0;
+        mock_data[npow + 2* ii] = 0;
+        mock_data[npow + 2* ii + 1] = 0;
     }
     
     // Pad the arrays with zeros and ones after this
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     {
         data[ii] = 0;
         data_err[ii] = 0;
-        mock[ii] = 0;
+        mock_data[ii] = 0;
     }
 
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
@@ -181,8 +181,6 @@ int main(int argc, char *argv[])
     gpu_bis = malloc(data_alloc_bis * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bis[i].s0 = creal(data_phasor[i]);
-        gpu_bis[i].s1 = cimag(data_phasor[i]);
         gpu_bis[i].s0 = creal(data_bis[i]);
         gpu_bis[i].s1 = cimag(data_bis[i]);
     }
@@ -273,17 +271,17 @@ int main(int argc, char *argv[])
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
     // Enable for debugging purposes.
-    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock);
+    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
     
     // Free CPU-based Memory
     
-    free(mock);
+    free(mock_data);
     free(data);
     free(data_err);
-    free(data_phasor);
+    free(data_bis);
     free(visi);
     free(current_image);
     free(DFT_tablex);
@@ -306,8 +304,10 @@ int read_oifits()
 void image2vis(float * image, int image_width, float complex * visi)
 {	
     // DFT
-  register int ii, jj, uu;
-  float v0 = 0.; // zeroflux 
+    int ii = 0;
+    int jj = 0;
+    int uu = 0;
+    float v0 = 0.; // zeroflux 
 
     for(ii=0 ; ii < image_width * image_width ; ii++) 
         v0 += image[ii];
@@ -323,20 +323,23 @@ void image2vis(float * image, int image_width, float complex * visi)
             }
         }
         // TODO: Re-enable normalization, implement on the GPU too.
-        if (v0 > 0.) visi[uu] /= v0;
-
+        //if (v0 > 0.) visi[uu] /= v0;
     }
+  
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
 
 void vis2data(  )
 {
-    register int ii;
-    float complex vab, vbc, vca, t3;
+    int ii = 0;
+    float complex vab = 0;
+    float complex vbc = 0;
+    float complex vca = 0;
+    float complex t3 = 0;
 
     for( ii = 0; ii< npow; ii++)
     {
-        mock[ ii ] = square ( cabs( visi[ii] ) );
+        mock_data[ ii ] = square ( cabs( visi[ii] ) );
     }
 
     for( ii = 0; ii< nbis; ii++)
@@ -351,15 +354,15 @@ void vis2data(  )
         if( oifits_info.bsref[ii].ca.sign < 0) 
             vca = conj(vca);
             
-        t3 =  ( vab * vbc * vca ) * data_phasor[ii] ;   
-        mock[ npow + 2 * ii ] = creal(t3) ;
-        mock[ npow + 2 * ii + 1] = cimag(t3) ;
+        t3 =  ( vab * vbc * vca ) * data_bis[ii] ;   
+        mock_data[ npow + 2 * ii ] = creal(t3) ;
+        mock_data[ npow + 2 * ii + 1] = cimag(t3) ;
     } 
     
     // Uncomment to see the mock data array.
 /*    int count = npow + 2 * nbis;*/
 /*    for(ii = 0; ii < count; ii++)     */
-/*        printf("%i %f \n", ii, mock[ii]);*/
+/*        printf("%i %f \n", ii, mock_data[ii]);*/
 /*        */
 /*    printf("\n");*/
 
@@ -371,7 +374,7 @@ float data2chi2( )
     register int ii = 0;  
     for(ii=0; ii< npow + 2 * nbis; ii++)
     {
-        chi2 += square( ( mock[ii] - data[ii] ) * data_err[ii] ) ;
+        chi2 += square( ( mock_data[ii] - data[ii] ) * data_err[ii] ) ;
     }
 
     return chi2;
@@ -448,7 +451,7 @@ void compute_data_gradient() // need to call to vis2data before this
 	  for(kk = 0 ; kk < npow; kk++)
 	    {
 	      data_gradient[ii + jj * model_image_size] += 4. / ( data_err[ kk ] * data_err[ kk ] ) 
-		*  ( mock[ kk ] - data[ kk ] ) * creal( conj( visi[ kk ] ) *  DFT_tablex[ model_image_size * kk +  ii ] * DFT_tabley[ model_image_size * kk +  jj ] );
+		*  ( mock_data[ kk ] - data[ kk ] ) * creal( conj( visi[ kk ] ) *  DFT_tablex[ model_image_size * kk +  ii ] * DFT_tabley[ model_image_size * kk +  jj ] );
 	    }
 	  
 	  // Add gradient of chi2bs
@@ -473,10 +476,10 @@ void compute_data_gradient() // need to call to vis2data before this
 	      t3der *= data_phasor[kk];
 	      
 	      // gradient from real part
-	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk] * data_err[2 * kk] ) * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
+	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk] * data_err[2 * kk] ) * ( mock_data[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
 	      
 	      // gradient from imaginary part
-	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk + 1] * data_err[2 * kk + 1] )  * mock[ npow + 2 * kk + 1]  * cimag( t3der );			
+	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk + 1] * data_err[2 * kk + 1] )  * mock_data[ npow + 2 * kk + 1]  * cimag( t3der );			
 	    }
 	}
     }
