@@ -12,7 +12,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -734,7 +734,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_FALSE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_phasor, CL_FALSE, 0, sizeof(cl_float2) * phasor_size, data_phasor, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_phasor_size, CL_FALSE, 0, sizeof(int), pow_size, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_phasor_size, CL_FALSE, 0, sizeof(int), &pow_size, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);
@@ -1090,7 +1090,7 @@ void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
     err |= clSetKernelArg(*pKernel_bispec, 2, sizeof(cl_mem), pGpu_data_uvpnt);
     err |= clSetKernelArg(*pKernel_bispec, 3, sizeof(cl_mem), pGpu_data_sign);
     err |= clSetKernelArg(*pKernel_bispec, 4, sizeof(cl_mem), pGpu_mock_data);      // Output is stored on the GPU.
-    err |= clSetKernelArg(*pKernel_bispec, 5, sizeof(int), pGpu_pow_size);    
+    err |= clSetKernelArg(*pKernel_bispec, 5, sizeof(cl_mem), pGpu_pow_size);    
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err); 
  
