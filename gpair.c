@@ -7,7 +7,7 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variables
-int model_image_size = 0;
+int image_width = 0;
 float model_image_pixellation = 0;
 int status = 0;
 oi_usersel usersel;
@@ -97,17 +97,17 @@ int main(int argc, char *argv[])
     }
 
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
-    model_image_size = 128;
+    image_width = 128;
     float model_image_pixellation = 0.15 ;
-    int image_size = model_image_size * model_image_size;
+    int image_size = image_width * image_width;
     printf("Image Buffer Size %i \n", image_size);
     current_image = malloc(image_size * sizeof(float));
     memset(current_image, 0, image_size);
-    current_image[(model_image_size * (model_image_size + 1 ) )/ 2 ] = 1.0;
+    current_image[(image_width * (image_width + 1 ) )/ 2 ] = 1.0;
 
 
     // setup precomputed DFT table
-    int dft_size = nuv * model_image_size;
+    int dft_size = nuv * image_width;
     int dft_alloc = pow(2, ceil(log(dft_size) / log(2)));   // Amount of space to allocate on the GPU for each axis of the DFT table. 
     DFT_tablex = malloc( dft_size * sizeof(float complex));
     memset(DFT_tablex, 0, dft_size);
@@ -115,11 +115,11 @@ int main(int argc, char *argv[])
     memset(DFT_tabley, 0, dft_size);
     for(uu=0 ; uu < nuv; uu++)
     {
-        for(ii=0; ii < model_image_size; ii++)
+        for(ii=0; ii < image_width; ii++)
         {
-            DFT_tablex[ model_image_size * uu + ii ] =  
+            DFT_tablex[ image_width * uu + ii ] =  
                 cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
-            DFT_tabley[ model_image_size * uu + ii ] =  
+            DFT_tabley[ image_width * uu + ii ] =  
                 cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
         }
     }
@@ -139,23 +139,44 @@ int main(int argc, char *argv[])
     // CPU Code:
     // #########
 
-    // compute mock data, powerspectra + bispectra
+    // Test 1 : compute mock data, powerspectra + bispectra from scratch
     clock_t tick = clock();
     clock_t tock = 0;
     for(ii=0; ii < iterations; ii++)
     {
         //compute complex visibilities and the chi2
-        image2vis(current_image, model_image_size, visi);
+        image2vis( );
         vis2data();
         chi2 = data2chi2();
-    }
-        
+    }        
     tock=clock();
     float cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf(SEP);
-    printf("CPU Chi2: %f (CPU only)\n", chi2);
+    printf("Complete DFT calculation -- CPU Chi2: %f (CPU only)\n", chi2);
     printf(SEP);
     
+    // Test 2 : recompute mock data, powerspectra + bispectra when changing only the flux of one pixel
+    tick = clock();
+    float total_flux = flux();
+    float inc = 1.1;
+    int x_changed = 64;
+    int y_changed = 4;
+    for(ii=0; ii < iterations; ii++)
+      {
+        //compute complex visibilities and the chi2
+	current_image[ x_changed + y_changed * image_width ] += inc;
+	update_vis_fluxchange( x_changed , y_changed, current_image[ x_changed + y_changed * image_width ], total_flux + inc ) ;
+	total_flux += inc;
+        vis2data();
+        chi2 = data2chi2();
+      }       
+    tock=clock();
+    cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
+    printf(SEP);
+    printf("Atomic change -- CPU Chi2: %f (CPU only)\n", chi2);
+    printf(SEP);
+    
+
     // #########
     // GPU Code:  
     // #########
@@ -215,9 +236,9 @@ int main(int argc, char *argv[])
     gpu_dft_y = malloc(dft_alloc * sizeof(cl_float2));
     for(uu=0 ; uu < nuv; uu++)
     {
-        for(ii=0; ii < model_image_size; ii++)
+        for(ii=0; ii < image_width; ii++)
         {
-            i = model_image_size * uu + ii;
+            i = image_width * uu + ii;
             gpu_dft_x[i].s0 = __real__ DFT_tablex[i];
             gpu_dft_x[i].s1 = __imag__ DFT_tablex[i];
             gpu_dft_y[i].s0 = __real__ DFT_tabley[i];
@@ -226,7 +247,7 @@ int main(int argc, char *argv[])
     }
     
     // Pad out the remainder of the array with zeros:
-    for(i = nuv * model_image_size; i < dft_alloc; i++)
+    for(i = nuv * image_width; i < dft_alloc; i++)
     {
         gpu_dft_x[i].s0 = 0;
         gpu_dft_x[i].s1 = 0;
@@ -239,7 +260,7 @@ int main(int argc, char *argv[])
 
     gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
         npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
-        model_image_size);    
+        image_width);    
          
     gpu_build_kernels(data_alloc, image_size);
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
@@ -257,7 +278,7 @@ int main(int argc, char *argv[])
     for(ii=0; ii < iterations; ii++)
     {
         // In the final version of the code, the following lines will be iterated.
-        gpu_copy_image(current_image, model_image_size, model_image_size);
+        gpu_copy_image(current_image, image_width, image_width);
         gpu_image2vis(data_alloc_uv);
         gpu_vis2data(gpu_visi, nuv, npow, nbis);
 
@@ -302,33 +323,56 @@ int read_oifits()
   return 1;
 }
 
-void image2vis(float * image, int image_width, float complex * visi)
+void image2vis( ) // DFT implementation
 {	
-    // DFT
-    int ii = 0;
-    int jj = 0;
-    int uu = 0;
-    float v0 = 0.; // zeroflux 
-
-    for(ii=0 ; ii < image_width * image_width ; ii++) 
-        v0 += image[ii];
+  register int ii = 0, jj = 0, uu = 0;
+  float v0 = 0.; // zeroflux 
+  
+  for(ii=0 ; ii < image_width * image_width ; ii++) 
+    v0 += current_image[ii];
     
-    for(uu=0 ; uu < nuv; uu++)
+  for(uu=0 ; uu < nuv; uu++)
     {
-        visi[uu] = 0.0 + I * 0.0;
-        for(ii=0; ii < image_width; ii++)
+      visi[uu] = 0.0 + I * 0.0;
+      for(ii=0; ii < image_width; ii++)
         {
-            for(jj=0; jj < image_width; jj++)
+	  for(jj=0; jj < image_width; jj++)
             {
-                visi[uu] += image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
+	      visi[uu] += current_image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
             }
         }
-        // TODO: Re-enable normalization, implement on the GPU too.
-        //if (v0 > 0.) visi[uu] /= v0;
+      // TODO: Re-enable normalization, implement on the GPU too.
+      //if (v0 > 0.) visi[uu] /= v0;
     }
-  
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
+
+void update_vis_fluxchange(int x, int y, float flux_old, float flux_new) 
+// finite difference routine giving visi when changing the flux of an element in (x,y)
+{	
+  // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
+  // the total flux should be updated outside this loop
+  register int uu;
+  for(uu=0 ; uu < nuv; uu++)
+    {
+      visi[uu] = ( visi[uu] * flux_old + ( flux_new - flux_old ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ) / flux_new;
+    }
+}
+
+void update_vis_positionchange(int x_old, int y_old, int x_new, int y_new) 
+// finite difference routine giving visi when moving one element from (x_old,y_old) to (x_new, y_new)
+{	 
+ // Note : no change in total flux in this case
+  register int uu;
+  int position_old = x_old + y_old * image_width;
+  int position_new = x_new + y_new * image_width;
+  for(uu=0 ; uu < nuv; uu++)
+    {
+      visi[uu] +=  current_image[ position_new ]  * DFT_tablex[ image_width * uu +  x_new] * DFT_tabley[ image_width * uu +  y_new] 
+	- current_image[ position_old ]  * DFT_tablex[ image_width * uu +  x_old] * DFT_tabley[ image_width * uu +  y_old] ;
+    }
+}
+
 
 void vis2data(  )
 {
@@ -392,8 +436,8 @@ void write_fits_image( float* image , int* status )
   for (i = 0; i < 100; i++)
     fitsimage[ i ] = '\0';
   /*Initialise storage*/
-  naxes[ 0 ] = (long) model_image_size;
-  naxes[ 1 ] = (long) model_image_size;
+  naxes[ 0 ] = (long) image_width;
+  naxes[ 1 ] = (long) image_width;
   nelements = naxes[ 0 ] * naxes[ 1 ];
   strcpy(fitsimage, "!output.fits");
 
@@ -412,7 +456,7 @@ void write_fits_image( float* image , int* status )
   if (*status == 0)
     fits_update_key(fptr, TFLOAT, "PIXSIZE", &model_image_pixellation, "Pixelation (mas)", status);
   if (*status == 0)
-    fits_update_key(fptr, TINT, "WIDTH", &model_image_size, "Size (pixels)", status); 
+    fits_update_key(fptr, TINT, "WIDTH", &image_width, "Size (pixels)", status); 
  
   /*Write image*/
   if (*status == 0)
@@ -431,7 +475,7 @@ float flux( )
 {
   register int ii;
   float total=0.;
-  for(ii=0; ii < model_image_size * model_image_size; ii++)
+  for(ii=0; ii < image_width * image_width; ii++)
     total += current_image[ii];
   return total;
 }
@@ -442,17 +486,17 @@ void compute_data_gradient() // need to call to vis2data before this
   register int ii, jj, kk;
   float complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
 
-  for(ii=0; ii < model_image_size; ii++)
+  for(ii=0; ii < image_width; ii++)
     {
-      for(jj=0; jj < model_image_size; jj++)
+      for(jj=0; jj < image_width; jj++)
 	{
-	  data_gradient[ii + jj * model_image_size] = 0.;
+	  data_gradient[ii + jj * image_width] = 0.;
 	  
 	  // Add gradient of chi2v2
 	  for(kk = 0 ; kk < npow; kk++)
 	    {
-	      data_gradient[ii + jj * model_image_size] += 4. / ( data_err[ kk ] * data_err[ kk ] ) 
-		*  ( mock_data[ kk ] - data[ kk ] ) * creal( conj( visi[ kk ] ) *  DFT_tablex[ model_image_size * kk +  ii ] * DFT_tabley[ model_image_size * kk +  jj ] );
+	      data_gradient[ii + jj * image_width] += 4. / ( data_err[ kk ] * data_err[ kk ] ) 
+		*  ( mock_data[ kk ] - data[ kk ] ) * creal( conj( visi[ kk ] ) *  DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] );
 	    }
 	  
 	  // Add gradient of chi2bs
@@ -465,9 +509,9 @@ void compute_data_gradient() // need to call to vis2data before this
 	      if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}
 	      if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}
 
-	      vabder = DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * model_image_size + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * model_image_size + jj  ];
-	      vbcder = DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * model_image_size + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * model_image_size + jj  ];
-	      vcader = DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * model_image_size + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * model_image_size + jj  ];
+	      vabder = DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ];
+	      vbcder = DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ];
+	      vcader = DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * image_width + jj  ];
 
 	      if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} 
 	      if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
@@ -477,10 +521,10 @@ void compute_data_gradient() // need to call to vis2data before this
 	      t3der *= data_phasor[kk];
 	      
 	      // gradient from real part
-	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk] * data_err[2 * kk] ) * ( mock_data[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
+	      data_gradient[ii + jj * image_width] += 2. / ( data_err[2 * kk] * data_err[2 * kk] ) * ( mock_data[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
 	      
 	      // gradient from imaginary part
-	      data_gradient[ii + jj * model_image_size] += 2. / ( data_err[2 * kk + 1] * data_err[2 * kk + 1] )  * mock_data[ npow + 2 * kk + 1]  * cimag( t3der );			
+	      data_gradient[ii + jj * image_width] += 2. / ( data_err[2 * kk + 1] * data_err[2 * kk + 1] )  * mock_data[ npow + 2 * kk + 1]  * cimag( t3der );			
 	    }
 	}
     }
@@ -490,12 +534,12 @@ void compute_data_gradient() // need to call to vis2data before this
   
   float grad_correction = 0.;
   float normalization = 0.; // if the flux has already been computed, we could use this value 
-  for(ii = 0 ; ii < model_image_size * model_image_size ; ii++)
+  for(ii = 0 ; ii < image_width * image_width ; ii++)
     {
     grad_correction += current_image[ ii ] * data_gradient[ ii ];
     normalization +=  current_image[ ii ];
     }
-  for(ii = 0 ; ii < model_image_size * model_image_size ; ii++)
+  for(ii = 0 ; ii < image_width * image_width ; ii++)
     data_gradient[ ii ]  = ( data_gradient[ ii ] - grad_correction / normalization ) / normalization ;
 
 }	
