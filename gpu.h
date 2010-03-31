@@ -1,5 +1,4 @@
-#include <CL/cl.h> // OpenCL header file for ATI
-// #include "cl.h" // OpenCL header file for nvidia
+#include <CL/cl.h> // OpenCL header file
 #include <complex.h>
 
 // Funcion declairations

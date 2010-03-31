@@ -11,8 +11,8 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -329,8 +329,12 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
         programs[i] = clCreateProgramWithSource(*pContext, 1, (const char **) & block_source, NULL, &err);
         if (!programs[i] || err != CL_SUCCESS)
         {
+            size_t len;
+            char buffer[2048];
             printf("%s\n", block_source);
             printf("Error: Failed to create compute program!\n");
+            clGetProgramBuildInfo(programs[i], *pDevice_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
+            printf("%s\n", buffer);
             gpu_cleanup();
             exit(1);
         }
