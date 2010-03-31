@@ -154,6 +154,7 @@ int main(int argc, char *argv[])
     printf(SEP);
     printf("Complete DFT calculation -- CPU Chi2: %f (CPU only)\n", chi2);
     printf(SEP);
+    printf("CPU time (s): = %f\n", cpu_time_chi2);
     
     // Test 2 : recompute mock data, powerspectra + bispectra when changing only the flux of one pixel
     tick = clock();
@@ -175,7 +176,7 @@ int main(int argc, char *argv[])
     printf(SEP);
     printf("Atomic change -- CPU Chi2: %f (CPU only)\n", chi2);
     printf(SEP);
-    
+    printf("CPU time (s): = %f\n", cpu_time_chi2);
 
     // #########
     // GPU Code:  
@@ -354,23 +355,29 @@ void update_vis_fluxchange(int x, int y, float flux_old, float flux_new)
   // the total flux should be updated outside this loop
   register int uu;
   for(uu=0 ; uu < nuv; uu++)
-    {
       visi[uu] = ( visi[uu] * flux_old + ( flux_new - flux_old ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ) / flux_new;
-    }
 }
 
 void update_vis_positionchange(int x_old, int y_old, int x_new, int y_new) 
 // finite difference routine giving visi when moving one element from (x_old,y_old) to (x_new, y_new)
-{	 
- // Note : no change in total flux in this case
+{ // Note : no change in total flux in this case
   register int uu;
   int position_old = x_old + y_old * image_width;
   int position_new = x_new + y_new * image_width;
   for(uu=0 ; uu < nuv; uu++)
-    {
       visi[uu] +=  current_image[ position_new ]  * DFT_tablex[ image_width * uu +  x_new] * DFT_tabley[ image_width * uu +  y_new] 
 	- current_image[ position_old ]  * DFT_tablex[ image_width * uu +  x_old] * DFT_tabley[ image_width * uu +  y_old] ;
-    }
+}
+
+void update_vis_fluxpositionchange(int x_old, int y_old, int x_new, int y_new, float flux_old, float flux_new) 
+{
+  register int uu;
+  int position_old = x_old + y_old * image_width;
+  int position_new = x_new + y_new * image_width;
+  for(uu=0 ; uu < nuv; uu++)
+    visi[uu] =  visi[uu] * flux_old / flux_new 
+      +  current_image[ position_new ] / flux_new * DFT_tablex[ image_width * uu +  x_new ] * DFT_tabley[ image_width * uu +  y_new ] 
+      -  current_image[ position_old ] / flux_new * DFT_tablex[ image_width * uu +  x_old ] * DFT_tabley[ image_width * uu +  y_old ] ;
 }
 
 
