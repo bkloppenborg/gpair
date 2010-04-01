@@ -348,14 +348,15 @@ void image2vis( ) // DFT implementation
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
 
-void update_vis_fluxchange(int x, int y, float flux_old, float flux_new) 
+void update_vis_fluxchange(int x, int y, float flux_old, float flux_new, double visi_old, double *visi_new) 
 // finite difference routine giving visi when changing the flux of an element in (x,y)
 {	
-    // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
-    // the total flux should be updated outside this loop
-    register int uu;
-    for(uu=0 ; uu < nuv; uu++)
-        visi[uu] = ( visi[uu] * flux_old + ( flux_new - flux_old ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ) / flux_new;
+  // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
+  // the total flux should be updated outside this loop
+  register int uu;
+  double flux_ratio =  flux_old / flux_new;
+  for(uu=0 ; uu < nuv; uu++)
+      visi_new[uu] = visi_old[uu]   flux_ratio + ( 1.0 - flux_ratio ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ;
 }
 
 void update_vis_positionchange(int x_old, int y_old, int x_new, int y_new) 
