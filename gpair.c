@@ -165,9 +165,9 @@ int main(int argc, char *argv[])
     for(ii=0; ii < iterations; ii++)
       {
         //compute complex visibilities and the chi2
-	current_image[ x_changed + y_changed * image_width ] += inc;
-	update_vis_fluxchange( x_changed , y_changed, current_image[ x_changed + y_changed * image_width ], total_flux + inc ) ;
-	total_flux += inc;
+	    current_image[ x_changed + y_changed * image_width ] += inc;
+	    update_vis_fluxchange( x_changed , y_changed, current_image[ x_changed + y_changed * image_width ], total_flux + inc ) ;
+	    total_flux += inc;
         vis2data();
         chi2 = data2chi2();
       }       
@@ -351,11 +351,11 @@ void image2vis( ) // DFT implementation
 void update_vis_fluxchange(int x, int y, float flux_old, float flux_new) 
 // finite difference routine giving visi when changing the flux of an element in (x,y)
 {	
-  // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
-  // the total flux should be updated outside this loop
-  register int uu;
-  for(uu=0 ; uu < nuv; uu++)
-      visi[uu] = ( visi[uu] * flux_old + ( flux_new - flux_old ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ) / flux_new;
+    // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
+    // the total flux should be updated outside this loop
+    register int uu;
+    for(uu=0 ; uu < nuv; uu++)
+        visi[uu] = ( visi[uu] * flux_old + ( flux_new - flux_old ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ) / flux_new;
 }
 
 void update_vis_positionchange(int x_old, int y_old, int x_new, int y_new) 

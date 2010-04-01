@@ -371,7 +371,7 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
 void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_size, float * mock_data, int nbis, float * data_phasor)
 {
     printf(SEP);
-    printf("Comparing CPU and GPU DFT table values:\n");
+    printf("Comparing CPU and GPU Visiblity values:\n");
     gpu_compare_complex_data(nuv, visi, pGpu_visi);
 
     printf(SEP);    
