@@ -163,14 +163,15 @@ int main(int argc, char *argv[])
     int x_changed = 64;
     int y_changed = 4;
     for(ii=0; ii < iterations; ii++)
-      {
+    {
         //compute complex visibilities and the chi2
 	    current_image[ x_changed + y_changed * image_width ] += inc;
-	    update_vis_fluxchange( x_changed , y_changed, current_image[ x_changed + y_changed * image_width ], total_flux + inc ) ;
+	    // TODO: Fabien, can you fix this?
+	    //update_vis_fluxchange(x_changed, y_changed, current_image[ x_changed + y_changed * image_width ], total_flux + inc ) ;
 	    total_flux += inc;
         vis2data();
         chi2 = data2chi2();
-      }       
+    }       
     tock=clock();
     cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf(SEP);
@@ -294,7 +295,7 @@ int main(int argc, char *argv[])
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
     // Enable for debugging purposes.
-    gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
+    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
@@ -348,15 +349,17 @@ void image2vis( ) // DFT implementation
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
 
-void update_vis_fluxchange(int x, int y, float flux_old, float flux_new, double visi_old, double *visi_new) 
+void update_vis_fluxchange(int x, int y, float flux_old, float flux_new, double * visi_old, double * visi_new) 
 // finite difference routine giving visi when changing the flux of an element in (x,y)
 {	
   // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
   // the total flux should be updated outside this loop
   register int uu;
-  double flux_ratio =  flux_old / flux_new;
+  double flux_ratio = flux_old / flux_new;
+  
+  // TODO: Fabien, check that "visi_old[uu] *" is correct as Pidgin mangled your message for the code replacement.
   for(uu=0 ; uu < nuv; uu++)
-      visi_new[uu] = visi_old[uu]   flux_ratio + ( 1.0 - flux_ratio ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ;
+      visi_new[uu] = visi_old[uu] * flux_ratio + ( 1.0 - flux_ratio ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ;
 }
 
 void update_vis_positionchange(int x_old, int y_old, int x_new, int y_new) 

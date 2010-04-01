@@ -1,8 +1,8 @@
-__kernel void compute_chi2(
+__kernel void arr_normalize(
     __global float * array,
-    __local const float norm_fac)
+    __private float norm_fac)
 {
     int i = get_global_id(0);
 
-    array[i] *= norm_fac
+    array[i] *= norm_fac;
 }

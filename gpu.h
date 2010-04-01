@@ -10,7 +10,10 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
     int * pass_counts, size_t ** group_counts, size_t ** work_item_counts, 
     int ** operation_counts, int ** entry_counts);
 
-//void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_size, float * mock_data);
+void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
+void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
+
+void gpu_compute_flux(cl_mem * flux_storage);
 
 void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * partial_sum_buffer, cl_mem * final_buffer, 
     cl_kernel * pKernels, 
@@ -33,6 +36,8 @@ void gpu_data2chi2(int data_size);
 void gpu_image2vis(int data_alloc_uv);
 
 void gpu_init();
+
+void gpu_normalize(cl_mem * array, int arr_size, cl_mem * div_value);
 
 void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis);
 
