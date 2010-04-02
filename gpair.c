@@ -352,25 +352,25 @@ void image2vis( ) // DFT implementation
 void update_vis_fluxchange(int x, int y, float flux_old, float flux_new, double * visi_old, double * visi_new) 
 // finite difference routine giving visi when changing the flux of an element in (x,y)
 {	
-  // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
-  // the total flux should be updated outside this loop
-  register int uu;
-  double flux_ratio = flux_old / flux_new;
-  
-  // TODO: Fabien, check that "visi_old[uu] *" is correct as Pidgin mangled your message for the code replacement.
-  for(uu=0 ; uu < nuv; uu++)
-      visi_new[uu] = visi_old[uu] * flux_ratio + ( 1.0 - flux_ratio ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ;
+    // Note : two effects, one due to the flux change in the pixel, the other to the change in total flux
+    // the total flux should be updated outside this loop
+    register int uu;
+    double flux_ratio = flux_old / flux_new;
+
+    // TODO: Fabien, check that "visi_old[uu] *" is correct as Pidgin mangled your message for the code replacement.
+    for(uu=0 ; uu < nuv; uu++)
+        visi_new[uu] = visi_old[uu] * flux_ratio + ( 1.0 - flux_ratio ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ;
 }
 
 void update_vis_positionchange(int x_old, int y_old, int x_new, int y_new) 
 // finite difference routine giving visi when moving one element from (x_old,y_old) to (x_new, y_new)
 { // Note : no change in total flux in this case
-  register int uu;
-  int position_old = x_old + y_old * image_width;
-  int position_new = x_new + y_new * image_width;
-  for(uu=0 ; uu < nuv; uu++)
-      visi[uu] +=  current_image[ position_new ]  * DFT_tablex[ image_width * uu +  x_new] * DFT_tabley[ image_width * uu +  y_new] 
-	- current_image[ position_old ]  * DFT_tablex[ image_width * uu +  x_old] * DFT_tabley[ image_width * uu +  y_old] ;
+    register int uu;
+    int position_old = x_old + y_old * image_width;
+    int position_new = x_new + y_new * image_width;
+    for(uu=0 ; uu < nuv; uu++)
+        visi[uu] +=  current_image[ position_new ]  * DFT_tablex[ image_width * uu +  x_new] * DFT_tabley[ image_width * uu +  y_new] 
+        - current_image[ position_old ]  * DFT_tablex[ image_width * uu +  x_old] * DFT_tabley[ image_width * uu +  y_old] ;
 }
 
 void update_vis_fluxpositionchange(int x_old, int y_old, int x_new, int y_new, float flux_old, float flux_new) 
