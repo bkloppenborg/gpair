@@ -357,7 +357,6 @@ void update_vis_fluxchange(int x, int y, float flux_old, float flux_new, double 
     register int uu;
     double flux_ratio = flux_old / flux_new;
 
-    // TODO: Fabien, check that "visi_old[uu] *" is correct as Pidgin mangled your message for the code replacement.
     for(uu=0 ; uu < nuv; uu++)
         visi_new[uu] = visi_old[uu] * flux_ratio + ( 1.0 - flux_ratio ) *  DFT_tablex[ image_width * uu +  x] * DFT_tabley[ image_width * uu +  y] ;
 }

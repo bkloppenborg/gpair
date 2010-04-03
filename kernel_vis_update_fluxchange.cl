@@ -1,6 +1,6 @@
 __kernel void update_vis_fluxchange(
     __global float2 * visi_old,
-    __global float2 * vis_new,
+    __global float2 * visi_new,
     __global float2 * dft_x,
     __global float2 * dft_y,
     __global int * image_size,
@@ -21,10 +21,10 @@ __kernel void update_vis_fluxchange(
     // imag = a0*b0*c1 + a0*b1*c0 = A*c1 + B*c0
     
     int i = get_global_id(0);
-    image_width = image_size[0];
+    int image_width = image_size[0];
     
     float A = (1.0 - flux_ratio) * dft_x[image_width * i +  x_pos].s0;
-    float B = (1.0 - flux_ratio) * dft_x[image_width * i +  x_pos].s1
+    float B = (1.0 - flux_ratio) * dft_x[image_width * i +  x_pos].s1;
     float c0 = dft_y[image_width * i +  y_pos].s0;
     float c1 = dft_y[image_width * i +  y_pos].s1;
     
