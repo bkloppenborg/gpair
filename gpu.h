@@ -39,7 +39,7 @@ void gpu_init();
 
 void gpu_normalize(cl_mem * array, int arr_size, cl_mem * div_value);
 
-void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis);
+void gpu_vis2data(cl_mem * gpu_vis, int nuv, int npow, int nbis);
 
 static char * LoadProgramSourceFromFile(const char *filename);
 

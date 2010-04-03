@@ -12,7 +12,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -1077,6 +1077,8 @@ void gpu_image2vis(int data_alloc_uv)
     gpu_compute_flux(pGpu_flux0);
     
     gpu_normalize(pGpu_image, image_size, pGpu_flux0);
+    
+    gpu_compute_flux(pGpu_flux0);
 
     if(gpu_enable_debug)
     {
@@ -1190,7 +1192,7 @@ void gpu_update_vis_fluxchange(int x, int y, float flux_old, float flux_new, int
     clFinish(*pQueue);    
 } 
 
-void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis)
+void gpu_vis2data(cl_mem * gpu_visi, int nuv, int npow, int nbis)
 {
     // Begin by copying vis over to the GPU
     int err = 0;

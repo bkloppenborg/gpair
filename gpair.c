@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
     printf("Image Buffer Size %i \n", image_size);
     current_image = malloc(image_size * sizeof(float));
     memset(current_image, 0, image_size);
-    current_image[(image_width * (image_width + 1 ) )/ 2 ] = 1.0;
+    current_image[(image_width * (image_width + 1 ) )/ 2 ] = 2.0;
 
 
     // setup precomputed DFT table
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
         // In the final version of the code, the following lines will be iterated.
         gpu_copy_image(current_image, image_width, image_width);
         gpu_image2vis(data_alloc_uv);
-        gpu_vis2data(gpu_visi, nuv, npow, nbis);
+        gpu_vis2data(NULL, nuv, npow, nbis);
 
         gpu_data2chi2(data_alloc);
         
