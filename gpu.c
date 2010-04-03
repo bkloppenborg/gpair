@@ -1071,17 +1071,17 @@ void gpu_image2vis(int data_alloc_uv)
     
     // Say we are computing the flux:
     if(gpu_enable_debug)
-        printf("%sComputing Flux Sum on the GPU.\n%s", SEP, SEP);
+        printf("%sComputing Flux Sum on the GPU.\n Pre and post normalization%s", SEP, SEP);
             
     // First, compute the total flux.  The result is stored in pGpu_flux
     gpu_compute_flux(pGpu_flux0);
     
     gpu_normalize(pGpu_image, image_size, pGpu_flux0);
     
-    gpu_compute_flux(pGpu_flux0);
-
     if(gpu_enable_debug)
     {
+        // Re-compute the flux in debug mode.
+        gpu_compute_flux(pGpu_flux0);
         printf("%sComputing DFT on the GPU.\n%s", SEP, SEP);
     }
 
