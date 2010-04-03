@@ -2,12 +2,13 @@ __kernel void update_vis_fluxchange(
     __global float2 * visi_old,
     __global float2 * visi_new,
     __global float2 * dft_x,
-    __global float2 * dft_y,
-    __private int x_pos,
-    __private int y_pos,
-    __private int image_width,
-    __private float flux_ratio)
+    __global float2 * dft_y)
 {
+    __private int x_pos = 64;
+    __private int y_pos = 4;
+    __private int image_width = 128;
+    __private float flux_ratio = 1.1;
+
     // OpenCL doesn't natively support complex numbers, so we have to do the math out by hand.
     // the original equation is as follows:
     //    visi_new[i] = visi_old[i] * flux_ratio

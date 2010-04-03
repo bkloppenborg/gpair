@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
 
    
     // TODO: Remove after testing
-    int iterations = 10;
+    int iterations = 1;
 
     // #########
     // CPU Code:
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
     tock=clock();
     time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf(SEP);
-    printf("Atomic change (GPU)\n", chi2);
+    printf("Atomic change (GPU)\n");
     printf(SEP);
     printf("GPU time (s): = %f\n", time_chi2);
     
