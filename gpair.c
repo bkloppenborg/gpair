@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
 
    
     // TODO: Remove after testing
-    int iterations = 100;
+    int iterations = 10;
 
     // #########
     // CPU Code:
@@ -147,11 +147,12 @@ int main(int argc, char *argv[])
       chi2 = data2chi2( mock);
     }        
     tock=clock();
-    float cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
+    float time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf(SEP);
-    printf("Complete DFT calculation -- CPU Chi2: %f (CPU only)\n", chi2);
+    printf("Full DFT Calculation (CPU)\n");
     printf(SEP);
-    printf("CPU time (s): = %f\n", cpu_time_chi2);
+    printf("CPU time (s): = %f\n", time_chi2);
+    printf("CPU Chi2: %f (CPU only)\n", chi2);
     
     // Test 2 : recompute mock data, powerspectra + bispectra when changing only the flux of one pixel
     tick = clock();
@@ -170,11 +171,12 @@ int main(int argc, char *argv[])
 	    chi2 = data2chi2( mock );
     }       
     tock=clock();
-    cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
+    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf(SEP);
-    printf("Atomic change -- CPU Chi2: %f (CPU only)\n", chi2);
+    printf("Atomic change (CPU)\n");
     printf(SEP);
-    printf("CPU time (s): = %f\n", cpu_time_chi2);
+    printf("CPU time (s): = %f\n", time_chi2);
+    printf("CPU Chi2: %f (CPU only)\n", chi2);
 
     // #########
     // GPU Code:  
@@ -272,24 +274,33 @@ int main(int argc, char *argv[])
     free(gpu_dft_x);
     free(gpu_dft_y);
     
-
+    // Do the full DFT calculation:
     tick = clock();
     for(ii=0; ii < iterations; ii++)
     {
         // In the final version of the code, the following lines will be iterated.
         gpu_copy_image(current_image, image_width, image_width);
-        gpu_image2vis(data_alloc_uv);
-        gpu_vis2data(NULL, nuv, npow, nbis);
-
-        gpu_data2chi2(data_alloc);
-        
-        // Read back the necessary values
+        gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv);
     }
     tock = clock();
-    float gpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf("-----------------------------------------------------------\n");   
-    printf("CPU time (s): = %f\n", cpu_time_chi2);
-    printf("GPU time (s): = %f\n", gpu_time_chi2);
+    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
+    printf(SEP);
+    printf("Full DFT (GPU)\n");
+    printf(SEP);
+    printf("GPU time (s): = %f\n", time_chi2);
+
+    // Now do the Atomic change to visi
+    for(ii=0; ii < iterations; ii++)
+    {
+        gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, data_alloc_uv);
+        gpu_new_chi2(nuv, npow, nbis, data_alloc); 
+    }       
+    tock=clock();
+    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
+    printf(SEP);
+    printf("Atomic change (GPU)\n", chi2);
+    printf(SEP);
+    printf("GPU time (s): = %f\n", time_chi2);
     
     // Enable for debugging purposes.
     //gpu_check_data(&chi2, nuv, visi, data_alloc, mock);

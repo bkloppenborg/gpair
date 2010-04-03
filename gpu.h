@@ -33,9 +33,13 @@ void gpu_cleanup();
 
 void gpu_data2chi2(int data_size);
 
+void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv);
+
 void gpu_image2vis(int data_alloc_uv);
 
 void gpu_init();
+
+void gpu_new_chi2(int nuv, int npow, int nbis, int data_alloc);
 
 void gpu_normalize(cl_mem * array, int arr_size, cl_mem * div_value);
 

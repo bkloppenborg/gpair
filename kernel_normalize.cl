@@ -4,5 +4,5 @@ __kernel void arr_normalize(
 {
     int i = get_global_id(0);
 
-    array[i] /= norm_fac;
+    array[i] *= norm_fac;
 }
