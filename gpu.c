@@ -504,6 +504,8 @@ void gpu_cleanup()
         err |= clReleaseProgram(*pPro_visi);
     if(pPro_norm != NULL)
         err |= clReleaseProgram(*pPro_norm);
+    if(pPro_u_vis_flux != NULL)
+        err |= clReleaseProgram(*pPro_u_vis_flux);
 
         
     if(err != CL_SUCCESS)
@@ -531,9 +533,9 @@ void gpu_cleanup()
         err |= clReleaseKernel(*pKernel_visi);
     if(pKernel_norm != NULL)
         err |= clReleaseKernel(*pKernel_norm);
+    if(pKernel_u_vis_flux != NULL)
+        err |= clReleaseKernel(*pKernel_u_vis_flux);        
 
-
-    
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
 
