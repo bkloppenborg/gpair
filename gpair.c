@@ -290,6 +290,7 @@ int main(int argc, char *argv[])
     printf("GPU time (s): = %f\n", time_chi2);
 
     // Now do the Atomic change to visi
+    tick = clock();
     for(ii=0; ii < iterations; ii++)
     {
         gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, data_alloc_uv);
