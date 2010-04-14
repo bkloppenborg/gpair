@@ -2,13 +2,12 @@ __kernel void update_vis_fluxchange(
     __global float2 * visi_old,
     __global float2 * visi_new,
     __global float2 * dft_x,
-    __global float2 * dft_y)
+    __global float2 * dft_y,
+    __private int x_pos,
+    __private int y_pos,
+    __private int nuv,
+    __private float flux_ratio)
 {
-    __private int x_pos = 64;
-    __private int y_pos = 4;
-    __private int image_width = 128;
-    __private float flux_ratio = 1.1;
-
     // OpenCL doesn't natively support complex numbers, so we have to do the math out by hand.
     // the original equation is as follows:
     //    visi_new[i] = visi_old[i] * flux_ratio
@@ -20,15 +19,22 @@ __kernel void update_vis_fluxchange(
     // Noting that a1 = 0
     // real = a0*b0*c0 - a0*b1*c1 = A*c0 - B*c1
     // imag = a0*b0*c1 + a0*b1*c0 = A*c1 + B*c0
+    // Lastly, I converted the memory positions over so 
+    //  image_width * i +  y_pos -> nuv * x_pos + i
     
     int i = get_global_id(0);
     
-    float A = (1.0 - flux_ratio) * dft_x[image_width * i +  x_pos].s0;
-    float B = (1.0 - flux_ratio) * dft_x[image_width * i +  x_pos].s1;
-    float c0 = dft_y[image_width * i +  y_pos].s0;
-    float c1 = dft_y[image_width * i +  y_pos].s1;
+    // Load a few items from global memory:
+    float2 dft_xi = dft_x[nuv * x_pos + i];
+    float2 dft_yi = dft_y[nuv * x_pos + i];
+    float2 visi_o = visi_old[i];
     
-    visi_new[i].s0 = visi_old[i].s0 * flux_ratio + (A*c0 - B*c1);
-    visi_new[i].s1 = visi_old[i].s1 * flux_ratio + (A*c1 + B*c0);
+    float A = (1.0 - flux_ratio) * dft_xi.s0;
+    float B = (1.0 - flux_ratio) * dft_xi.s1;
+    float c0 = dft_yi.s0;
+    float c1 = dft_yi.s1;
+    
+    visi_new[i].s0 = visi_o.s0 * flux_ratio + (A*c0 - B*c1);
+    visi_new[i].s1 = visi_o.s1 * flux_ratio + (A*c1 + B*c0);
     
 }

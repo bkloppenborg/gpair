@@ -506,7 +506,6 @@ void gpu_cleanup()
         err |= clReleaseProgram(*pPro_norm);
     if(pPro_u_vis_flux != NULL)
         err |= clReleaseProgram(*pPro_u_vis_flux);
-
         
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Program Memory.\n");
@@ -534,8 +533,9 @@ void gpu_cleanup()
     if(pKernel_norm != NULL)
         err |= clReleaseKernel(*pKernel_norm);
     if(pKernel_u_vis_flux != NULL)
-        err |= clReleaseKernel(*pKernel_u_vis_flux);        
+        err |= clReleaseKernel(*pKernel_u_vis_flux); 
 
+    
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
 
@@ -1165,7 +1165,7 @@ void gpu_normalize(cl_mem * array, int arr_size, cl_mem * div_value)
     
 }
 
-void gpu_update_vis_fluxchange(int x, int y, float new_pixel_flux, int image_width, int data_alloc_uv)
+void gpu_update_vis_fluxchange(int x, int y, float new_pixel_flux, int image_width, int nuv, int data_alloc_uv)
 {
     int err = 0;
     size_t local = 0;
@@ -1185,10 +1185,10 @@ void gpu_update_vis_fluxchange(int x, int y, float new_pixel_flux, int image_wid
     err |= clSetKernelArg(*pKernel_u_vis_flux, 1, sizeof(cl_mem), pGpu_visi1);
     err |= clSetKernelArg(*pKernel_u_vis_flux, 2, sizeof(cl_mem), pGpu_dft_x);
     err |= clSetKernelArg(*pKernel_u_vis_flux, 3, sizeof(cl_mem), pGpu_dft_y);
-    //err |= clSetKernelArg(*pKernel_u_vis_flux, 4, sizeof(int), &x);
-    //err |= clSetKernelArg(*pKernel_u_vis_flux, 5, sizeof(int), &y);
-    //err |= clSetKernelArg(*pKernel_u_vis_flux, 6, sizeof(int), &image_width);
-    //err |= clSetKernelArg(*pKernel_u_vis_flux, 7, sizeof(float), &flux_ratio);    
+    err |= clSetKernelArg(*pKernel_u_vis_flux, 4, sizeof(int), &x);
+    err |= clSetKernelArg(*pKernel_u_vis_flux, 5, sizeof(int), &y);
+    err |= clSetKernelArg(*pKernel_u_vis_flux, 6, sizeof(int), &nuv);
+    err |= clSetKernelArg(*pKernel_u_vis_flux, 7, sizeof(float), &flux_ratio);    
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);   
 

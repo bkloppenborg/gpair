@@ -235,11 +235,11 @@ int main(int argc, char *argv[])
     cl_float2 * gpu_dft_y = NULL;
     gpu_dft_x = malloc(dft_alloc * sizeof(cl_float2));
     gpu_dft_y = malloc(dft_alloc * sizeof(cl_float2));
-    for(uu=0 ; uu < nuv; uu++)
+    for(ii=0; ii < image_width; ii++)
     {
-        for(ii=0; ii < image_width; ii++)
+        for(uu=0 ; uu < nuv; uu++)
         {
-            i = image_width * uu + ii;
+            i = ii * nuv + uu;
             gpu_dft_x[i].s0 = __real__ DFT_tablex[i];
             gpu_dft_x[i].s1 = __imag__ DFT_tablex[i];
             gpu_dft_y[i].s0 = __real__ DFT_tabley[i];
@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
     tick = clock();
     for(ii=0; ii < iterations; ii++)
     {
-        gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, data_alloc_uv);
+        gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, nuv, data_alloc_uv);
         gpu_new_chi2(nuv, npow, nbis, data_alloc); 
     }       
     tock=clock();

@@ -12,9 +12,13 @@ __kernel void compute_bispec(
     // pass in an integer to this function without needing it to be an array.
     int offset = array_offset[0];
 
+    // Pull some data from global memory:
     float2 vab = vis[data_uvpnt[3*i]];
     float2 vbc = vis[data_uvpnt[3*i + 1]];
     float2 vca = vis[data_uvpnt[3*i + 2]];
+    
+    // Get the biphasor:
+    float2 databip = data_bip[i];
     
     vab.s1 *= data_sign[3*i];
     vbc.s1 *= data_sign[3*i + 1];
@@ -37,13 +41,13 @@ __kernel void compute_bispec(
     // data_bip[i][1] = h
     
     float A = vab.s1 * vbc.s1;
-    float B = vca.s1 * data_bip[i].s1;
+    float B = vca.s1 * databip.s1;
     float C = vab.s0 * vbc.s0;
     float D = vab.s0 * vbc.s1;
-    float E = vca.s0 * data_bip[i].s1;
+    float E = vca.s0 * databip.s1;
     float F = vab.s1 * vbc.s0;
-    float G = vca.s1 * data_bip[i].s0;
-    float H = vca.s0 * data_bip[i].s0;
+    float G = vca.s1 * databip.s0;
+    float H = vca.s0 * databip.s0;
   
     mock_data_bs[offset + 2*i] = A*B - C*B - D*E - F*E - D*G - F*G - A*H + C*H;
     mock_data_bs[offset + 2*i + 1] = F*H + D*H + C*G - A*G + C*E - A*E - F*B - D*B;
