@@ -12,7 +12,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -1187,7 +1187,7 @@ void gpu_update_vis_fluxchange(int x, int y, float new_pixel_flux, int image_wid
     err |= clSetKernelArg(*pKernel_u_vis_flux, 3, sizeof(cl_mem), pGpu_dft_y);
     err |= clSetKernelArg(*pKernel_u_vis_flux, 4, sizeof(int), &x);
     err |= clSetKernelArg(*pKernel_u_vis_flux, 5, sizeof(int), &y);
-    err |= clSetKernelArg(*pKernel_u_vis_flux, 6, sizeof(int), &nuv);
+    err |= clSetKernelArg(*pKernel_u_vis_flux, 6, sizeof(int), &image_width);
     err |= clSetKernelArg(*pKernel_u_vis_flux, 7, sizeof(float), &flux_ratio);    
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);   

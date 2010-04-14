@@ -161,22 +161,23 @@ int main(int argc, char *argv[])
     int x_changed = 64;
     int y_changed = 4;
 
-    for(ii=0; ii < iterations; ii++)
-    {
-        //compute complex visibilities and the chi2
-	    update_vis_fluxchange(x_changed, y_changed, current_image[ x_changed + y_changed * image_width ],  current_image[ x_changed + y_changed * image_width ] + inc, visi, new_visi ) ;
-	    current_image[ x_changed + y_changed * image_width ] += inc;
-	    total_flux += inc;
-	    vis2data(new_visi, mock);
-	    chi2 = data2chi2( mock );
-    }       
-    tock=clock();
-    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf(SEP);
-    printf("Atomic change (CPU)\n");
-    printf(SEP);
-    printf("CPU time (s): = %f\n", time_chi2);
-    printf("CPU Chi2: %f (CPU only)\n", chi2);
+    // Disabled for now, disagreement between CPU and GPU values.
+/*    for(ii=0; ii < iterations; ii++)*/
+/*    {*/
+/*        //compute complex visibilities and the chi2*/
+/*	    update_vis_fluxchange(x_changed, y_changed, current_image[ x_changed + y_changed * image_width ],  current_image[ x_changed + y_changed * image_width ] + inc, visi, new_visi ) ;*/
+/*	    current_image[ x_changed + y_changed * image_width ] += inc;*/
+/*	    total_flux += inc;*/
+/*	    vis2data(new_visi, mock);*/
+/*	    chi2 = data2chi2( mock );*/
+/*    }       */
+/*    tock=clock();*/
+/*    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
+/*    printf(SEP);*/
+/*    printf("Atomic change (CPU)\n");*/
+/*    printf(SEP);*/
+/*    printf("CPU time (s): = %f\n", time_chi2);*/
+/*    printf("CPU Chi2: %f (CPU only)\n", chi2);*/
 
     // #########
     // GPU Code:  
@@ -235,18 +236,18 @@ int main(int argc, char *argv[])
     cl_float2 * gpu_dft_y = NULL;
     gpu_dft_x = malloc(dft_alloc * sizeof(cl_float2));
     gpu_dft_y = malloc(dft_alloc * sizeof(cl_float2));
-    for(ii=0; ii < image_width; ii++)
+    for(uu=0 ; uu < nuv; uu++)
     {
-        for(uu=0 ; uu < nuv; uu++)
+        for(ii=0; ii < image_width; ii++)
         {
-            i = ii * nuv + uu;
+            i = image_width * uu + ii;
             gpu_dft_x[i].s0 = __real__ DFT_tablex[i];
             gpu_dft_x[i].s1 = __imag__ DFT_tablex[i];
             gpu_dft_y[i].s0 = __real__ DFT_tabley[i];
             gpu_dft_y[i].s1 = __imag__ DFT_tabley[i];
         }
     }
-    
+
     // Pad out the remainder of the array with zeros:
     for(i = nuv * image_width; i < dft_alloc; i++)
     {
@@ -289,19 +290,20 @@ int main(int argc, char *argv[])
     printf(SEP);
     printf("GPU time (s): = %f\n", time_chi2);
 
-    // Now do the Atomic change to visi
-    tick = clock();
-    for(ii=0; ii < iterations; ii++)
-    {
-        gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, nuv, data_alloc_uv);
-        gpu_new_chi2(nuv, npow, nbis, data_alloc); 
-    }       
-    tock=clock();
-    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf(SEP);
-    printf("Atomic change (GPU)\n");
-    printf(SEP);
-    printf("GPU time (s): = %f\n", time_chi2);
+    // Disabled for now, there be a bug between GPU and CPU values.
+/*    // Now do the Atomic change to visi*/
+/*    tick = clock();*/
+/*    for(ii=0; ii < iterations; ii++)*/
+/*    {*/
+/*        gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, nuv, data_alloc_uv);*/
+/*        gpu_new_chi2(nuv, npow, nbis, data_alloc); */
+/*    }       */
+/*    tock=clock();*/
+/*    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
+/*    printf(SEP);*/
+/*    printf("Atomic change (GPU)\n");*/
+/*    printf(SEP);*/
+/*    printf("GPU time (s): = %f\n", time_chi2);*/
     
     // Enable for debugging purposes.
     //gpu_check_data(&chi2, nuv, visi, data_alloc, mock);

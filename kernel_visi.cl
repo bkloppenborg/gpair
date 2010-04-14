@@ -21,13 +21,14 @@ __kernel void visi(
     
     int offset = image_width * h;
  
-    for(i=0; i < image_width; i++)
+    for(j=0; j < image_width; j++)
     {
-        B = dft_x[offset +  i];
-        for(j=0; j < image_width; j++)
+        C = dft_y[offset +  j];
+        
+        for(i=0; i < image_width; i++)
         {
-            C = dft_y[offset +  j];
-            a0 = image[ i + image_width * j ];
+            B = dft_x[offset +  i];
+            a0 = image[image_width * j + i];
             a1 = 0;
             //b0 = dft_x[offset +  i].s0;
             //b1 = dft_x[offset +  i].s1;
