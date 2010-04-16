@@ -497,69 +497,63 @@ float compute_flux( float* image )
   return total;
 }
 
-void compute_data_gradient(float complex* visi, float* mock, float* image, float* data_gradient) // need to call to vis2data before this
+void compute_data_gradient(double complex* visi, double* mock, double* image, double* data_gradient) // need to call vis2data before this
 {
 
-  register int ii, jj, kk;
-  float complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
+    register int ii, jj, kk;
+    double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
 
-  for(ii=0; ii < image_width; ii++)
+    double flux = 0.; // if the flux has already been computed, we could use its value 
+    for(ii = 0 ; ii < image_width * image_width ; ii++)
+        flux +=  image[ ii ];
+
+    double invflux = 1. / flux;
+
+    for(ii=0; ii < image_width; ii++)
     {
-      for(jj=0; jj < image_width; jj++)
-	{
-	  data_gradient[ii + jj * image_width] = 0.;
-	  
-	  // Add gradient of chi2v2
-	  for(kk = 0 ; kk < npow; kk++)
-	    {
-	      data_gradient[ii + jj * image_width] += 4. / ( data_err[ kk ] * data_err[ kk ] ) 
-		*  ( mock[ kk ] - data[ kk ] ) * creal( conj( visi[ kk ] ) *  DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] );
-	    }
-	  
-	  // Add gradient of chi2bs
-	  for(kk = 0 ; kk < nbis; kk++)
-	    {
-	      vab = visi[oifits_info.bsref[kk].ab.uvpnt];
-	      vbc = visi[oifits_info.bsref[kk].bc.uvpnt];
-	      vca = visi[oifits_info.bsref[kk].ca.uvpnt];
-	      if(oifits_info.bsref[kk].ab.sign < 0) { vab = conj(vab);} 
-	      if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}
-	      if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}
+        for(jj=0; jj < image_width; jj++)
+        {
+            data_gradient[ii + jj * image_width] = 0.;
 
-	      vabder = DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ];
-	      vbcder = DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ];
-	      vcader = DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * image_width + jj  ];
+            // Add gradient of chi2v2
+            for(kk = 0 ; kk < npow; kk++)
+            {
+                data_gradient[ii + jj * image_width] += 4. * data_err[ kk ] * data_err[ kk ] * invflux 
+                *  ( mock[ kk ] - data[ kk ] ) 
+                * creal( conj( visi[ kk ] ) *  ( DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] - visi[ kk ] ) );
+            }
 
-	      if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} 
-	      if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
-	      if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}
-	      
-	      t3der = ( ( vabder -  vab ) * vbc * vca + vab * ( vbcder -  vbc ) * vca + vab * vbc * ( vcader -  vca ) ) ;
-	      t3der *= data_phasor[kk];
-	      
-	      // gradient from real part
-	      data_gradient[ii + jj * image_width] += 2. / ( data_err[2 * kk] * data_err[2 * kk] ) * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
-	      
-	      // gradient from imaginary part
-	      data_gradient[ii + jj * image_width] += 2. / ( data_err[2 * kk + 1] * data_err[2 * kk + 1] )  * mock[ npow + 2 * kk + 1]  * cimag( t3der );			
-	    }
-	}
+            // Add gradient of chi2bs
+            for(kk = 0 ; kk < nbis; kk++)
+            {
+                vab = visi[oifits_info.bsref[kk].ab.uvpnt];
+                vbc = visi[oifits_info.bsref[kk].bc.uvpnt];
+                vca = visi[oifits_info.bsref[kk].ca.uvpnt];
+
+                vabder =  DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ]  ;
+                vbcder =  DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ]  ;
+                vcader =  DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * image_width + jj  ]  ;
+
+                if(oifits_info.bsref[kk].ab.sign < 0) { vab = conj(vab);} 
+                if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}
+                if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}
+                if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} 
+                if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
+                if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}
+
+                t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_bisphasor[kk] * invflux ;
+
+                // gradient from real part
+                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
+
+                // gradient from imaginary part
+                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * cimag( t3der );			
+            }
+        }
     }
-
-  // the current gradient values correspond is with respect to the normalized image
-  // Here we now compute the gradient with respect to unnormalized pixel intensities
-  
-  float grad_correction = 0.;
-  float normalization = 0.; // if the flux has already been computed, we could use this value 
-  for(ii = 0 ; ii < image_width * image_width ; ii++)
-    {
-      grad_correction += image[ ii ] * data_gradient[ ii ];
-      normalization +=  image[ ii ];
-    }
-  for(ii = 0 ; ii < image_width * image_width ; ii++)
-    data_gradient[ ii ]  = ( data_gradient[ ii ] - grad_correction / normalization ) / normalization ;
-
 }	
+
+
 
 float GullSkilling_entropy(float *image, float *default_model)
 {
