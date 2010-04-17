@@ -497,61 +497,61 @@ float compute_flux( float* image )
   return total;
 }
 
-void compute_data_gradient(double complex* visi, double* mock, double* image, double* data_gradient) // need to call vis2data before this
-{
+/*void compute_data_gradient(double complex* visi, double* mock, double* image, double* data_gradient) // need to call vis2data before this*/
+/*{*/
 
-    register int ii, jj, kk;
-    double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
+/*    register int ii, jj, kk;*/
+/*    double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;*/
 
-    double flux = 0.; // if the flux has already been computed, we could use its value 
-    for(ii = 0 ; ii < image_width * image_width ; ii++)
-        flux +=  image[ ii ];
+/*    double flux = 0.; // if the flux has already been computed, we could use its value */
+/*    for(ii = 0 ; ii < image_width * image_width ; ii++)*/
+/*        flux +=  image[ ii ];*/
 
-    double invflux = 1. / flux;
+/*    double invflux = 1. / flux;*/
 
-    for(ii=0; ii < image_width; ii++)
-    {
-        for(jj=0; jj < image_width; jj++)
-        {
-            data_gradient[ii + jj * image_width] = 0.;
+/*    for(ii=0; ii < image_width; ii++)*/
+/*    {*/
+/*        for(jj=0; jj < image_width; jj++)*/
+/*        {*/
+/*            data_gradient[ii + jj * image_width] = 0.;*/
 
-            // Add gradient of chi2v2
-            for(kk = 0 ; kk < npow; kk++)
-            {
-                data_gradient[ii + jj * image_width] += 4. * data_err[ kk ] * data_err[ kk ] * invflux 
-                *  ( mock[ kk ] - data[ kk ] ) 
-                * creal( conj( visi[ kk ] ) *  ( DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] - visi[ kk ] ) );
-            }
+/*            // Add gradient of chi2v2*/
+/*            for(kk = 0 ; kk < npow; kk++)*/
+/*            {*/
+/*                data_gradient[ii + jj * image_width] += 4. * data_err[ kk ] * data_err[ kk ] * invflux */
+/*                *  ( mock[ kk ] - data[ kk ] ) */
+/*                * creal( conj( visi[ kk ] ) *  ( DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] - visi[ kk ] ) );*/
+/*            }*/
 
-            // Add gradient of chi2bs
-            for(kk = 0 ; kk < nbis; kk++)
-            {
-                vab = visi[oifits_info.bsref[kk].ab.uvpnt];
-                vbc = visi[oifits_info.bsref[kk].bc.uvpnt];
-                vca = visi[oifits_info.bsref[kk].ca.uvpnt];
+/*            // Add gradient of chi2bs*/
+/*            for(kk = 0 ; kk < nbis; kk++)*/
+/*            {*/
+/*                vab = visi[oifits_info.bsref[kk].ab.uvpnt];*/
+/*                vbc = visi[oifits_info.bsref[kk].bc.uvpnt];*/
+/*                vca = visi[oifits_info.bsref[kk].ca.uvpnt];*/
 
-                vabder =  DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ]  ;
-                vbcder =  DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ]  ;
-                vcader =  DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * image_width + jj  ]  ;
+/*                vabder =  DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ]  ;*/
+/*                vbcder =  DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ]  ;*/
+/*                vcader =  DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * image_width + jj  ]  ;*/
 
-                if(oifits_info.bsref[kk].ab.sign < 0) { vab = conj(vab);} 
-                if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}
-                if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}
-                if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} 
-                if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
-                if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}
+/*                if(oifits_info.bsref[kk].ab.sign < 0) { vab = conj(vab);} */
+/*                if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}*/
+/*                if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}*/
+/*                if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} */
+/*                if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}*/
+/*                if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}*/
 
-                t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_bisphasor[kk] * invflux ;
+/*                t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_bisphasor[kk] * invflux ;*/
 
-                // gradient from real part
-                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
+/*                // gradient from real part*/
+/*                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  */
 
-                // gradient from imaginary part
-                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * cimag( t3der );			
-            }
-        }
-    }
-}	
+/*                // gradient from imaginary part*/
+/*                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * cimag( t3der );			*/
+/*            }*/
+/*        }*/
+/*    }*/
+/*}	*/
 
 
 
