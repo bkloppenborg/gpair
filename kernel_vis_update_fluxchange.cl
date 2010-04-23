@@ -8,6 +8,8 @@ __kernel void update_vis_fluxchange(
     __private int image_width,
     __private float flux_ratio)
 {
+    // TODO: This kernel is outdated, it needs to be fixed before being put into use again.
+
     // OpenCL doesn't natively support complex numbers, so we have to do the math out by hand.
     // the original equation is as follows:
     //    visi_new[i] = visi_old[i] * flux_ratio
@@ -19,8 +21,6 @@ __kernel void update_vis_fluxchange(
     // Noting that a1 = 0
     // real = a0*b0*c0 - a0*b1*c1 = A*c0 - B*c1
     // imag = a0*b0*c1 + a0*b1*c0 = A*c1 + B*c0
-    // Lastly, I converted the memory positions over so 
-    //  image_width * i +  y_pos -> nuv * x_pos + i
     
     int i = get_global_id(0);
     
