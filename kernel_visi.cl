@@ -6,8 +6,11 @@ float2 MultComplex3Special(float2 A, float2 B, float2 C)
     // temp.s0 = -A.s0*B.s1*C.s1 - A.s1*B.s0*C.s1 - A.s1*B.s1*C.s0 + A.s0*B.s0*C.s0;
     // temp.s1 = -A.s1*B.s1*C.s1 + A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0 + A.s1*B.s0*C.s0;
     
-    temp.s0 = -1*A.s0*B.s1*C.s1 + A.s0*B.s0*C.s0;
-    temp.s1 = A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0;
+    float a = A.s0 * C.s1;
+    float b = A.s0 * C.s0;
+    
+    temp.s0 = -1*a*B.s1 + b*B.s0;
+    temp.s1 =    a*B.s0 + b*B.s1;
 
     return temp;
 }

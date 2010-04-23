@@ -1,7 +1,9 @@
 // Multiply three complex numbers.
 float2 MultComplex3(float2 A, float2 B, float2 C)
 {
-    float2 temp = MultComplex2(MultComplex2(A, B), C));
+    float2 temp;
+    temp.s0 = -A.s0*B.s1*C.s1 - A.s1*B.s0*C.s1 - A.s1*B.s1*C.s0 + A.s0*B.s0*C.s0;
+    temp.s1 = -A.s1*B.s1*C.s1 + A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0 + A.s1*B.s0*C.s0;
 
     return temp;
 }
