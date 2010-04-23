@@ -389,16 +389,15 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
 }
 
 // A function to double-check computations between the GPU and CPU.
-void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_size, float * mock_data, int npow, float * data_phasor)
+void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_size, float * mock_data, int nbis, float * data_phasor)
 {
     printf(SEP);
     printf("Comparing CPU and GPU Visiblity values:\n");
     gpu_compare_complex_data(nuv, visi, pGpu_visi0);
 
     printf(SEP);    
-    printf("Comparing CPU and GPU Mock Data Values:\n");
-    gpu_compare_mixed_data(data_size, npow, mock_data, pGpu_mock_data);  
-    //gpu_compare_data(data_size, mock_data, pGpu_mock_data);   
+     printf("Comparing CPU and GPU Mock Data Values:\n");
+    gpu_compare_data(data_size, mock_data, pGpu_mock_data);   
 
     printf(SEP);    
     printf("Comparing CPU and GPU chi2 values:\n");
@@ -432,58 +431,6 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
     }
         
     printf("Total Difference: %f\n", error);
-    
-    free(gpu_data);
-}
-
-// Compare CPU data in array format arr[i] = real, arr[i+1] imag, and gpu data in cl_float2 <real, complex>
-void gpu_compare_mixed_data(int size, int switch_point, float * cpu_data, cl_mem * pGpu_data)
-{
-    int err = 0;
-    
-    // Init a temporary variable for storing the data:
-    cl_float2 * gpu_data;
-    gpu_data = malloc(sizeof(cl_float2) * size);
-    
-    err = clEnqueueReadBuffer(*pQueue, *pGpu_data, CL_TRUE, 0, sizeof(cl_float2) * size, gpu_data, 0, NULL, NULL );
-    if (err != CL_SUCCESS)
-        print_opencl_error("Could not read back GPU Data for comparision!", err);    
-        
-    int i;
-    float real, imag;
-    float error = 0;
-    float err_sum = 0;
-    
-    printf("Comparing real-only portion of the arrays.  This is up to element %i.\n", switch_point);
-    // Up to switch point, we only compare the ith element of the CPU portion with the real element of the GPU portion
-    for(i = 0; i < switch_point; i++)
-    {
-        error = fabs(cpu_data[i] - gpu_data[i].s0);
-        
-        if(error > 0.01)
-        {
-            printf("[%i] %f %f %f \n", i, cpu_data[i], gpu_data[i].s0, error);
-            err_sum += error;
-        }
-    }
-    printf("Error Contributed from this Portion: %f.\n", err_sum);
-
-    printf("Comparing real and imaginary portion of arrays starting at %i until %i\n", switch_point, size);
-    // And the remainder we compare the real and imaginary portions.
-    for(i = switch_point; i < size; i++)
-    {
-        error = 0;
-        real = gpu_data[i].s0 - cpu_data[2*i];
-        imag = gpu_data[i].s1 - cpu_data[2*i + 1];
-        error += sqrt(real * real + imag * imag);
-        
-        //if(error > 0.01)
-            printf("[%i] %f %f R(A) %f R(B) %f I(A) %f I(B) %f Err: %f\n", i, real, imag, cpu_data[2*i], gpu_data[i].s0, cpu_data[2*i+1], gpu_data[i].s1, error);
-            
-        err_sum += error;
-    }   
-        
-    printf("Total Difference: %f \n", err_sum);
     
     free(gpu_data);
 }
@@ -744,9 +691,9 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
 }
 
 // Init memory locations and copy data over to the GPU.
-void gpu_copy_data(cl_float2 *data, cl_float2 * data_err, int data_size, int data_size_uv,\
+void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv,\
                     cl_float2 * data_phasor, int phasor_size, int pow_size, \
-                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
+                    cl_long4 * gpu_bsref_uvpnt, cl_short4 * gpu_bsref_sign, int bsref_size,
                     int image_size, int image_width)
 {
     int err = 0;
@@ -778,8 +725,8 @@ void gpu_copy_data(cl_float2 *data, cl_float2 * data_err, int data_size, int dat
 
     // Init some mock data (to allow resumes in the future I suppose...)
     float zero = 0;
-    cl_float2 * mock_data;
-    mock_data = malloc(data_size * sizeof(cl_float2));
+    float * mock_data;
+    mock_data = malloc(data_size * sizeof(float));
     memset(mock_data, 0, data_size);
     
     float * temp;   // Filler for chi2 buffers
@@ -803,13 +750,13 @@ void gpu_copy_data(cl_float2 *data, cl_float2 * data_err, int data_size, int dat
         printf("Creating buffers on the device. \n");
     
     // Create buffers on the device:    
-    gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * data_size, NULL, NULL);
-    gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * data_size, NULL, NULL); 
+    gpu_data = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * data_size, NULL, NULL);
+    gpu_data_err = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float) * data_size, NULL, NULL); 
     gpu_data_phasor = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * phasor_size, NULL, NULL); 
     gpu_phasor_size = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(int), NULL, NULL);
-    gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(long) * bsref_size, NULL, NULL);
-    gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(short) * bsref_size, NULL, NULL);
-    gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(cl_float2) * data_size, NULL, NULL);
+    gpu_data_uvpnt = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(cl_long4) * bsref_size, NULL, NULL);
+    gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(cl_short4) * bsref_size, NULL, NULL);
+    gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     
     gpu_chi2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
     gpu_chi2_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
@@ -834,12 +781,12 @@ void gpu_copy_data(cl_float2 *data, cl_float2 * data_err, int data_size, int dat
         
 
     // Copy the data over to the device.  (note, non-blocking cals)
-    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(cl_float2) * data_size, data, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_FALSE, 0, sizeof(cl_float2) * data_size, data_err, 0, NULL, NULL);
+    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_FALSE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_phasor, CL_FALSE, 0, sizeof(cl_float2) * phasor_size, data_phasor, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_phasor_size, CL_FALSE, 0, sizeof(int), &pow_size, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(long) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(short) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(cl_long4) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(cl_short4) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);
     
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);        

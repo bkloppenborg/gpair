@@ -182,35 +182,6 @@ int main(int argc, char *argv[])
     // #########
     // GPU Code:  
     // #########
- 
-    // The CPU allocates data in real+imaginary format, we use cl_float2's to accomplish this fact so we
-    // need not allocate the same data size on the GPU
-    data_size = npow + nbis;
-    data_alloc = pow(2, ceil(log(data_size) / log(2)));    // Arrays are allocated to be powers of 2    
-    
-    // Convert data, data_err and mock over to cl_float2 in format <real, imaginary>
-    cl_float2 * gpu_data = NULL;
-    cl_float2 * gpu_data_err = NULL;
-    gpu_data = malloc(data_alloc * sizeof(cl_float2));
-    gpu_data_err = malloc(data_alloc * sizeof(cl_float2));
-    
-     // Set elements [0, npow - 1] equal to the power spectrum
-    for(ii=0; ii < npow; ii++)
-    {
-        gpu_data[ii].s0 = data[ii];
-        gpu_data[ii].s1 = 0;
-        gpu_data_err[ii].s0 = data_err[ii];
-        gpu_data_err[ii].s1 = 0;
-    }
-
-    // Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
-    for(ii = 0; ii < nbis; ii++)
-    {
-        gpu_data[npow + ii].s0 = data[npow + 2* ii];
-        gpu_data[npow + ii].s1 = data[npow + 2* ii + 1 ];
-        gpu_data_err[npow + ii].s0 = data_err[npow + 2* ii];
-        gpu_data_err[npow + ii].s1 = data_err[npow + 2* ii + 1];
-    }   
         
     // Convert visi over to a cl_float2 in format <real, imaginary>
     cl_float2 * gpu_visi = NULL;
@@ -246,40 +217,23 @@ int main(int argc, char *argv[])
     // We will also need the uvpnt and sign information for bisepctrum computations.
     // Although we waste a little space, we use cl_long4 and cl_float4 so that we may have
     // coalesced loads on the GPU.
-/*    cl_long4 * gpu_bsref_uvpnt = NULL;*/
-/*    cl_short4 * gpu_bsref_sign = NULL;*/
-/*    int data_alloc_bsref = data_alloc_phasor; // TODO: Update code below for this.*/
-/*    gpu_bsref_uvpnt = malloc(data_alloc_bsref * sizeof(cl_long4));*/
-/*    gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short4));*/
-/*    for(i = 0; i < nbis; i++)*/
-/*    {*/
-/*        gpu_bsref_uvpnt[i].s0 = oifits_info.bsref[i].ab.uvpnt;*/
-/*        gpu_bsref_uvpnt[i].s1 = oifits_info.bsref[i].bc.uvpnt;*/
-/*        gpu_bsref_uvpnt[i].s2 = oifits_info.bsref[i].ca.uvpnt;*/
-/*        gpu_bsref_uvpnt[i].s3 = 0;*/
-
-/*        gpu_bsref_sign[i].s0 = oifits_info.bsref[i].ab.sign;*/
-/*        gpu_bsref_sign[i].s1 = oifits_info.bsref[i].bc.sign;*/
-/*        gpu_bsref_sign[i].s2 = oifits_info.bsref[i].ca.sign;*/
-/*        gpu_bsref_sign[i].s3 = 0;*/
-/*    }   */
-
-    // We will also need the uvpnt and sign information for bisepctrum computations.
-    cl_long * gpu_bsref_uvpnt = NULL;
-    cl_short * gpu_bsref_sign = NULL;
-    int data_alloc_bsref = 3 * data_alloc_phasor;
-    gpu_bsref_uvpnt = malloc(data_alloc_bsref * sizeof(cl_long));
-    gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short));
+    cl_long4 * gpu_bsref_uvpnt = NULL;
+    cl_short4 * gpu_bsref_sign = NULL;
+    int data_alloc_bsref = data_alloc_phasor; // TODO: Update code below for this.
+    gpu_bsref_uvpnt = malloc(data_alloc_bsref * sizeof(cl_long4));
+    gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short4));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bsref_uvpnt[3*i] = oifits_info.bsref[i].ab.uvpnt;
-        gpu_bsref_uvpnt[3*i+1] = oifits_info.bsref[i].bc.uvpnt;
-        gpu_bsref_uvpnt[3*i+2] = oifits_info.bsref[i].ca.uvpnt;
+        gpu_bsref_uvpnt[i].s0 = oifits_info.bsref[i].ab.uvpnt;
+        gpu_bsref_uvpnt[i].s1 = oifits_info.bsref[i].bc.uvpnt;
+        gpu_bsref_uvpnt[i].s2 = oifits_info.bsref[i].ca.uvpnt;
+        gpu_bsref_uvpnt[i].s3 = 0;
 
-        gpu_bsref_sign[3*i] = oifits_info.bsref[i].ab.sign;
-        gpu_bsref_sign[3*i+1] = oifits_info.bsref[i].bc.sign;
-        gpu_bsref_sign[3*i+2] = oifits_info.bsref[i].ca.sign;
-    } 
+        gpu_bsref_sign[i].s0 = oifits_info.bsref[i].ab.sign;
+        gpu_bsref_sign[i].s1 = oifits_info.bsref[i].bc.sign;
+        gpu_bsref_sign[i].s2 = oifits_info.bsref[i].ca.sign;
+        gpu_bsref_sign[i].s3 = 0;
+    }    
     
     // Copy the DFT table over to a GPU-friendly format:
     cl_float2 * gpu_dft_x = NULL;
@@ -310,7 +264,7 @@ int main(int argc, char *argv[])
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
 
-    gpu_copy_data(gpu_data, gpu_data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
+    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
         npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
         image_width);    
          
@@ -318,8 +272,6 @@ int main(int argc, char *argv[])
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
     
     // Free variables used to store values pepared for the GPU
-    free(gpu_data);
-    free(gpu_data_err);
     free(gpu_visi);
     free(gpu_phasor);
     free(gpu_bsref_uvpnt);
@@ -358,7 +310,7 @@ int main(int argc, char *argv[])
 /*    printf("GPU time (s): = %f\n", time_chi2);*/
     
     // Enable for debugging purposes.
-    gpu_check_data(&chi2, nuv, visi, data_alloc, mock, npow, &data_phasor);
+    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();

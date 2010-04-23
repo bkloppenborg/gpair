@@ -12,7 +12,6 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
 
 void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
 void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
-void gpu_compare_mixed_data(int size, int switch_point, float * cpu_data, cl_mem * pGpu_data);
 
 void gpu_compute_flux(cl_mem * flux_storage);
 
@@ -21,9 +20,9 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     int pass_count, size_t * group_counts, size_t * work_item_counts, 
     int * operation_counts, int * entry_counts);
 
-void gpu_copy_data(cl_float2 *data, cl_float2 * data_err, int data_size, int data_size_uv,\
-                    cl_float2 * data_phasor, int phasor_size, int pow_size, \
-                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
+void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv,\
+                    cl_float2 * data_bis, int phasor_size, int pow_size,\
+                    cl_long4 * gpu_bsref_uvpnt, cl_short4 * gpu_bsref_sign, int bsref_size,
                     int image_size, int image_width);
                     
 void gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size);
