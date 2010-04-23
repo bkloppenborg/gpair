@@ -477,7 +477,6 @@ void gpu_compare_mixed_data(int size, int switch_point, float * cpu_data, cl_mem
     // Init a temporary variable for storing the data:
     cl_float2 * gpu_data;
     gpu_data = malloc(sizeof(cl_float2) * size);
-    printf("Size: %i\n", size);
     
     err = clEnqueueReadBuffer(*pQueue, *pGpu_data, CL_TRUE, 0, sizeof(cl_float2) * size, gpu_data, 0, NULL, NULL );
     if (err != CL_SUCCESS)
@@ -494,14 +493,14 @@ void gpu_compare_mixed_data(int size, int switch_point, float * cpu_data, cl_mem
         error = fabs(gpu_data[i].s0 - cpu_data[i]);
         
         if(error > 0.01)
-            printf("[%i] %f %f %f \n", i, cpu_data[i], gpu_data[i].s0, error);
+            printf("[%i] %f (%f %f) %f\n", i, cpu_data[i], gpu_data[i].s0, gpu_data[i].s1, error);
             
         err_sum += error;
     }
     printf("Real part Error contribution: %f\n", err_sum);
     err_sum = 0;
     
-    printf("Comparing Complex portions of the arrays\n");
+    printf("Comparing the Complex portions of the arrays, starting with element %i\n", switch_point);
     int j = 0;
     int k = 0;
     for(i = 0; i < size - switch_point; i++)
@@ -984,17 +983,18 @@ void gpu_data2chi2(int data_size)
             if (err != CL_SUCCESS)
                 print_opencl_error("Could not read back GPU chi2 array elements.", err);
         
+        // Enable the commented lines below to see the elements of the chi2 array.
         float chi2 = 0;
+/*        printf("%s Chi2 Array Elements \n %s", SEP, SEP);*/
         for(i = 0; i < data_size; i++)
         {
             chi2 += results[i];
 
-            // Enable the next four lines if you want to see the array elements.
-/*            printf("%s Chi2 Array Elements \n %s", SEP, SEP);*/
 /*            printf("%f ", results[i]);  */
 /*            if(i % 10 == 0)*/
 /*                printf("\n");*/
         }
+/*        printf("\n");*/
  
         printf("GPU Sum: %f (summed on the CPU)\n", chi2);
     }

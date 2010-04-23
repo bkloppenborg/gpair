@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
 /*    printf("GPU time (s): = %f\n", time_chi2);*/
     
     // Enable for debugging purposes.
-    gpu_check_data(nuv, nbis, npow, data_size, data_alloc, visi, mock, &chi2);
+    //gpu_check_data(nuv, nbis, npow, data_size, data_alloc, visi, mock, &chi2);
 
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
