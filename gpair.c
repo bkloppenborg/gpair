@@ -182,7 +182,47 @@ int main(int argc, char *argv[])
     // #########
     // GPU Code:  
     // #########
-        
+
+    // All complex numbers are stored as cl_float2's on the GPU, concequently we need to recalculate a few values.
+    data_size = npow + nbis;
+    data_alloc = pow(2, ceil(log(data_size) / log(2)));    // Arrays are allocated to be powers of 2  
+
+    // Copy the data, data_err over to the GPU in a friendly format.
+    cl_float2 * gpu_data = NULL;
+    cl_float2 * gpu_data_err = NULL;
+    gpu_data = malloc(sizeof(cl_float2) * data_alloc);
+    gpu_data_err = malloc(sizeof(cl_float2) * data_alloc);
+    
+    // Set elements [0, npow - 1] equal to the power spectrum.  Notice, we waste a little space using cl_float2 here.
+    for(ii=0; ii < npow; ii++)
+    {
+        gpu_data[ii].s0 = oifits_info.pow[ii];
+        gpu_data[ii].s1 = 0;    // Wasted Space
+        gpu_data_err[ii].s0 =  1 / oifits_info.powerr[ii];
+        gpu_data_err[ii].s1 = 0;    // Wasted Space
+    }
+
+    // Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
+    for(ii = 0; ii < nbis; ii++)
+    {
+        gpu_data[npow + ii].s0 = oifits_info.bisamp[ii];
+        gpu_data[npow + ii].s1 = 0.;    // Wasted Space
+        gpu_data_err[npow + ii].s0 =  1 / oifits_info.bisamperr[ii];
+        gpu_data_err[npow + ii].s1 = 1 / (oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]);
+    }
+    
+    // TODO: Allocate the arrays more efficiently, this is totally wasted space.
+    // Pad the arrays with zeros and ones after this.
+    for(ii = data_size; ii < data_alloc; ii++)
+    {
+        gpu_data[ii].s0 = 0;
+        gpu_data[ii].s1 = 0;
+        gpu_data_err[ii].s0 =  0;
+        gpu_data_err[ii].s1 = 0;
+    }
+    
+    
+    // TODO: visi is a computed quantity, we need not convert the data.  We just need to allocate it on the GPU.    
     // Convert visi over to a cl_float2 in format <real, imaginary>
     cl_float2 * gpu_visi = NULL;
     gpu_visi = malloc(data_alloc_uv * sizeof(cl_float2));
@@ -264,7 +304,7 @@ int main(int argc, char *argv[])
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
 
-    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
+    gpu_copy_data(gpu_data, gpu_data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
         npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
         image_width);    
          
@@ -272,6 +312,8 @@ int main(int argc, char *argv[])
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
     
     // Free variables used to store values pepared for the GPU
+    free(gpu_data);
+    free(gpu_data_err);
     free(gpu_visi);
     free(gpu_phasor);
     free(gpu_bsref_uvpnt);
@@ -310,8 +352,8 @@ int main(int argc, char *argv[])
 /*    printf("GPU time (s): = %f\n", time_chi2);*/
     
     // Enable for debugging purposes.
-    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock);
-    
+    gpu_check_data(nuv, nbis, npow, data_size, data_alloc, visi, mock, &chi2);
+
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
     

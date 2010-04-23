@@ -23,7 +23,7 @@ __kernel void compute_bispec(
     __global float2 * data_bip,
     __global long4 * data_uvpnt,
     __global short4 * data_sign,
-    __global float * mock_data_bs,
+    __global float2 * mock_data_bs,
     __global int * array_offset)
 {   
     int i = get_global_id(0);
@@ -43,8 +43,6 @@ __kernel void compute_bispec(
     vbc.s1 *= sign.s1;
     vca.s1 *= sign.s2;
     
-    // TODO: Convert mock_data_bs over to a float2 array.
-    float2 temp = MultComplex4(vab, vbc, vca, data_bip[i]);
-    mock_data_bs[offset + 2*i] = temp.s0;
-    mock_data_bs[offset + 2*i + 1] = temp.s1;
+    // Save the data.
+    mock_data_bs[offset + i] = MultComplex4(vab, vbc, vca, data_bip[i]);
 }
