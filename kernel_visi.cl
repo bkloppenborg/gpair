@@ -1,3 +1,17 @@
+// Multiply three complex numbers.
+// NOTE: This function has been modified for the case where A.s1 is always zero
+float2 MultComplex3Special(float2 A, float2 B, float2 C)
+{
+    float2 temp;
+    // temp.s0 = -A.s0*B.s1*C.s1 - A.s1*B.s0*C.s1 - A.s1*B.s1*C.s0 + A.s0*B.s0*C.s0;
+    // temp.s1 = -A.s1*B.s1*C.s1 + A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0 + A.s1*B.s0*C.s0;
+    
+    temp.s0 = -1*A.s0*B.s1*C.s1 + A.s0*B.s0*C.s0;
+    temp.s1 = A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0;
+
+    return temp;
+}
+
 __kernel void visi(
     __global float * image,
     __global float2 * dft_x,
@@ -11,9 +25,8 @@ __kernel void visi(
     
     int image_width = image_size[0];
     
-    float a0, a1;
-    float2 B;
-    float2 C;
+    float2 A, B, C;
+    A.s1 = 0;
     
     int h = get_global_id(0);
     int i = 0;
@@ -28,15 +41,9 @@ __kernel void visi(
         for(i=0; i < image_width; i++)
         {
             B = dft_x[offset +  i];
-            a0 = image[image_width * j + i];
-            a1 = 0;
-            //b0 = dft_x[offset +  i].s0;
-            //b1 = dft_x[offset +  i].s1;
-            //c0 = dft_y[offset +  j].s0;
-            //c1 = dft_y[offset +  j].s1;
+            A.s0 = image[image_width * j + i];
             
-            visi.s0 += -1*a0*B.s1*C.s1 - a1*B.s0*C.s1 - a1*B.s1*C.s0 + a0*B.s0*C.s0;
-            visi.s1 += -1*a1*B.s1*C.s1 + a0*B.s0*C.s1 + a0*B.s1*C.s0 + a1*B.s0*C.s0;
+            visi += MultComplex3Special(A, B, C);
         }
     }
     

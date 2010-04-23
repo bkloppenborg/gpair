@@ -44,5 +44,6 @@ __kernel void compute_bispec(
     vca.s1 *= sign.s2;
     
     // Save the data.
+    // TODO: We might consider moving the output into it's own array to promote coalesced saves.
     mock_data_bs[offset + i] = MultComplex4(vab, vbc, vca, data_bip[i]);
 }
