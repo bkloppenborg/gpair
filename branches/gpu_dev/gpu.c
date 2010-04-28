@@ -56,10 +56,10 @@ cl_mem * pGpu_dft_y = NULL;         // Pointer to Memory for y-DFT table
 cl_mem * pGpu_image = NULL;
 
 cl_mem * pGpu_flux0 = NULL;          // Buffer storing the (single, summed) flux value.
+cl_mem * pGpu_flux1 = NULL;         // Buffer for storing the (single, inverted) flux value i.e. 1/pGpu_flux0
 cl_mem * pGpu_flux_buffer0 = NULL;  // Used as input buffer
 cl_mem * pGpu_flux_buffer1 = NULL;  // Used as output buffer
 cl_mem * pGpu_flux_buffer2 = NULL;  // Used as partial sum buffer
-cl_mem * pGpu_flux1 = NULL;
 
 cl_mem * pGpu_visi0 = NULL;          // Used to store on-gpu visibilities.
 cl_mem * pGpu_visi1 = NULL;
@@ -469,11 +469,23 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
     free(gpu_data);
 }
 
-void gpu_compute_flux(cl_mem * flux_storage)
+void gpu_compute_flux(cl_mem * flux_storage, cl_mem * inv_flux_storage)
 {
     // Computes the sum of the image array, stores the result in the flux_storage buffer
     gpu_compute_sum(pGpu_image, pGpu_flux_buffer1, pGpu_flux_buffer2, flux_storage, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
 
+    // Now we compute the inverse of the flux on the CPU and copy it back to the GPU.
+    int err = 0;
+    float value = 0;
+    err = clEnqueueReadBuffer(*pQueue, *flux_storage, CL_TRUE, 0, sizeof(float), &value, 0, NULL, NULL );
+    if(err != CL_SUCCESS)
+        print_opencl_error("Could not read back the dividing value.", err);
+        
+    // Invert the value, copy it back to the GPU: 
+    value = 1 / value;
+    err |= clEnqueueWriteBuffer(*pQueue, *inv_flux_storage, CL_TRUE, 0, sizeof(float), &value, 0, NULL, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("Could not write back dividing value", err);  
 }
 
 void gpu_cleanup()
@@ -710,10 +722,10 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     static cl_mem gpu_chi2_buffer2;     // Temporary storage for the chi2 computation.
     
     static cl_mem gpu_flux0;
+    static cl_mem gpu_flux1;
     static cl_mem gpu_flux_buffer0;  
     static cl_mem gpu_flux_buffer1; 
     static cl_mem gpu_flux_buffer2;  
-    static cl_mem gpu_flux1;
     
     static cl_mem gpu_visi0;         // Used for storing the visibilities  
     static cl_mem gpu_visi1;        // Used for storing temporary visibilities.
@@ -762,6 +774,7 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     gpu_chi2_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     
     gpu_flux0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
+    gpu_flux1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
     gpu_flux_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_flux_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_flux_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
@@ -792,7 +805,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer1, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer2, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);
     
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_flux0, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);        
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_flux0, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);   
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_flux1, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);       
     err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer0, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);  
     err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer1, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_flux_buffer2, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
@@ -1074,9 +1088,9 @@ void gpu_image2vis(int data_alloc_uv)
         printf("%sComputing Flux Sum on the GPU.\n%s", SEP, SEP);
             
     // First, compute the total flux.  The result is stored in pGpu_flux
-    gpu_compute_flux(pGpu_flux0);
+    gpu_compute_flux(pGpu_flux0, pGpu_flux1);
     
-    gpu_normalize(pGpu_image, image_size, pGpu_flux0);
+    gpu_normalize(pGpu_image, image_size, pGpu_flux0, pGpu_flux1);
 
     if(gpu_enable_debug)
     {
@@ -1111,27 +1125,15 @@ void gpu_image2vis(int data_alloc_uv)
 
 }
 
-void gpu_normalize(cl_mem * array, int arr_size, cl_mem * div_value)
+void gpu_normalize(cl_mem * array, int arr_size, cl_mem * flux, cl_mem * inv_flux)
 {
     int err = 0;
     size_t local = 0;
-    size_t global = arr_size;
-
-    // First copy the normalization value back to the CPU (blocking call)
-    float value = 0;
-    err = clEnqueueReadBuffer(*pQueue, *div_value, CL_TRUE, 0, sizeof(float), &value, 0, NULL, NULL );
-    if(err != CL_SUCCESS)
-        print_opencl_error("Could not read back the dividing value.", err);
-        
-/*    // Invert the value, copy it back to the GPU: */
-/*    value = 1 / value;*/
-/*    err |= clEnqueueWriteBuffer(*pQueue, *inv_div_value, CL_FALSE, 0, sizeof(float), &value, 0, NULL, NULL);*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("Could not write back dividing value", err);     */
+    size_t global = arr_size;   
         
     // Kick off the normalization kernel:
     err  = clSetKernelArg(*pKernel_norm, 0, sizeof(cl_mem), array);
-    err |= clSetKernelArg(*pKernel_norm, 1, sizeof(float), &value);    // Output is stored on the GPU.
+    err |= clSetKernelArg(*pKernel_norm, 1, sizeof(cl_mem), inv_flux);    // Output is stored on the GPU.
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);       
           

@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
     printf("Image Buffer Size %i \n", image_size);
     current_image = malloc(image_size * sizeof(float));
     memset(current_image, 0, image_size);
-    current_image[(image_width * (image_width + 1 ) )/ 2 ] = 1.0;
+    current_image[(image_width * (image_width + 1 ) )/ 2 ] = 2.0;
 
 
     // setup precomputed DFT table
