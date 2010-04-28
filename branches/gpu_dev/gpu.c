@@ -12,7 +12,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -486,6 +486,19 @@ void gpu_compute_flux(cl_mem * flux_storage, cl_mem * inv_flux_storage)
     err |= clEnqueueWriteBuffer(*pQueue, *inv_flux_storage, CL_TRUE, 0, sizeof(float), &value, 0, NULL, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("Could not write back dividing value", err);  
+    
+    // Read back the flux and inverse flux values.    
+    if(gpu_enable_debug)
+    {
+        float flux = 0;
+        float inv_flux = 0;
+        err = clEnqueueReadBuffer(*pQueue, *flux_storage, CL_TRUE, 0, sizeof(float), &flux, 0, NULL, NULL );
+        err = clEnqueueReadBuffer(*pQueue, *inv_flux_storage, CL_TRUE, 0, sizeof(float), &inv_flux, 0, NULL, NULL );
+        
+        printf(SEP);
+        printf("Flux values stored on the GPU:\n Flux: %f, InvFlux: %f \n", flux, inv_flux);
+        printf(SEP);
+    }
 }
 
 void gpu_cleanup()

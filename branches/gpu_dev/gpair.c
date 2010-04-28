@@ -156,28 +156,28 @@ int main(int argc, char *argv[])
     printf(SEP);
     printf("CPU time (s): = %f\n", cpu_time_chi2);
     
-    // Test 2 : recompute mock data, powerspectra + bispectra when changing only the flux of one pixel
-    tick = clock();
-    float total_flux = flux();
-    float inc = 1.1;
-    int x_changed = 64;
-    int y_changed = 4;
-    for(ii=0; ii < iterations; ii++)
-    {
-        //compute complex visibilities and the chi2
-	    current_image[ x_changed + y_changed * image_width ] += inc;
-	    // TODO: Fabien, can you fix this?
-	    //update_vis_fluxchange(x_changed, y_changed, current_image[ x_changed + y_changed * image_width ], total_flux + inc ) ;
-	    total_flux += inc;
-        vis2data();
-        chi2 = data2chi2();
-    }       
-    tock=clock();
-    cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf(SEP);
-    printf("Atomic change -- CPU Chi2: %f (CPU only)\n", chi2);
-    printf(SEP);
-    printf("CPU time (s): = %f\n", cpu_time_chi2);
+/*    // Test 2 : recompute mock data, powerspectra + bispectra when changing only the flux of one pixel*/
+/*    tick = clock();*/
+/*    float total_flux = flux();*/
+/*    float inc = 1.1;*/
+/*    int x_changed = 64;*/
+/*    int y_changed = 4;*/
+/*    for(ii=0; ii < iterations; ii++)*/
+/*    {*/
+/*        //compute complex visibilities and the chi2*/
+/*	    current_image[ x_changed + y_changed * image_width ] += inc;*/
+/*	    // TODO: Fabien, can you fix this?*/
+/*	    //update_vis_fluxchange(x_changed, y_changed, current_image[ x_changed + y_changed * image_width ], total_flux + inc ) ;*/
+/*	    total_flux += inc;*/
+/*        vis2data();*/
+/*        chi2 = data2chi2();*/
+/*    }       */
+/*    tock=clock();*/
+/*    cpu_time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
+/*    printf(SEP);*/
+/*    printf("Atomic change -- CPU Chi2: %f (CPU only)\n", chi2);*/
+/*    printf(SEP);*/
+/*    printf("CPU time (s): = %f\n", cpu_time_chi2);*/
 
     // #########
     // GPU Code:  
@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
     printf("GPU time (s): = %f\n", gpu_time_chi2);
     
     // Enable for debugging purposes.
-    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
+    gpu_check_data(&chi2, nuv, visi, data_alloc, mock_data);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
@@ -343,8 +343,8 @@ void image2vis( ) // DFT implementation
 	      visi[uu] += current_image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
             }
         }
-      // TODO: Re-enable normalization, implement on the GPU too.
-      //if (v0 > 0.) visi[uu] /= v0;
+        // Normalize the flux.
+      if (v0 > 0.) visi[uu] /= v0;
     }
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
