@@ -1,39 +1,17 @@
-// Multiply three complex numbers.
-// NOTE: This function has been modified for the case where A.s1 is always zero
-float2 MultComplex3Special(float2 A, float2 B, float2 C)
-{
-    float2 temp;
-    //temp.s0 = -1*A.s0*B.s1*C.s1 - A.s1*B.s0*C.s1 - A.s1*B.s1*C.s0 + A.s0*B.s0*C.s0;
-    //temp.s1 = -1*A.s1*B.s1*C.s1 + A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0 + A.s1*B.s0*C.s0;
-    
-    float a = A.s0 * C.s1;
-    float b = A.s0 * C.s0;
-    
-    temp.s0 = -1*B.s1*a + B.s0*b;
-    temp.s1 =    B.s0*a + B.s1*b;
-
-    return temp;
-}
-
-
 __kernel void visi(
     __global float * image,
     __global float2 * dft_x,
     __global float2 * dft_y,
     __global int * image_size,
-    __global float2 * output,
-    __local float2 * sA,
-    __local float2 * sB,
-    __local float2 * sC)
+    __global float2 * output)
 {
     float2 visi;
     visi.s0 = 0;
     visi.s1 = 0;
     
     int image_width = image_size[0];
-
-    float2 A, B, C, temp;
-    A.s1 = 0;
+    
+    float a0, a1, b0, b1, c0, c1;
     
     int h = get_global_id(0);
     int i = 0;
@@ -41,21 +19,25 @@ __kernel void visi(
     
     int offset = image_width * h;
  
-    for(j=0; j < image_width; j++)
+    for(i=0; i < image_width; i++)
     {
-        C = dft_y[offset +  j];
-        
-        for(i=0; i < image_width; i++)
+        for(j=0; j < image_width; j++)
         {
-            B = dft_x[offset +  i];
-            A.s0 = image[image_width * j + i];
-
-            visi += MultComplex3Special(A, B, C);
+            a0 = image[ i + image_width * j ];
+            a1 = 0;
+            b0 = dft_x[offset +  i].s0;
+            b1 = dft_x[offset +  i].s1;
+            c0 = dft_y[offset +  j].s0;
+            c1 = dft_y[offset +  j].s1;
+            
+            visi.s0 += -1*a0*b1*c1 - a1*b0*c1 - a1*b1*c0 + a0*b0*c0;
+            visi.s1 += -1*a1*b1*c1 + a0*b0*c1 + a0*b1*c0 + a1*b0*c0;
         }
     }
     
-    // Write the result to the output array
-    output[h] = visi;
+    // TODO: Normalize if (v0 > 0.) visi[h] /= v0;
+    output[h].s0 = visi.s0;
+    output[h].s1 = visi.s1;
 }
 
 
