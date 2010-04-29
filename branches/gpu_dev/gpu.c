@@ -1090,14 +1090,6 @@ void gpu_image2vis(int data_alloc_uv)
     if(gpu_enable_debug)
         printf("%sComputing DFT on the GPU.\n%s", SEP, SEP);
 
-    // Now we compute the DFT
-    err  = clSetKernelArg(*pKernel_visi, 0, sizeof(cl_mem), pGpu_image);
-    err |= clSetKernelArg(*pKernel_visi, 1, sizeof(cl_mem), pGpu_dft_x);
-    err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), pGpu_dft_y);
-    err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), pGpu_image_width);
-    err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_flux1);    
-    err |= clSetKernelArg(*pKernel_visi, 5, sizeof(cl_mem), pGpu_visi0);
-
    // Get the maximum work-group size for executing the kernel on the device
     err = clGetKernelWorkGroupInfo(*pKernel_visi, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)
@@ -1105,6 +1097,17 @@ void gpu_image2vis(int data_alloc_uv)
 
     // Round down to the nearest power of two.
     local = pow(2, floor(log(local) / log(2)));
+
+    // Now we compute the DFT
+    err  = clSetKernelArg(*pKernel_visi, 0, sizeof(cl_mem), pGpu_image);
+    err |= clSetKernelArg(*pKernel_visi, 1, sizeof(cl_mem), pGpu_dft_x);
+    err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), pGpu_dft_y);
+    err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), pGpu_image_width);
+    err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_flux1);    
+    err |= clSetKernelArg(*pKernel_visi, 5, sizeof(cl_mem), pGpu_visi0);
+    err |= clSetKernelArg(*pKernel_visi, 6, local * sizeof(cl_float2), NULL);
+    err |= clSetKernelArg(*pKernel_visi, 7, local * sizeof(cl_float2), NULL);
+    err |= clSetKernelArg(*pKernel_visi, 8, local * sizeof(cl_float2), NULL);
     
     // Execute the kernel over the entire range of the data set        
     global = data_alloc_uv;

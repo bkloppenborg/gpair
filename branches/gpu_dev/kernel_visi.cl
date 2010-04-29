@@ -29,7 +29,10 @@ __kernel void visi(
     __global float2 * dft_y,
     __global int * image_size,
     __global float * inv_flux,
-    __global float2 * output)
+    __global float2 * output,
+    __local float2 * sA,
+    __local float2 * sB,
+    __local float2 * sC)
 {
     float2 visi;
     visi.s0 = 0;
