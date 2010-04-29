@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         for(ii=0; ii < image_width; ii++)
         {
             DFT_tablex[ image_width * uu + ii ] =  
-                cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
+                cexp( 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].u * (float)ii )  ;
             DFT_tabley[ image_width * uu + ii ] =  
                 cexp( - 2.0 * I * PI * RPMAS * model_image_pixellation * oifits_info.uv[uu].v * (float)ii )  ;
         }
@@ -328,11 +328,15 @@ int read_oifits()
 void image2vis( ) // DFT implementation
 {	
   register int ii = 0, jj = 0, uu = 0;
-  float v0 = 0.; // zeroflux 
+  float invflux, v0 = 0.; // zeroflux 
   
   for(ii=0 ; ii < image_width * image_width ; ii++) 
     v0 += current_image[ii];
-    
+  if (v0 > 0.)
+    invflux = 1./v0;
+  else 
+    invflux = 1.;
+
   for(uu=0 ; uu < nuv; uu++)
     {
       visi[uu] = 0.0 + I * 0.0;
@@ -340,11 +344,11 @@ void image2vis( ) // DFT implementation
         {
 	  for(jj=0; jj < image_width; jj++)
             {
-	      visi[uu] += 1/v0 * current_image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
+	      visi[uu] +=  current_image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
             }
         }
         // Normalize the flux.
-      //if (v0 > 0.) visi[uu] /= v0;
+      visi[uu] *= invflux;
     }
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
