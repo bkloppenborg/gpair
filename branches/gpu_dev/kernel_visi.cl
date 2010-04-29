@@ -7,9 +7,19 @@ float2 MultComplex3Special(float2 A, float2 B, float2 C)
     //  imag = -1*a1*B.s1*C.s1 + a0*B.s0*C.s1 + a0*B.s1*C.s0 + a1*B.s0*C.s0;
     
     // But we may explot A.s1 always being zero, thereby simplifying the math
+    //  real = -1*A.s0*B.s1*C.s1 + A.s0*B.s0*C.s0;
+    //  imag =    A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0;
+    // But there is a little more simplification that can eliminate two multiplications.
+    // The tradeoff is that we require two more local variables:
+    //  float k1 = A.s0 * C.s1;
+    //  float k2 = A.s0 * C.s0;
+    //  real = -1*k1*B.s1 + k2*B.s0;
+    //  imag =    k1*B.s0 + k2*B.s1;
+    // but it turns out the above method is no faster than doing all of the multiplications.
+    
     float2 temp;
-    temp.s0 = -1*A.s0*B.s1*C.s1 - A.s1*B.s0*C.s1 - A.s1*B.s1*C.s0 + A.s0*B.s0*C.s0;
-    temp.s1 = -1*A.s1*B.s1*C.s1 + A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0 + A.s1*B.s0*C.s0;
+    temp.s0 = -1*A.s0*B.s1*C.s1 + A.s0*B.s0*C.s0;
+    temp.s1 =    A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0;
     return temp;
 }
 
