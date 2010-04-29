@@ -461,6 +461,7 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
     free(gpu_data);
 }
 
+// Computes the flux of the image located in pGpu_image.
 void gpu_compute_flux(cl_mem * flux_storage, cl_mem * flux_inverse_storage)
 {
     // Computes the sum of the image array, stores the result in the flux_storage buffer
@@ -473,9 +474,9 @@ void gpu_compute_flux(cl_mem * flux_storage, cl_mem * flux_inverse_storage)
     if(err != CL_SUCCESS)
         print_opencl_error("Could not read back the flux value.", err);
         
-    // Invert the value then pass it back in as a kernel argument.
+    // Invert the value then pass it back to the GPU, storing it in the flux_inverse_storage location.
+    // Do this as a blocking call to ensure the value is on the GPU when we exit this function.
     value = 1 / value;  
-    
     err = clEnqueueWriteBuffer(*pQueue, *flux_inverse_storage, CL_TRUE, 0, sizeof(float), & value, 0, NULL, NULL);
     if(err != CL_SUCCESS)
         print_opencl_error("Could not read back 1/flux.", err);
@@ -533,7 +534,8 @@ void gpu_cleanup()
     }
     if(pKernel_visi != NULL)
         err |= clReleaseKernel(*pKernel_visi);
-
+    if(pKernel_u_vis_flux != NULL)
+	err |= clReleaseKernel(*pKernel_u_vis_flux);
     
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");

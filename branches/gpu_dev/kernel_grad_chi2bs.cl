@@ -1,19 +1,27 @@
 // Multiply three complex numbers.
 float2 MultComplex3(float2 A, float2 B, float2 C)
 {
-    float2 temp = 0;
-    temp.s0 = -A.s0*B.s1*C.s1 - A.s1*B.s0*C.s1 - A.s1*B.s1*C.s0 + A.s0*B.s0*C.s0;
-    temp.s1 = -A.s1*B.s1*C.s1 + A.s0*B.s0*C.s1 + A.s0*B.s1*C.s0 + A.s1*B.s0*C.s0;
-
+    float2 temp;
+    temp = MultComplex2(A, B);
+    temp = MultComplex2(temp, C);
     return temp;
 }
 
 // Multiply two complex numbers
 float2 MultComplex2(float2 A, float2 B)
 {
-    float2 temp = 0;
-    temp.s0 = A.s1*B.s1 + A.s0*B.S0;
-    temp.s1 = A.s0*B.s1 + A.s1*B.S0;  
+    // There is the obvious way to do this:
+    // real = A.s1*B.s1 + A.s0*B.S0;
+    // imag = A.s0*B.s1 + A.s1*B.S0;  
+    
+    // We can trade off one multiplication for three additional additions
+    float k1 = A.s0*(B.s0 + B.s1);
+    float k2 = B.s1*(A.s0 + A.s1);
+    float k3 = B.s1*(A.s1 - A.s0);
+    
+    float2 temp;
+    temp.s0 = k1 - k2;
+    temp.s1 = k1 + k3;
     return temp;
 }
 
