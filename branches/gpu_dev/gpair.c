@@ -548,10 +548,10 @@ float compute_flux( float* image )
 /*                t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_bisphasor[kk] * invflux ;*/
 
 /*                // gradient from real part*/
-/*                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  */
+/*                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  */
 
 /*                // gradient from imaginary part*/
-/*                data_gradient[ii + jj * image_width] += 2. * data_err[2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * cimag( t3der );			*/
+/*                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * cimag( t3der );			*/
 /*            }*/
 /*        }*/
 /*    }*/

@@ -38,6 +38,7 @@ __kernel void arr_normalize(
     __global float2 * dft_y,
     __global float2 * visi,
     __global float * flux,
+    __global float * flux_inv,
     __private image_width,
     __private nbis,
     __private npow,
@@ -47,13 +48,7 @@ __kernel void arr_normalize(
 {
     int i = get_global_id(0);
     int j = get_global_id(1);
-    int lid = get_local_id(); // The thread's local ID.
-    
-    int ab_loc = 0;
-    int bc_loc = 0;
-    int ca_loc = 0;
-
-    float invflux = flux[0];
+    //int lid = get_local_id(); // The thread's local ID.
     
     float2 vab;
     float2 vbc;
@@ -70,29 +65,24 @@ __kernel void arr_normalize(
     int k = 0;
     for(k = 0; k < nbis; k++)
     {
-        ab_loc = data_uvpnt[3*k];
-        bc_loc = data_uvpnt[3*k + 1];
-        ca_loc = data_uvpnt[3*k + 2];
-
-        vab = visi[ab_loc];
-        vbc = visi[bc_loc];
-        vca = visi[ca_loc];  
+        long4 uvpnt = data_uvpnt[k];
+        vab = visi[uvpnt.s0];
+        vbc = visi[uvpnt.s1];
+        vca = visi[uvpnt.s2];  
     
         // Compute the errors in the visibilities from the DFT matricies.
-        // Note, we need to reuse variables as we've used more than 8 registers already.
-        vabderr = MultComplex2(dft_x[ab_loc * image_width + i], dft_y[ab_loc * image_width + j]);
-
-        vbcderr = MultComplex2(dft_x[bc_loc * image_width + i], dft_y[bc_loc * image_width + j]);
+        vabderr = MultComplex2(dft_x[uvpnt.s0 * image_width + i], dft_y[uvpnt.s0 * image_width + j]);
+        vbcderr = MultComplex2(dft_x[uvpnt.s1 * image_width + i], dft_y[uvpnt.s1 * image_width + j]);
+        vcaderr = MultComplex2(dft_x[uvpnt.s2 * image_width + i], dft_y[uvpnt.s2 * image_width + j]); 
         
-        vcaderr = MultComplex2(dft_x[ca_loc * image_width + i], dft_y[ca_loc * image_width + j]); 
-        
-        // Take the conjugate
-        vab.s1 *= data_sign[3*k];
-        vabderr.s1 *= data_sign[3*k];
-        vbc.s1 *= data_sign[3*k + 1];
-        vbcderr.s1 *= data_sign[3*k + 1];
-        vca.s1 *= data_sign[3*k + 2];
-        vcaderr.s1 *= data_sign[3*k + 2];
+        // Take the conjugate when necessary:
+        short4 sign = data_sign[i];
+        vab.s1 *= sign.s0;
+        vabderr.s1 *= sign.s0;
+        vbc.s1 *= sign.s1;
+        vbcderr.s1  *= sign.s1;       
+        vca.s1 *= sign.s2;
+        vcaderr.s1 *= sign.s2;
         
         // Now we compute T3, we have to do this in peices because of limited local memory on the GPU.
         // We are going to use D as a temporary variable.
@@ -104,10 +94,10 @@ __kernel void arr_normalize(
         // Step 3: + vab * vbc * (vcader - vca)
         t3der += MultComplex3(vab, vbc, (vcader - vca));
         // Step 4: (stuff) * data_bip[k] * fluxinv
-        t3der = MultComplex2(A, data_bip[k]) * fluxinv;
+        t3der = MultComplex2(t3der, data_bip[k]) * fluxinv[0];
          
-        data_grad += 2 * data_err[2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * t3der.s0;
-        data_grad += 2 * data_err[2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * t3der.s1;			
+        data_grad += 2 * data_err[npow + 2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * t3der.s0;
+        data_grad += 2 * data_err[npow + 2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * t3der.s1;			
     }
 
     data_gradient[ii + jj * image_width] = data_grad;
