@@ -1103,7 +1103,7 @@ void gpu_image2vis(int data_alloc_uv)
     // First, compute the total flux.  The result is stored in pGpu_flux
     gpu_compute_flux(pGpu_flux0, pGpu_flux1);
     
-    gpu_normalize(pGpu_image, image_size, pGpu_flux0, pGpu_flux1);
+    //gpu_normalize(pGpu_image, image_size, pGpu_flux0, pGpu_flux1);
 
     if(gpu_enable_debug)
     {
@@ -1116,7 +1116,7 @@ void gpu_image2vis(int data_alloc_uv)
     err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), pGpu_dft_y);
     err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), pGpu_image_width);
     err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_visi0);
-
+    err |= clSetKernelArg(*pKernel_visi, 5, sizeof(cl_mem), pGpu_flux1);
    // Get the maximum work-group size for executing the kernel on the device
     err = clGetKernelWorkGroupInfo(*pKernel_visi, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)

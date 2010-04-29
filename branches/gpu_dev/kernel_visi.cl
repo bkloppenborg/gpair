@@ -3,7 +3,8 @@ __kernel void visi(
     __global float2 * dft_x,
     __global float2 * dft_y,
     __global int * image_size,
-    __global float2 * output)
+    __global float2 * output,
+    __global float * invflux)
 {
     float2 visi;
     visi.s0 = 0;
@@ -36,8 +37,7 @@ __kernel void visi(
     }
     
     // TODO: Normalize if (v0 > 0.) visi[h] /= v0;
-    output[h].s0 = visi.s0;
-    output[h].s1 = visi.s1;
+    output[h].s0 = visi.s0 * invflux[0];
+    output[h].s1 = visi.s1 * invflux[0];
 }
-
 

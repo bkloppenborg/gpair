@@ -340,11 +340,11 @@ void image2vis( ) // DFT implementation
         {
 	  for(jj=0; jj < image_width; jj++)
             {
-	      visi[uu] += current_image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
+	      visi[uu] += 1/v0 * current_image[ ii + image_width * jj ] *  DFT_tablex[ image_width * uu +  ii] * DFT_tabley[ image_width * uu +  jj];
             }
         }
         // Normalize the flux.
-      if (v0 > 0.) visi[uu] /= v0;
+      //if (v0 > 0.) visi[uu] /= v0;
     }
   //printf("Check - visi 0 %f %f\n", creal(visi[0]), cimag(visi[0]));
 }
