@@ -378,15 +378,15 @@ int get_oi_fits_selection(oi_usersel *usersel, int* status)
   /* PRINT HEADER UNIT LABELS */
   if(*status == 0)
     {
-      printf("=====================================================================\n");
-      printf("HEADER UNITS\n");
-      printf("---------------------------------------------------------------------\n");
+      //  printf("=====================================================================\n");
+      // printf("HEADER UNITS\n");
+      // printf("---------------------------------------------------------------------\n");
       for(i = 1; i<(nhu+1); i++)
 	{
 	  fits_movabs_hdu(fptr,i,&hdutype,status);
 	  if (hdutype == BINARY_TBL) {
 	    fits_read_key(fptr, TSTRING, "EXTNAME", extname, comment, status);
-	    printf("%s\n",extname);
+	    //   printf("%s\n",extname);
 	  }
 	}
       printf("\n");

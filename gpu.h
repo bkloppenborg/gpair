@@ -13,7 +13,7 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
 void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
 void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
 
-void gpu_compute_flux(cl_mem * flux_storage);
+void gpu_compute_flux(cl_mem * flux_storage, cl_mem * flux_inverse_storage);
 
 void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * partial_sum_buffer, cl_mem * final_buffer, 
     cl_kernel * pKernels, 
@@ -22,7 +22,7 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
 
 void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv,\
                     cl_float2 * data_bis, int phasor_size, int pow_size,\
-                    long * gpu_bsref_uvpnt, short * gpu_bsref_sign, int bsref_size,
+                    cl_long4 * gpu_bsref_uvpnt, cl_short4 * gpu_bsref_sign, int bsref_size,
                     int image_size, int image_width);
                     
 void gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size);
@@ -33,13 +33,15 @@ void gpu_cleanup();
 
 void gpu_data2chi2(int data_size);
 
+void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv);
+
 void gpu_image2vis(int data_alloc_uv);
 
 void gpu_init();
 
-void gpu_normalize(cl_mem * array, int arr_size, cl_mem * div_value);
+void gpu_new_chi2(int nuv, int npow, int nbis, int data_alloc);
 
-void gpu_vis2data(cl_float2 *vis, int nuv, int npow, int nbis);
+void gpu_vis2data(cl_mem * gpu_vis, int nuv, int npow, int nbis);
 
 static char * LoadProgramSourceFromFile(const char *filename);
 
