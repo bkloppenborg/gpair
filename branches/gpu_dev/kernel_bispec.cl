@@ -23,9 +23,14 @@ __kernel void compute_bispec(
     __global float2 * data_bip,
     __global long4 * data_uvpnt,
     __global short4 * data_sign,
-    __global float2 * mock_data_bs)
+    __global float * mock_data_bs,
+    __global int * array_offset)
 {   
     int i = get_global_id(0);
+    
+    // TODO: Workaround for error introduced in Nvidia 195-series drivers.  Should be able to
+    // pass in an integer to this function without needing it to be an array.
+    int offset = array_offset[0];
 
     // Pull some data from global memory:
     long4 uvpnt = data_uvpnt[i];
@@ -39,7 +44,7 @@ __kernel void compute_bispec(
     vca.s1 *= sign.s2;
     
     // TODO: Convert mock_data_bs over to a float2 array.
-    mock_data_bs[i] = MultComplex4(vab, vbc, vca, data_bip[i]);
-    //mock_data_bs[2*i] = temp.s0;
-    //mock_data_bs[2*i + 1] = temp.s1;
+    float2 temp = MultComplex4(vab, vbc, vca, data_bip[i]);
+    mock_data_bs[offset + 2*i] = temp.s0;
+    mock_data_bs[offset + 2*i + 1] = temp.s1;
 }

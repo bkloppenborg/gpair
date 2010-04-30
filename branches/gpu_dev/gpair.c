@@ -182,40 +182,36 @@ int main(int argc, char *argv[])
     // #########
     // GPU Code:  
     // #########
-    
-    // Split the CPU data into two arrays, one for the powerspectrum and the other for the bispectrum.
-    // First the powerspecturm:
-    int i = 0;
-    cl_float * gpu_data_pow = NULL;
-    cl_float * gpu_data_pow_err = NULL;
-    gpu_data_pow = malloc(npow * sizeof(float));
-    gpu_data_pow_err = malloc(npow * sizeof(float));
-    for(i = 0; i < npow; i++)
+        
+    // Convert visi over to a cl_float2 in format <real, imaginary>
+    cl_float2 * gpu_visi = NULL;
+    gpu_visi = malloc(data_alloc_uv * sizeof(cl_float2));
+    int i;
+    for(i = 0; i < nuv; i++)
     {
-        gpu_data_pow[i] = oifits_info.pow[i];
-        gpu_data_pow_err[i] = 1 / oifits_info.powerr[i];
+        gpu_visi[i].s0 = __real__ visi[i];
+        gpu_visi[i].s1 = __imag__ visi[i];
     }
-    
-    // Now the bispectrum:
-    cl_float2 * gpu_data_bis = NULL;
-    cl_float2 * gpu_data_bis_err = NULL;
-    gpu_data_bis = malloc(nbis * sizeof(cl_float2));
-    gpu_data_bis_err = malloc(nbis * sizeof(cl_float2));
-    for(i = 0; i < nbis; i++)
-    {    
-        gpu_data_bis[i].s0 = oifits_info.bisamp[i];
-        gpu_data_bis[i].s1 = 0;
-        gpu_data_bis_err[i].s0 = 1 / oifits_info.bisamperr[i];
-        gpu_data_bis_err[i].s1 = 1 / (oifits_info.bisamp[ii] * oifits_info.bisphserr[i]);
-    }
+    // Pad the remainder
+    for(i = nuv; i < data_alloc_uv; i++)
+    {
+        gpu_visi[i].s0 = 0;
+        gpu_visi[i].s1 = 0;
+    }    
     
     // Convert the biphasor over to a cl_float2 in format <real, imaginary>    
-    cl_float2 * gpu_data_phasor = NULL;
-    gpu_data_phasor = malloc(data_alloc_phasor * sizeof(cl_float2));
+    cl_float2 * gpu_phasor = NULL;
+    gpu_phasor = malloc(data_alloc_phasor * sizeof(cl_float2));
     for(i = 0; i < nbis; i++)
     {
-        gpu_data_phasor[i].s0 = creal(data_phasor[i]);
-        gpu_data_phasor[i].s1 = cimag(data_phasor[i]);
+        gpu_phasor[i].s0 = creal(data_phasor[i]);
+        gpu_phasor[i].s1 = cimag(data_phasor[i]);
+    }
+    // Pad the remainder
+    for(i = nbis; i < data_alloc_phasor; i++)
+    {
+        gpu_phasor[i].s0 = 0;
+        gpu_phasor[i].s1 = 0;
     }
     
     // We will also need the uvpnt and sign information for bisepctrum computations.
@@ -254,26 +250,30 @@ int main(int argc, char *argv[])
             gpu_dft_y[i].s0 = __real__ DFT_tabley[i];
             gpu_dft_y[i].s1 = __imag__ DFT_tabley[i];
         }
-    } 
+    }
+
+    // Pad out the remainder of the array with zeros:
+    for(i = nuv * image_width; i < dft_alloc; i++)
+    {
+        gpu_dft_x[i].s0 = 0;
+        gpu_dft_x[i].s1 = 0;
+        gpu_dft_y[i].s0 = 0;
+        gpu_dft_y[i].s1 = 0;
+    }    
     
     // Initalize the GPU, copy data, and build the kernels.
     gpu_init();
 
-    gpu_copy_data(npow, gpu_data_pow, gpu_data_pow_err, 
-        nbis, gpu_data_bis, gpu_data_bis_err, gpu_data_phasor, 
-        nuv, gpu_dft_x, gpu_dft_y,
-        image_width,
-        gpu_bsref_uvpnt, gpu_bsref_sign);
+    gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
+        npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
+        image_width);    
          
-    gpu_build_kernels(npow, nbis, image_size);
+    gpu_build_kernels(data_alloc, image_size);
     gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
     
     // Free variables used to store values pepared for the GPU
-    free(gpu_data_pow);
-    free(gpu_data_pow_err);
-    free(gpu_data_bis);
-    free(gpu_data_bis_err);
-    free(gpu_data_phasor);
+    free(gpu_visi);
+    free(gpu_phasor);
     free(gpu_bsref_uvpnt);
     free(gpu_bsref_sign);
     free(gpu_dft_x);
@@ -310,26 +310,12 @@ int main(int argc, char *argv[])
 /*    printf("GPU time (s): = %f\n", time_chi2);*/
     
     // Enable for debugging purposes.
-    float * mock_pow;
-    mock_pow = malloc(npow * sizeof(float));
-    for(i = 0; i < npow; i++)
-        mock_pow[i] = mock[i];
-        
-    float complex * mock_bis;
-    mock_bis = malloc(nbis * sizeof(float complex));
-    for(i = 0; i < nbis; i++)
-    {
-        mock_bis[i] = mock[npow + 2*i] + I * mock[npow + 2*i + 1];
-    }
-    
-    gpu_check_data(&chi2, nuv, visi, npow, mock_pow, nbis, mock_bis); 
+    gpu_check_data(&chi2, nuv, visi, data_alloc, mock);
     
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
     
     // Free CPU-based Memory
-    free(mock_pow);
-    free(mock_bis);
     
     free(mock);
     free(data);
@@ -496,26 +482,14 @@ void vis2data( float complex* visi, float* mock )
 
 float data2chi2( float* mock )
 {
-    float chi2_pow = 0;
-    float chi2_bis = 0;
-    float chi2 = 0;
+    float chi2 = 0.;
     register int ii = 0;  
-    
-    for(ii = 0; ii < npow; ii++)
-        chi2_pow += square( ( mock[ii] - data[ii] ) * data_err[ii] );
-    
-    for(ii=npow + 1; ii < npow + 2; ii++) //2 * nbis; ii++)
+    for(ii=0; ii< npow + 2 * nbis; ii++)
     {
-        chi2_bis += data_err[ii]; //square( ( mock[ii] - data[ii] )) * data_err[ii] ) ;
+        chi2 += square( ( mock[ii] - data[ii] ) * data_err[ii] ) ;
     }
-    
-    //for(ii = 0; ii < npow + 2*nbis; ii++)
-    //    chi2 += square( ( mock[ii] - data[ii] ) * data_err[ii] ) ;
-    
-    
-    printf("CPU Chi2: %f in:\n pow: %f \n bis: %f\n", chi2_pow + chi2_bis, chi2_pow, chi2_bis);
 
-    return chi2_pow + chi2_bis;
+    return chi2;
 }
 
 float compute_flux( float* image )
