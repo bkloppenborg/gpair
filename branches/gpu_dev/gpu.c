@@ -1118,24 +1118,24 @@ void gpu_compute_data_gradient(int npow, int nbis, int image_width)
     if (err)
         print_opencl_error("Cannot enqueue v2 gradient kernel.", err);     
      
-    err  = clSetKernelArg(*pKernel_grad_bis, 0, sizeof(cl_mem), pGpu_data);
-    err |= clSetKernelArg(*pKernel_grad_bis, 1, sizeof(cl_mem), pGpu_data_err);
-    err |= clSetKernelArg(*pKernel_grad_bis, 2, sizeof(cl_mem), pGpu_data_uvpnt);    
-    err |= clSetKernelArg(*pKernel_grad_bis, 3, sizeof(cl_mem), pGpu_data_sign);
-    err |= clSetKernelArg(*pKernel_grad_bis, 4, sizeof(cl_mem), pGpu_data_phasor);
-    err |= clSetKernelArg(*pKernel_grad_bis, 5, sizeof(cl_mem), pGpu_mock_data);
-    err |= clSetKernelArg(*pKernel_grad_bis, 6, sizeof(cl_mem), pGpu_dft_x);
-    err |= clSetKernelArg(*pKernel_grad_bis, 7, sizeof(cl_mem), pGpu_dft_y);
-    err |= clSetKernelArg(*pKernel_grad_bis, 8, sizeof(cl_mem), pGpu_visi0);
-    err |= clSetKernelArg(*pKernel_grad_bis, 9, sizeof(cl_mem), pGpu_flux1); 
-    err |= clSetKernelArg(*pKernel_grad_bis, 10, sizeof(int), &image_width);
-    err |= clSetKernelArg(*pKernel_grad_bis, 11, sizeof(int), &nbis);
-    err |= clSetKernelArg(*pKernel_grad_bis, 12, sizeof(int), &npow);
-    err |= clSetKernelArg(*pKernel_grad_bis, 13, sizeof(cl_mem), pGpu_data_grad);
-      
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_bis, 2, 0, global, local, 0, NULL, NULL);
-    if (err)
-        print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
+/*    err  = clSetKernelArg(*pKernel_grad_bis, 0, sizeof(cl_mem), pGpu_data);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 1, sizeof(cl_mem), pGpu_data_err);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 2, sizeof(cl_mem), pGpu_data_uvpnt);    */
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 3, sizeof(cl_mem), pGpu_data_sign);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 4, sizeof(cl_mem), pGpu_data_phasor);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 5, sizeof(cl_mem), pGpu_mock_data);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 6, sizeof(cl_mem), pGpu_dft_x);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 7, sizeof(cl_mem), pGpu_dft_y);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 8, sizeof(cl_mem), pGpu_visi0);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 9, sizeof(cl_mem), pGpu_flux1); */
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 10, sizeof(int), &image_width);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 11, sizeof(int), &nbis);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 12, sizeof(int), &npow);*/
+/*    err |= clSetKernelArg(*pKernel_grad_bis, 13, sizeof(cl_mem), pGpu_data_grad);*/
+/*      */
+/*    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_bis, 2, 0, global, local, 0, NULL, NULL);*/
+/*    if (err)*/
+/*        print_opencl_error("Cannot enqueue v2 gradient kernel.", err); */
         
     // Let the queue finish out
     clFinish(*pQueue);      

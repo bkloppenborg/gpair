@@ -81,9 +81,12 @@ __kernel void grad_pow(
         // The complex portion requires the real part of this expansion:
         // (A0 - %i*A1)*(B0 + %i*B1)*(C0 + %i*C1)
         
-        temp = MultComplex3(conj(visi[k]), dft_x[image_width * k + i], dft_y[image_width * k + j]) - visi[k];
-        
-        data_grad += 4 * data_err[k] * data_err[k] * invflux * (mock[k] - data[k]) * creal(temp);    
+        temp = MultComplex2(dft_x[image_width * k + i], dft_y[image_width * k + j]) - visi[k];
+        temp = MultComplex2(conj(visi[k]), temp);
+/*        */
+/*        data_grad += 4 * data_err[k] * data_err[k] * invflux * (mock[k] - data[k]) * creal(temp);    */
+/*        */
+        data_grad = creal(temp);
     }
     
     data_gradient[image_width * j + i] = data_grad;
