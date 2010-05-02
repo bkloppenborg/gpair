@@ -181,6 +181,10 @@ int main(int argc, char *argv[])
 /*    printf("CPU time (s): = %f\n", time_chi2);*/
 /*    printf("CPU Chi2: %f (CPU only)\n", chi2);*/
 
+    // Compute the gradient of the mock data.  Note, vis2data should have been caled before this call.
+    compute_data_gradient(visi, mock, current_image, data_gradient);
+
+
     // #########
     // GPU Code:  
     // #########
@@ -295,6 +299,8 @@ int main(int argc, char *argv[])
     printf("Full DFT (GPU)\n");
     printf(SEP);
     printf("GPU time (s): = %f\n", time_chi2);
+    
+    gpu_compute_data_gradient(npow, nbis, image_width);
 
     // Disabled for now, there be a bug between GPU and CPU values.
 /*    // Now do the Atomic change to visi*/
@@ -503,7 +509,7 @@ float compute_flux( float* image )
   return total;
 }
 
-void compute_data_gradient(double complex* visi, double* mock, double* image, double* data_gradient) // need to call vis2data before this
+void compute_data_gradient(float complex* visi, float* mock, float* image, float* data_gradient) // need to call vis2data before this
 {
 
     register int ii, jj, kk;

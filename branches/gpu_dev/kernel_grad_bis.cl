@@ -1,3 +1,7 @@
+// Function definitions:
+float2 MultComplex2(float2 A, float2 B);
+float2 MultComplex3(float2 A, float2 B, float2 C);
+
 // Multiply three complex numbers.
 float2 MultComplex3(float2 A, float2 B, float2 C)
 {
@@ -32,19 +36,16 @@ __kernel void grad_bis(
     __global float * data_err,
     __global long * data_uvpnt,
     __global short * data_sign,
-    __global float2 * data_bis,
+    __global float2 * data_phasor,
     __global float * mock,
     __global float2 * dft_x,
     __global float2 * dft_y,
     __global float2 * visi,
-    __global float * flux,
     __global float * flux_inv,
     __private int image_width,
     __private int nbis,
     __private int npow,
-    __global float * data_gradient
-    
-    )
+    __global float * data_gradient)
 {
     int i = get_global_id(0);
     int j = get_global_id(1);
@@ -57,10 +58,8 @@ __kernel void grad_bis(
     float2 vbcderr;
     float2 vcaderr;
     float2 t3der;
-
-    
+   
     float data_grad = 0;
-    float2 t3der = 0;
     
     int k = 0;
     for(k = 0; k < nbis; k++)
@@ -88,13 +87,13 @@ __kernel void grad_bis(
         // We are going to use D as a temporary variable.
         // t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_bisphasor[kk] * invflux ;
         // Step 1: (vabder - vab) * vbc * vca
-        t3der = MultComplex3((vabder - vab), vbc, vca);
+        t3der = MultComplex3((vabderr - vab), vbc, vca);
         // Step 2: + vab * (vbcder - vbc) * vca
-        t3der += MultComplex3(vab, (vbcder - vbc), vca);
+        t3der += MultComplex3(vab, (vbcderr - vbc), vca);
         // Step 3: + vab * vbc * (vcader - vca)
-        t3der += MultComplex3(vab, vbc, (vcader - vca));
+        t3der += MultComplex3(vab, vbc, (vcaderr - vca));
         // Step 4: (stuff) * data_bip[k] * fluxinv
-        t3der = MultComplex2(t3der, data_bis[k]) * fluxinv[0];
+        t3der = MultComplex2(t3der, data_phasor[k]) * flux_inv[0];
          
         data_grad += 2 * data_err[npow + 2 * k] * data_err[2 * k]  * ( mock[ npow + 2 * k] - data[npow + 2 * k] ) * t3der.s0;
         data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[2 * k + 1] * mock[ npow + 2 * k + 1]  * t3der.s1;			
