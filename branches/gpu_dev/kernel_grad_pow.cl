@@ -1,6 +1,7 @@
 // Function prototypes
 float2 conj(float2 A);
 float creal(float2 A);
+float cimag(float2 A);
 float2 MultComplex3(float2 A, float2 B, float2 C);
 float2 MultComplex2(float2 A, float2 B);
 
@@ -18,6 +19,11 @@ float creal(float2 A)
     return A.s0;
 }
 
+float cimag(float2 A)
+{
+    return A.s1;
+}
+
 // Multiply three complex numbers.
 float2 MultComplex3(float2 A, float2 B, float2 C)
 {
@@ -31,18 +37,21 @@ float2 MultComplex3(float2 A, float2 B, float2 C)
 float2 MultComplex2(float2 A, float2 B)
 {
     // There is the obvious way to do this:
-    // real = A.s1*B.s1 + A.s0*B.S0;
-    // imag = A.s0*B.s1 + A.s1*B.S0;  
+    float2 temp;
+    temp.s0 = A.s0*B.s0 - A.s1*B.s1;
+    temp.s1 = A.s0*B.s1 + A.s1*B.s0;  
+    
+    return temp;
     
     // We can trade off one multiplication for three additional additions
-    float k1 = A.s0*(B.s0 + B.s1);
-    float k2 = B.s1*(A.s0 + A.s1);
-    float k3 = B.s1*(A.s1 - A.s0);
-    
-    float2 temp;
-    temp.s0 = k1 - k2;
-    temp.s1 = k1 + k3;
-    return temp;
+/*    float k1 = A.s0*(B.s0 + B.s1);*/
+/*    float k2 = B.s1*(A.s0 + A.s1);*/
+/*    float k3 = B.s1*(A.s1 - A.s0);*/
+/*    */
+/*    float2 temp;*/
+/*    temp.s0 = k1 - k2;*/
+/*    temp.s1 = k1 + k3;*/
+/*    return temp;*/
 }
 
 
@@ -67,6 +76,7 @@ __kernel void grad_pow(
     float2 t_mock;
     
     float2 temp;
+    float2 temp2;
 
     float data_grad = 0;
 
@@ -83,10 +93,10 @@ __kernel void grad_pow(
         
         temp = MultComplex2(dft_x[image_width * k + i], dft_y[image_width * k + j]) - visi[k];
         temp = MultComplex2(conj(visi[k]), temp);
-/*        */
-/*        data_grad += 4 * data_err[k] * data_err[k] * invflux * (mock[k] - data[k]) * creal(temp);    */
-/*        */
-        data_grad = creal(temp);
+        
+        data_grad += 4.0 * data_err[k] * data_err[k] * invflux * (mock[k] - data[k]) * creal(temp);    
+        
+        //data_grad = creal(temp);
     }
     
     data_gradient[image_width * j + i] = data_grad;
