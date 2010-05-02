@@ -10,6 +10,11 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
     int * pass_counts, size_t ** group_counts, size_t ** work_item_counts, 
     int ** operation_counts, int ** entry_counts);
 
+void gpu_check_data(float * cpu_chi2, 
+    int nuv, float complex * visi, 
+    int data_size, float * mock_data, 
+    int image_size, float * data_grad);
+
 void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
 void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
 
@@ -32,6 +37,8 @@ void gpu_copy_image(float * image, int x_size, int y_size);
 void gpu_cleanup();
 
 void gpu_data2chi2(int data_size);
+
+void gpu_gradient(int npow, int bis, int image_width);
 
 void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv);
 

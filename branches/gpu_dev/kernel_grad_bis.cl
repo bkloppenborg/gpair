@@ -27,21 +27,21 @@ float2 MultComplex2(float2 A, float2 B)
 
 
 
-__kernel void arr_normalize(
+__kernel void grad_bis(
     __global float * data,
     __global float * data_err,
     __global long * data_uvpnt,
     __global short * data_sign,
-    __global float2 * data_bip,
+    __global float2 * data_bis,
     __global float * mock,
     __global float2 * dft_x,
     __global float2 * dft_y,
     __global float2 * visi,
     __global float * flux,
     __global float * flux_inv,
-    __private image_width,
-    __private nbis,
-    __private npow,
+    __private int image_width,
+    __private int nbis,
+    __private int npow,
     __global float * data_gradient
     
     )
@@ -94,11 +94,11 @@ __kernel void arr_normalize(
         // Step 3: + vab * vbc * (vcader - vca)
         t3der += MultComplex3(vab, vbc, (vcader - vca));
         // Step 4: (stuff) * data_bip[k] * fluxinv
-        t3der = MultComplex2(t3der, data_bip[k]) * fluxinv[0];
+        t3der = MultComplex2(t3der, data_bis[k]) * fluxinv[0];
          
-        data_grad += 2 * data_err[npow + 2 * kk] * data_err[2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * t3der.s0;
-        data_grad += 2 * data_err[npow + 2 * kk + 1] * data_err[2 * kk + 1] * mock[ npow + 2 * kk + 1]  * t3der.s1;			
+        data_grad += 2 * data_err[npow + 2 * k] * data_err[2 * k]  * ( mock[ npow + 2 * k] - data[npow + 2 * k] ) * t3der.s0;
+        data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[2 * k + 1] * mock[ npow + 2 * k + 1]  * t3der.s1;			
     }
 
-    data_gradient[ii + jj * image_width] = data_grad;
+    data_gradient[j * image_width + i] = data_grad;
 }

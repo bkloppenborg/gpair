@@ -34,6 +34,10 @@ cl_program * pPro_visi = NULL;
 cl_kernel * pKernel_visi = NULL;
 cl_program * pPro_u_vis_flux = NULL;
 cl_kernel * pKernel_u_vis_flux = NULL;
+cl_program * pPro_grad_pow = NULL;
+cl_kernel * pKernel_grad_pow = NULL;
+cl_program * pPro_grad_bis = NULL;
+cl_kernel * pKernel_grad_bis = NULL;
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -43,6 +47,7 @@ cl_mem * pGpu_pow_size = NULL;
 cl_mem * pGpu_data_uvpnt = NULL;       // OIFITS UV Point indicies for bispectrum data 
 cl_mem * pGpu_data_sign = NULL;        // OIFITS UV Point signs.
 cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
+cl_mem * pGpu_data_grad = NULL;
 
 cl_mem * pGpu_chi2 = NULL;             // Buffer for storing the (single summed) chi2 value.
 cl_mem * pGpu_chi2_buffer0 = NULL;       // Used as input buffer
@@ -285,11 +290,26 @@ void gpu_build_kernels(int data_size, int image_size)
     pPro_visi = &pro_visi;
     pKernel_visi = &kern_visi;
     
-    static cl_program pro_u_vis_flux;
-    static cl_kernel kern_u_vis_flux;
-    gpu_build_kernel(&pro_u_vis_flux, &kern_u_vis_flux, "update_vis_fluxchange", "./kernel_vis_update_fluxchange.cl");
-    pPro_u_vis_flux = &pro_u_vis_flux;
-    pKernel_u_vis_flux = &kern_u_vis_flux;
+    // Build the update vis fluxchange kernel.
+/*    static cl_program pro_u_vis_flux;*/
+/*    static cl_kernel kern_u_vis_flux;*/
+/*    gpu_build_kernel(&pro_u_vis_flux, &kern_u_vis_flux, "update_vis_fluxchange", "./kernel_vis_update_fluxchange.cl");*/
+/*    pPro_u_vis_flux = &pro_u_vis_flux;*/
+/*    pKernel_u_vis_flux = &kern_u_vis_flux;*/
+    
+    // Build the gradient kernel for the powerspectrum.
+    static cl_program pro_grad_pow;
+    static cl_kernel kern_grad_pow;
+    gpu_build_kernel(&pro_grad_pow, &kern_grad_pow, "grad_pow", "./kernel_grad_pow.cl");
+    pPro_grad_pow = &pro_grad_pow;
+    pKernel_grad_pow = &kern_grad_pow;
+
+    // Build the gradient kernel for the bispectrum
+    static cl_program pro_grad_bis;
+    static cl_kernel kern_grad_bis;
+    gpu_build_kernel(&pro_grad_bis, &kern_grad_bis, "grad_bis", "./kernel_grad_bis.cl");
+    pPro_grad_bis = &pro_grad_bis;
+    pKernel_grad_bis = &kern_grad_bis;
     
 }
 
@@ -381,7 +401,10 @@ void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kern
 }
 
 // A function to double-check computations between the GPU and CPU.
-void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_size, float * mock_data, int nbis, float * data_phasor)
+void gpu_check_data(float * cpu_chi2, 
+    int nuv, float complex * visi, 
+    int data_size, float * mock_data,
+    int image_size, float * data_grad)
 {
     printf(SEP);
     printf("Comparing CPU and GPU Visiblity values:\n");
@@ -394,6 +417,10 @@ void gpu_check_data(float * cpu_chi2, int nuv, float complex * visi, int data_si
     printf(SEP);    
     printf("Comparing CPU and GPU chi2 values:\n");
     gpu_compare_data(1, cpu_chi2, pGpu_chi2);
+    
+    printf(SEP);
+    printf("Comparing CPU and GPU gradient values:\n");
+    gpu_compare_data(image_size, data_grad, pGpu_data_grad);
 }
 
 void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
@@ -510,6 +537,11 @@ void gpu_cleanup()
         err |= clReleaseProgram(*pPro_visi);
     if(pPro_u_vis_flux != NULL)
         err |= clReleaseProgram(*pPro_u_vis_flux);
+    if(pPro_grad_pow != NULL)
+        err |= clReleaseProgram(*pPro_grad_pow);
+    if(pPro_grad_bis != NULL)
+        err |= clReleaseProgram(*pPro_grad_bis);
+
         
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Program Memory.\n");
@@ -535,7 +567,12 @@ void gpu_cleanup()
     if(pKernel_visi != NULL)
         err |= clReleaseKernel(*pKernel_visi);
     if(pKernel_u_vis_flux != NULL)
-	err |= clReleaseKernel(*pKernel_u_vis_flux);
+    	err |= clReleaseKernel(*pKernel_u_vis_flux);
+    if(pKernel_grad_pow != NULL)
+        err |= clReleaseKernel(*pKernel_grad_pow);
+    if(pKernel_grad_bis != NULL)
+        err |= clReleaseKernel(*pKernel_grad_bis);
+
     
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
@@ -556,6 +593,9 @@ void gpu_cleanup()
         err |= clReleaseMemObject(*pGpu_data_sign);
     if(pGpu_mock_data != NULL)
         err |= clReleaseMemObject(*pGpu_mock_data);
+        
+    if(pGpu_data_grad != NULL)
+        err |= clReleaseMemObject(*pGpu_data_grad);
 
     if(pGpu_dft_x != NULL)
         err |= clReleaseMemObject(*pGpu_dft_x);
@@ -707,6 +747,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     static cl_mem gpu_data_sign;    // Signs for the bispectrum.
     static cl_mem gpu_mock_data;    // Mock Data
     
+    static cl_mem gpu_data_grad;
+    
     static cl_mem gpu_chi2;
     static cl_mem gpu_chi2_buffer0;       // Temporary storage for the chi2 computation.
     static cl_mem gpu_chi2_buffer1;       // Temporary storage for the chi2 computation.
@@ -759,16 +801,18 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(cl_short4) * bsref_size, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     
+    gpu_data_grad = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
+    
     gpu_chi2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
     gpu_chi2_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_chi2_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_chi2_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     
     gpu_flux0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
+    gpu_flux1 = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(float), NULL, NULL);
     gpu_flux_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_flux_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_flux_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
-    gpu_flux1 = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(float), NULL, NULL);
     
     gpu_visi0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(cl_float2) * data_size_uv, NULL, NULL);
     gpu_visi1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(cl_float2) * data_size_uv, NULL, NULL);
@@ -789,6 +833,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_uvpnt, CL_FALSE, 0, sizeof(cl_long4) * bsref_size, gpu_bsref_uvpnt, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_sign, CL_FALSE, 0, sizeof(cl_short4) * bsref_size, gpu_bsref_sign, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_mock_data, CL_FALSE, 0, sizeof(float) * data_size, mock_data, 0, NULL, NULL);
+    
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_data_grad, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);        
     err |= clEnqueueWriteBuffer(*pQueue, gpu_chi2_buffer0, CL_FALSE, 0, sizeof(float) * data_size, temp, 0, NULL, NULL);  
@@ -817,6 +863,8 @@ void gpu_copy_data(float *data, float *data_err, int data_size, int data_size_uv
     pGpu_data_uvpnt = &gpu_data_uvpnt;
     pGpu_data_sign = &gpu_data_sign;
     pGpu_mock_data = &gpu_mock_data;
+    
+    pGpu_data_grad = &gpu_data_grad;
     
     pGpu_chi2 = &gpu_chi2;
     pGpu_chi2_buffer0 = &gpu_chi2_buffer0;
@@ -1023,6 +1071,51 @@ void gpu_device_stats(cl_device_id device_id)
 	
 	printf("Max Compute Units: %i\n",max_compute_units);
 	printf("\n");
+}
+
+void gpu_gradient(int npow, int bis, int image_width)
+{
+    // Compute the current flux
+    gpu_compute_flux(pGpu_flux0, pGpu_flux1);
+    
+    // Now launch the kernels
+    int err = 0;
+    // TODO: Figure out how to determine this dynamically.
+    size_t local[] = {8, 8};
+    size_t global[] = {image_width, image_width};
+    
+    // Start with the chi2
+    err  = clSetKernelArg(*pKernel_grad_pow, 0, sizeof(cl_mem), pGpu_data);
+    err |= clSetKernelArg(*pKernel_grad_pow, 1, sizeof(cl_mem), pGpu_data_err);
+    err |= clSetKernelArg(*pKernel_grad_pow, 2, sizeof(cl_mem), pGpu_mock_data);
+    err |= clSetKernelArg(*pKernel_grad_pow, 3, sizeof(cl_mem), pGpu_dft_x);
+    err |= clSetKernelArg(*pKernel_grad_pow, 4, sizeof(cl_mem), pGpu_dft_y);
+    err |= clSetKernelArg(*pKernel_grad_pow, 5, sizeof(cl_mem), pGpu_visi0);
+    err |= clSetKernelArg(*pKernel_grad_pow, 6, sizeof(cl_mem), pGpu_flux1); 
+    err |= clSetKernelArg(*pKernel_grad_pow, 7, sizeof(int), &image_width);
+    err |= clSetKernelArg(*pKernel_grad_pow, 8, sizeof(int), &npow);
+    err |= clSetKernelArg(*pKernel_grad_pow, 9, sizeof(cl_mem), pGpu_data_grad);  
+
+/*   // Get the maximum work-group size for executing the kernel on the device*/
+/*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
+/*    if (err != CL_SUCCESS)*/
+/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
+
+/*    // Round down to the nearest power of two.*/
+/*    local = pow(2, floor(log(npow) / log(2)));*/
+    
+     // Execute the kernel over the entire range of the data set        
+/*    global = data_alloc_uv;*/
+/*    if(gpu_enable_debug && gpu_enable_verbose)*/
+/*        printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);*/
+        
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, &global, &local, 0, NULL, NULL);
+    if (err)
+        print_opencl_error("Cannot enqueue v2 gradient kernel.", err);     
+     
+    
+    
+
 }
 
 void gpu_init()

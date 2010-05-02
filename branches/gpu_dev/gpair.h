@@ -10,7 +10,7 @@ void update_vis_fluxpositionchange(int x_old, int y_old, int x_new, int y_new, f
 void vis2data( float complex* visi, float* mock );
 float data2chi2( float* mock );
 float compute_flux( float* image );
-void compute_data_gradient(float complex* visi, float* mock, float* image, float* data_gradient);
+void compute_data_gradient(double complex* visi, double* mock, double* image, double* data_gradient);
 float GullSkilling_entropy(float *image, float *default_model);
 void GullSkilling_entropy_gradient(float *image, float *default_model, float* gradient);
 float GullSkilling_entropy_diff( int x_old, int y_old, int x_new, int y_new , float old_flux, float new_flux, float *default_model);
