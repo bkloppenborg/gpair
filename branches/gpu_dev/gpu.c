@@ -441,7 +441,7 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
     float error = 0;
     for(i = 0; i < size; i++)
     {
-        error += fabs(gpu_data[i] - cpu_data[i]);
+        error = fabs(gpu_data[i] - cpu_data[i]);
         
         if(error > 0.01)
             printf("[%i] %f %f %f \n", i, cpu_data[i], gpu_data[i], error);
@@ -475,7 +475,7 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
         error = 0;
         real = gpu_data[i].s0 - creal(cpu_data[i]);
         imag = gpu_data[i].s1 - cimag(cpu_data[i]);
-        error += sqrt(real * real + imag * imag);
+        error = sqrt(real * real + imag * imag);
         
         if(error > 0.01)
             printf("[%i] %f %f R(A) %f R(B) %f I(A) %f I(B) %f Err: %f\n", i, real, imag, creal(cpu_data[i]), gpu_data[i].s0, cimag(cpu_data[i]), gpu_data[i].s1, error);
@@ -1114,9 +1114,11 @@ void gpu_compute_data_gradient(int npow, int nbis, int image_width)
 /*    if(gpu_enable_debug && gpu_enable_verbose)*/
 /*        printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);*/
         
-/*    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);*/
-/*    if (err)*/
-/*        print_opencl_error("Cannot enqueue v2 gradient kernel.", err);     */
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);
+    if (err)
+        print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
+    
+    clFinish(*pQueue);    
      
     err  = clSetKernelArg(*pKernel_grad_bis, 0, sizeof(cl_mem), pGpu_data);
     err |= clSetKernelArg(*pKernel_grad_bis, 1, sizeof(cl_mem), pGpu_data_err);

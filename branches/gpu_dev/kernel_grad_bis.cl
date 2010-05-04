@@ -6,6 +6,9 @@ float2 MultComplex3(float2 A, float2 B, float2 C);
 float2 MultComplex3(float2 A, float2 B, float2 C)
 {
     float2 temp;
+    //temp.s0 = A.s0*B.s0*C.s0 - A.s1*B.s1*C.s0 - A.s0*B.s1*C.s1 - A.s1*B.s0*C.s1;
+    //temp.s1 = A.s1*B.s0*C.s0 + A.s0*B.s1*C.s0 + A.s0*B.s0*C.s1 - A.s1*B.s1*C.s1;
+    
     temp = MultComplex2(A, B);
     temp = MultComplex2(temp, C);
     return temp;
@@ -37,8 +40,8 @@ float2 MultComplex2(float2 A, float2 B)
 __kernel void grad_bis(
     __global float * data,
     __global float * data_err,
-    __global long * data_uvpnt,
-    __global short * data_sign,
+    __global long4 * data_uvpnt,
+    __global short4 * data_sign,
     __global float2 * data_phasor,
     __global float * mock,
     __global float2 * dft_x,
@@ -75,10 +78,10 @@ __kernel void grad_bis(
         // Compute the errors in the visibilities from the DFT matricies.
         vabderr = MultComplex2(dft_x[uvpnt.s0 * image_width + i], dft_y[uvpnt.s0 * image_width + j]);
         vbcderr = MultComplex2(dft_x[uvpnt.s1 * image_width + i], dft_y[uvpnt.s1 * image_width + j]);
-        vcaderr = MultComplex2(dft_x[uvpnt.s2 * image_width + i], dft_y[uvpnt.s2 * image_width + j]); 
+        vcaderr = MultComplex2(dft_x[uvpnt.s2 * image_width + i], dft_y[uvpnt.s2 * image_width + j]);
         
         // Take the conjugate when necessary:
-        short4 sign = data_sign[i];
+        short4 sign = data_sign[k];
         vab.s1 *= sign.s0;
         vabderr.s1 *= sign.s0;
         vbc.s1 *= sign.s1;
@@ -98,9 +101,9 @@ __kernel void grad_bis(
         // Step 4: (stuff) * data_bip[k] * fluxinv
         t3der = MultComplex2(t3der, data_phasor[k]) * flux_inv[0];
          
-        data_grad += 2 * data_err[npow + 2 * k] * data_err[2 * k]  * ( mock[ npow + 2 * k] - data[npow + 2 * k] ) * t3der.s0;
-        data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[2 * k + 1] * mock[ npow + 2 * k + 1]  * t3der.s1;			
+        data_grad += 2 * data_err[npow + 2 * k] * data_err[npow + 2 * k]  * ( mock[ npow + 2 * k] - data[npow + 2 * k] );// * t3der.s0;
+        data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[npow + 2 * k + 1] * mock[ npow + 2 * k + 1]; //  * t3der.s1;						
     }
 
-    data_gradient[j * image_width + i] = data_grad;
+    data_gradient[j * image_width + i] += data_grad;
 }
