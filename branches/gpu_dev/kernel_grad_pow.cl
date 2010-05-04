@@ -67,19 +67,19 @@ __kernel void grad_pow(
     __private int npow,
     __global float * data_gradient)
 {
-    // Load things 
-    float invflux = inv_flux[0];
-
+    // Load indicies:
     int i = get_global_id(0);
     int j = get_global_id(1);
-    int k = 0;
-    float2 t_mock;
-    
-    float2 temp;
-    float2 temp2;
 
+    // Setup counters and local variables.
+    int k = 0;    
     float data_grad = 0;
+    float2 temp;
+    
+    // Pull out variables from global memory:
+    float invflux = inv_flux[0];
 
+    // Iterate over the powerspectrum points, adding in their gradients.
     for(k = 0; k < npow; k++)
     {   
         // The original equation is as thus:
@@ -95,8 +95,6 @@ __kernel void grad_pow(
         temp = MultComplex2(conj(visi[k]), temp);
         
         data_grad += 4.0 * data_err[k] * data_err[k] * invflux * (mock[k] - data[k]) * creal(temp);    
-        
-        //data_grad = creal(temp);
     }
     
     data_gradient[image_width * j + i] = data_grad;
