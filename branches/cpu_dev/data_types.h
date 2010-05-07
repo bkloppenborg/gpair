@@ -20,7 +20,6 @@ typedef struct
     
     // Information about the image:
     int image_width;
-    float * image;
     
     // DFT Tables
     float complex * dft_x;

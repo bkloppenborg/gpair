@@ -158,14 +158,13 @@ int main(int argc, char *argv[])
     i2v_info.visi = visi;
     i2v_info.mock = mock;
     i2v_info.image_width = image_width;
-    i2v_info.image = current_image;
 
     // Test 1 : compute mock data, powerspectra + bispectra from scratch
     clock_t tick = clock();
     clock_t tock = 0;
     for(ii=0; ii < iterations; ii++)
     {
-        chi2 = image2chi2(&i2v_info);
+        chi2 = image2chi2(&i2v_info, current_image);
         
     }        
     tock=clock();

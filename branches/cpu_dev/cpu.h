@@ -32,7 +32,7 @@ float GullSkilling_entropy_diff(int image_width,
     float old_flux, float new_flux, 
     float * default_model);
 
-float image2chi2(chi2_info * info);
+float image2chi2(chi2_info * info, float * image);
 
 void image2vis(int image_width, int nuv, 
     float * image, float complex * visi, 
