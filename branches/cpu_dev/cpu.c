@@ -1,5 +1,140 @@
 #include "cpu.h"
 
+
+float compute_flux(int image_width, float* image)
+{
+    register int ii;
+    float total=0.;
+    for(ii=0; ii < image_width * image_width; ii++)
+        total += image[ii];
+    return total;
+}
+
+void compute_data_gradient(int image_width, int npow, int nbis, oi_data oifits_info, 
+    float * data, float * data_err, float complex * data_phasor,
+    float complex * DFT_tablex, float complex * DFT_tabley, 
+    float complex * visi, float * mock, float * image, float * data_gradient) // need to call vis2data before this
+{
+
+    register int ii, jj, kk;
+    double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
+
+    double flux = 0.; // if the flux has already been computed, we could use its value 
+    for(ii = 0 ; ii < image_width * image_width ; ii++)
+        flux +=  image[ ii ];
+
+    double invflux = 1. / flux;
+
+    for(ii=0; ii < image_width; ii++)
+    {
+        for(jj=0; jj < image_width; jj++)
+        {
+            data_gradient[ii + jj * image_width] = 0.;
+
+            // Add gradient of chi2v2
+            for(kk = 0 ; kk < npow; kk++)
+            {
+                data_gradient[ii + jj * image_width] += 4.0 * data_err[ kk ] * data_err[ kk ] * invflux 
+                *  ( mock[ kk ] - data[ kk ] ) 
+                * creal( conj( visi[ kk ] ) *  ( DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] - visi[ kk ] ) );
+            }
+
+            // Add gradient of chi2bs
+            for(kk = 0 ; kk < nbis; kk++)
+            {
+                vab = visi[oifits_info.bsref[kk].ab.uvpnt];
+                vbc = visi[oifits_info.bsref[kk].bc.uvpnt];
+                vca = visi[oifits_info.bsref[kk].ca.uvpnt];
+
+                vabder =  DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ]  ; 
+                vbcder =  DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ]  ;
+                vcader =  DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * image_width + jj  ]  ;
+
+                if(oifits_info.bsref[kk].ab.sign < 0) { vab = conj(vab);} 
+                if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}
+                if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}
+                if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} 
+                if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
+                if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}
+
+                t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_phasor[kk] * invflux ;
+
+                // gradient from real part
+                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk] * data_err[npow + 2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ); // * creal( t3der );  
+
+                // gradient from imaginary part
+                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk + 1] * data_err[npow + 2 * kk + 1] * mock[ npow + 2 * kk + 1]; //  * cimag( t3der );			
+            }
+        }
+    }
+}	
+
+float data2chi2(int npow, int nbis,
+    float * data, float * data_err,
+    float * mock)
+{
+    float chi2 = 0.;
+    register int ii = 0;  
+    for(ii=0; ii< npow + 2 * nbis; ii++)
+    {
+        chi2 += square( ( mock[ii] - data[ii] ) * data_err[ii] ) ;
+    }
+
+    return chi2;
+}
+
+float GullSkilling_entropy(int image_width, float * image, float * default_model)
+{
+    register int ii;
+    float S = 0.;
+    
+    for(ii=0 ; ii < image_width * image_width; ii++)
+    {
+        if ((image[ii] > 0.) && (default_model[ii] > 0.))
+        {
+            S += image[ii] - default_model[ii] - image[ii] * log( image[ii] / default_model[ii] );
+        }   
+        else 
+            S += - default_model[ii];
+    }
+    return S;
+}
+
+void GullSkilling_entropy_gradient(int image_width, float * image, float * default_model, float * gradient)
+{
+    register int ii;
+    for(ii=0 ; ii < image_width * image_width; ii++)
+    {
+        if((image[ii] > 0.) && (default_model[ii] > 0.))
+        {
+            gradient[ ii ] = - log( image[ii] / default_model[ii] );
+        }
+    }
+}
+
+float GullSkilling_entropy_diff(int image_width, 
+    int x_old, int y_old, int x_new, int y_new, 
+    float old_flux, float new_flux, 
+    float * default_model)
+{
+    int position_old = x_old + y_old * image_width ;
+    int position_new = x_new + y_new * image_width;
+    float S_old, S_new;
+    
+    if( ( old_flux > 0.) && (default_model[position_old] > 0.) )
+        S_old = old_flux - default_model[ position_old ] - old_flux * log( old_flux / default_model[ position_old ] );
+    else 
+        S_old = - default_model[ position_old ];
+
+    if( ( new_flux > 0.) && (default_model[position_new] > 0.) )
+        S_new = new_flux - default_model[ position_new ] - new_flux * log( new_flux / default_model[ position_new ] );
+    else 
+        S_new = - default_model[ position_new ];
+
+    return S_new - S_old;
+}
+
+
 // A helper function to call necessary functions to compute the chi2.
 float image2chi2(int npow, int nbis, int nuv, int image_width, 
     float complex * DFT_tablex, float complex * DFT_tabley,
@@ -73,189 +208,6 @@ void image2vis(int image_width, int nuv,
 /*      -  flux_old / flux_new * DFT_tablex[ image_width * uu +  x_old ] * DFT_tabley[ image_width * uu +  y_old ] ;*/
 /*}*/
 
-
-float square( float number )
-{
-    return number*number;
-}
-
-void vis2data(int npow, int nbis, 
-    oi_data oifits_info, float complex * data_phasor, 
-    float complex * DFT_tablex, float complex * DFT_tabley,
-    float complex * visi, float * mock)
-{
-    int ii = 0;
-    float complex vab = 0;
-    float complex vbc = 0;
-    float complex vca = 0;
-    float complex t3 = 0;
-
-    for( ii = 0; ii< npow; ii++)
-    {
-        mock[ ii ] = square ( cabs( visi[ii] ) );
-    }
-
-    for( ii = 0; ii< nbis; ii++)
-    {
-        vab = visi[ oifits_info.bsref[ii].ab.uvpnt ];
-        vbc = visi[ oifits_info.bsref[ii].bc.uvpnt ];
-        vca = visi[ oifits_info.bsref[ii].ca.uvpnt ];	
-        if( oifits_info.bsref[ii].ab.sign < 0) 
-            vab = conj(vab);
-        if( oifits_info.bsref[ii].bc.sign < 0) 
-            vbc = conj(vbc);
-        if( oifits_info.bsref[ii].ca.sign < 0) 
-            vca = conj(vca);
-            
-        t3 =  ( vab * vbc * vca ) * data_phasor[ii] ;   
-        mock[ npow + 2 * ii ] = creal(t3) ;
-        mock[ npow + 2 * ii + 1] = cimag(t3) ;
-    } 
-    
-    // Uncomment to see the mock data array.
-/*    int count = npow + 2 * nbis;*/
-/*    for(ii = 0; ii < count; ii++)     */
-/*        printf("%i %f \n", ii, mock[ii]);*/
-/*        */
-/*    printf("\n");*/
-
-}
-float data2chi2(int npow, int nbis,
-    float * data, float * data_err,
-    float * mock)
-{
-    float chi2 = 0.;
-    register int ii = 0;  
-    for(ii=0; ii< npow + 2 * nbis; ii++)
-    {
-        chi2 += square( ( mock[ii] - data[ii] ) * data_err[ii] ) ;
-    }
-
-    return chi2;
-}
-
-float compute_flux(int image_width, float* image)
-{
-    register int ii;
-    float total=0.;
-    for(ii=0; ii < image_width * image_width; ii++)
-        total += image[ii];
-    return total;
-}
-
-void compute_data_gradient(int image_width, int npow, int nbis, oi_data oifits_info, 
-    float * data, float * data_err, float complex * data_phasor,
-    float complex * DFT_tablex, float complex * DFT_tabley, 
-    float complex * visi, float * mock, float * image, float * data_gradient) // need to call vis2data before this
-{
-
-    register int ii, jj, kk;
-    double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
-
-    double flux = 0.; // if the flux has already been computed, we could use its value 
-    for(ii = 0 ; ii < image_width * image_width ; ii++)
-        flux +=  image[ ii ];
-
-    double invflux = 1. / flux;
-
-    for(ii=0; ii < image_width; ii++)
-    {
-        for(jj=0; jj < image_width; jj++)
-        {
-            data_gradient[ii + jj * image_width] = 0.;
-
-            // Add gradient of chi2v2
-            for(kk = 0 ; kk < npow; kk++)
-            {
-                data_gradient[ii + jj * image_width] += 4.0 * data_err[ kk ] * data_err[ kk ] * invflux 
-                *  ( mock[ kk ] - data[ kk ] ) 
-                * creal( conj( visi[ kk ] ) *  ( DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] - visi[ kk ] ) );
-            }
-
-            // Add gradient of chi2bs
-            for(kk = 0 ; kk < nbis; kk++)
-            {
-                vab = visi[oifits_info.bsref[kk].ab.uvpnt];
-                vbc = visi[oifits_info.bsref[kk].bc.uvpnt];
-                vca = visi[oifits_info.bsref[kk].ca.uvpnt];
-
-                vabder =  DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ]  ; 
-                vbcder =  DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ]  ;
-                vcader =  DFT_tablex[ oifits_info.bsref[kk].ca.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ca.uvpnt * image_width + jj  ]  ;
-
-                if(oifits_info.bsref[kk].ab.sign < 0) { vab = conj(vab);} 
-                if(oifits_info.bsref[kk].bc.sign < 0) { vbc = conj(vbc);}
-                if(oifits_info.bsref[kk].ca.sign < 0) { vca = conj(vca);}
-                if(oifits_info.bsref[kk].ab.sign < 0) { vabder = conj(vabder);} 
-                if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
-                if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}
-
-                t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_phasor[kk] * invflux ;
-
-                // gradient from real part
-                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk] * data_err[npow + 2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ); // * creal( t3der );  
-
-                // gradient from imaginary part
-                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk + 1] * data_err[npow + 2 * kk + 1] * mock[ npow + 2 * kk + 1]; //  * cimag( t3der );			
-            }
-        }
-    }
-}	
-
-
-
-float GullSkilling_entropy(int image_width, float * image, float * default_model)
-{
-    register int ii;
-    float S = 0.;
-    
-    for(ii=0 ; ii < image_width * image_width; ii++)
-    {
-        if ((image[ii] > 0.) && (default_model[ii] > 0.))
-        {
-            S += image[ii] - default_model[ii] - image[ii] * log( image[ii] / default_model[ii] );
-        }   
-        else 
-            S += - default_model[ii];
-    }
-    return S;
-}
-
-void GullSkilling_entropy_gradient(int image_width, float * image, float * default_model, float * gradient)
-{
-    register int ii;
-    for(ii=0 ; ii < image_width * image_width; ii++)
-    {
-        if((image[ii] > 0.) && (default_model[ii] > 0.))
-        {
-            gradient[ ii ] = - log( image[ii] / default_model[ii] );
-        }
-    }
-}
-
-float GullSkilling_entropy_diff(int image_width, 
-    int x_old, int y_old, int x_new, int y_new, 
-    float old_flux, float new_flux, 
-    float * default_model)
-{
-    int position_old = x_old + y_old * image_width ;
-    int position_new = x_new + y_new * image_width;
-    float S_old, S_new;
-    
-    if( ( old_flux > 0.) && (default_model[position_old] > 0.) )
-        S_old = old_flux - default_model[ position_old ] - old_flux * log( old_flux / default_model[ position_old ] );
-    else 
-        S_old = - default_model[ position_old ];
-
-    if( ( new_flux > 0.) && (default_model[position_new] > 0.) )
-        S_new = new_flux - default_model[ position_new ] - new_flux * log( new_flux / default_model[ position_new ] );
-    else 
-        S_new = - default_model[ position_new ];
-
-    return S_new - S_old;
-}
-
-
 float L2_entropy(int image_width, float *image, float *default_model)
 {
     register int ii;
@@ -301,10 +253,7 @@ float L2_diff(int image_width,
     return S_new - S_old;
 }
 
-
-
 // Prior image
-
 void set_model(int image_width, float image_pixellation, 
     int modeltype, float modelwidth, float modelflux, float * default_model)
 {
@@ -408,6 +357,55 @@ void set_model(int image_width, float image_pixellation,
             break;
         }
     }
+}
+
+// Returns the square of a (floating point) number
+float square( float number )
+{
+    return number*number;
+}
+
+// Given the visibilities, compute the resulting data.
+void vis2data(int npow, int nbis, 
+    oi_data oifits_info, float complex * data_phasor, 
+    float complex * DFT_tablex, float complex * DFT_tabley,
+    float complex * visi, float * mock)
+{
+    int ii = 0;
+    float complex vab = 0;
+    float complex vbc = 0;
+    float complex vca = 0;
+    float complex t3 = 0;
+
+    for( ii = 0; ii< npow; ii++)
+    {
+        mock[ ii ] = square ( cabs( visi[ii] ) );
+    }
+
+    for( ii = 0; ii< nbis; ii++)
+    {
+        vab = visi[ oifits_info.bsref[ii].ab.uvpnt ];
+        vbc = visi[ oifits_info.bsref[ii].bc.uvpnt ];
+        vca = visi[ oifits_info.bsref[ii].ca.uvpnt ];	
+        if( oifits_info.bsref[ii].ab.sign < 0) 
+            vab = conj(vab);
+        if( oifits_info.bsref[ii].bc.sign < 0) 
+            vbc = conj(vbc);
+        if( oifits_info.bsref[ii].ca.sign < 0) 
+            vca = conj(vca);
+            
+        t3 =  ( vab * vbc * vca ) * data_phasor[ii] ;   
+        mock[ npow + 2 * ii ] = creal(t3) ;
+        mock[ npow + 2 * ii + 1] = cimag(t3) ;
+    } 
+    
+    // Uncomment to see the mock data array.
+/*    int count = npow + 2 * nbis;*/
+/*    for(ii = 0; ii < count; ii++)     */
+/*        printf("%i %f \n", ii, mock[ii]);*/
+/*        */
+/*    printf("\n");*/
+
 }
 
 
