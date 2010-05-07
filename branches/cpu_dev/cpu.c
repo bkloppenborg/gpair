@@ -34,8 +34,8 @@ void conjugate_gradient(chi2_info * data_info, int gradient_method, ls_params * 
     int ii = 0;
     
     // Init additional variables:
-	double chi2, entropy, hyperparameter_entropy = 0.;
-	double criterion;
+	float chi2, entropy, hyperparameter_entropy = 0.;
+	float criterion;
 
 	// Initialize gradients
 	float * data_gradient = malloc(image_width * image_width * sizeof(float));
@@ -259,7 +259,6 @@ void conjugate_gradient(chi2_info * data_info, int gradient_method, ls_params * 
 	free(full_gradient_new);
 	free(temp_gradient);
 	free(descent_direction);
-	free(temp_image);
 
 }
 
@@ -555,7 +554,7 @@ float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params)
 	float minvalue = 1e-8;
 	float wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
 
-	//printf("Entering zoom algorithm \n");
+	printf("Entering zoom algorithm \n");
 
 	while( 1 )
 	{
@@ -577,7 +576,7 @@ float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params)
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		*(criterion_evals) += 1;
 
-	    //printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
+	    printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
 		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
 		{
 			steplength_high = steplength;
@@ -594,7 +593,7 @@ float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params)
             (*grad_evals) += 1;
             wolfe_product2 = scalprod(image_width * image_width, descent_direction, temp_gradient );
 		  
-            //printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
+            printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
 		 
             if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 ) || (  counter > 10 ))
             {
