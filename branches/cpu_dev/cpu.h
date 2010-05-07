@@ -47,7 +47,7 @@ float L2_diff(int image_width,
     int x_old, int y_old, int x_new, int y_new, 
     float * image, float * default_model);
     
-float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params);
+//float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params);
 
 float scalprod(int array_size, float * array1, float * array2);
 

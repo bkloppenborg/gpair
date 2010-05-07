@@ -333,27 +333,10 @@ int main(int argc, char *argv[])
 			if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1) ) || ((criterion
 					>= criterion_old) && (linesearch_iteration > 1)))
 			{
-                ls_zoom new_params;
-                new_params.criterion_evals = &criterion_evals;
-                new_params.grad_evals = &grad_evals;
-                new_params.steplength_low  =  steplength_old;
-                new_params.steplength_high  =  steplength;
-                new_params.criterion_steplength_low  =  criterion_old;
-                new_params.wolfe_product1  =  wolfe_product1;
-                new_params.criterion_init  =  criterion_init;
-                new_params.current_image  =  current_image;
-                new_params.temp_image  =  temp_image;
-                new_params.descent_direction  = descent_direction;
-                new_params.temp_gradient  = temp_gradient;
-                new_params.data_gradient  = data_gradient;
-                new_params.entropy_gradient  = entropy_gradient;
-                new_params.visi  = visi;
-                new_params.default_model  = default_model;
-                new_params.hyperparameter_entropy  = hyperparameter_entropy;
-                new_params.mock  = mock;           
-			
 			  //printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-			  selected_steplength = linesearch_zoom(&i2v_info, &new_params);
+			  selected_steplength = linesearch_zoom( steplength_old, steplength, criterion_old, wolfe_product1, criterion_init,
+						&criterion_evals, &grad_evals, current_image, temp_image, descent_direction, temp_gradient, data_gradient,
+						entropy_gradient, visi, default_model, hyperparameter_entropy, mock, &i2v_info);
 		
 			  break;
 			}
@@ -379,26 +362,10 @@ int main(int argc, char *argv[])
             if (wolfe_product2 >= 0.)
             {
                 printf("Test 2\n");
-                ls_zoom new_params;
-                new_params.criterion_evals = &criterion_evals;
-                new_params.grad_evals = &grad_evals;
-                new_params.steplength_low  =  steplength;
-                new_params.steplength_high  =  steplength_old;
-                new_params.criterion_steplength_low  =  criterion_old;
-                new_params.wolfe_product1  =  wolfe_product1;
-                new_params.criterion_init  =  criterion_init;
-                new_params.current_image  =  current_image;
-                new_params.temp_image  =  temp_image;
-                new_params.descent_direction  = descent_direction;
-                new_params.temp_gradient  = temp_gradient;
-                new_params.data_gradient  = data_gradient;
-                new_params.entropy_gradient  = entropy_gradient;
-                new_params.visi  = visi;
-                new_params.default_model  = default_model;
-                new_params.hyperparameter_entropy  = hyperparameter_entropy;
-                new_params.mock  = mock;  
 
-                selected_steplength = linesearch_zoom(&i2v_info, &new_params);
+			    selected_steplength = linesearch_zoom( steplength, steplength_old, criterion, wolfe_product1, criterion_init,
+								   &criterion_evals, &grad_evals, current_image, temp_image, descent_direction, temp_gradient, data_gradient,
+								   entropy_gradient, visi, default_model, hyperparameter_entropy, mock, &i2v_info);
 
                 break;
             }
@@ -683,5 +650,79 @@ void write_fits_image( float* image , int* status )
   /*Report any errors*/
   fits_report_error(stderr, *status);
 
+}
+
+
+float linesearch_zoom( float steplength_low, float steplength_high, float criterion_steplength_low, float wolfe_product1,
+		float criterion_init, int *criterion_evals, int *grad_evals, float *current_image, float *temp_image,
+		float *descent_direction, float *temp_gradient, float *data_gradient,
+		float *entropy_gradient, float complex* visi, float* default_model , float hyperparameter_entropy, float *mock, 
+		chi2_info * data_info)
+{
+	double chi2, entropy;
+	double steplength, selected_steplength = 0., criterion, wolfe_product2;
+	int ii;
+	int counter = 0;
+	double minvalue = 1e-8;
+	double wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
+
+	//printf("Entering zoom algorithm \n");
+
+	while( 1 )
+	{
+
+		// Interpolation - for the moment by bisection (simple for now)
+		steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
+		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
+
+		// Evaluate criterion(steplength)
+		for(ii=0; ii < image_width * image_width; ii++)
+		{
+			temp_image[ii] = current_image[ ii ] + steplength * descent_direction[ii];
+			if(temp_image[ii] < minvalue)
+			temp_image[ii] = minvalue;
+		}
+
+		chi2 = image2chi2(data_info, temp_image);
+		entropy = GullSkilling_entropy(image_width, temp_image, default_model);
+		criterion = chi2 - hyperparameter_entropy * entropy;
+		(*criterion_evals)++;
+
+	    //printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
+		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
+		{
+			steplength_high = steplength;
+		}
+		else
+		{
+		  
+            // Evaluate wolfe product 2
+            compute_data_gradient(data_info, temp_image, data_gradient);
+            GullSkilling_entropy_gradient(image_width, current_image, default_model, entropy_gradient);
+            for (ii = 0; ii < image_width * image_width; ii++)
+                temp_gradient[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
+            
+            (*grad_evals)++;
+            wolfe_product2 = scalprod(image_width * image_width, descent_direction, temp_gradient );
+		  
+            //printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
+		 
+            if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 )) //|| (  counter > 10 ))
+            {
+                selected_steplength = steplength;
+                break;
+            }
+
+            if( wolfe_product2 * ( steplength_high - steplength_low ) >= 0. )
+                steplength_high = steplength_low;
+
+            steplength_low = steplength;
+		  
+		}	
+		
+		counter++;	
+	}
+
+	return selected_steplength;
 }
 
