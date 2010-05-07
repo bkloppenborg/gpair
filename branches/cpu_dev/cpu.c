@@ -1,5 +1,260 @@
 #include "cpu.h"
 
+void conjugate_gradient(chi2_info * data_info, int gradient_method, float * current_image, float * default_model, 
+    int ndata, int iteration)
+
+{
+	// Gradient_method: 
+	// 0: steepest descent, 1: CG Fletcher-Reeves , 2: CG Polak-Ribiere, 3: CG Hestenes Stiefel
+
+    // TODO: Convert the functions to use this information directly
+    int image_width = (*data_info).image_width;
+    float complex * visi = (*data_info).visi;
+    float * mock = (*data_info).mock;
+    int ii = 0;
+    
+    // Init additional variables:
+	double chi2, entropy, hyperparameter_entropy = 0.;
+	double criterion;
+
+	// Initialize gradients
+	float * data_gradient = malloc(image_width * image_width * sizeof(float));
+	float * entropy_gradient = malloc(image_width * image_width * sizeof(float));
+	float * full_gradient = malloc(image_width * image_width * sizeof(float));
+	float * full_gradient_new = malloc(image_width * image_width * sizeof(float));
+	float * temp_gradient = malloc(image_width * image_width * sizeof(float));
+
+	// Init descent direction
+	float* descent_direction = malloc(image_width * image_width * sizeof(float));
+	memset(descent_direction, 0, image_width * image_width * sizeof(float));
+
+	// Line search
+	float* temp_image = malloc(image_width * image_width * sizeof(float));
+	float steplength, steplength_old, steplength_max, selected_steplength = 0.;
+	int criterion_evals = 0;
+	int grad_evals = 0;
+	float beta = 0.0;
+	float minvalue = 1e-8;
+	float criterion_init, criterion_old;
+	float wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
+	float wolfe_product1 = 0.0, wolfe_product2 = 0.0;
+	int linesearch_iteration = 0;
+
+	//
+	// Compute the criterion
+	//
+	chi2 = image2chi2(data_info, current_image);
+	entropy = GullSkilling_entropy(image_width, current_image, default_model);
+	criterion = chi2 - hyperparameter_entropy * entropy;
+	criterion_evals++;
+
+	printf(	"Grad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
+			grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndata, chi2,
+			hyperparameter_entropy * entropy, entropy );
+
+    // TODO: Pull FITS writing routines out of gpair.c
+	//writefits(current_image, "!reconst.fits");
+
+	//
+	// Compute full gradient (data + entropy)
+	//
+
+	compute_data_gradient(data_info, current_image, data_gradient);
+	GullSkilling_entropy_gradient(image_width, current_image, default_model, entropy_gradient);
+	
+	for (ii = 0; ii < image_width * image_width; ii++)
+		full_gradient_new[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
+	
+	grad_evals++;
+
+	// Compute the modifier of the gradient direction depending on the method
+	if ((iteration == 0) || (gradient_method == 0))
+	{
+		beta = 0.; // steepest descent
+		//
+		// Compute descent direction
+		//
+		for (ii = 0; ii < image_width * image_width; ii++)
+		  descent_direction[ii] = - full_gradient_new[ii];
+	}
+	else
+	{
+		if (gradient_method == 1) // CG
+			beta = scalprod(image_width * image_width, full_gradient_new, full_gradient_new) / scalprod(image_width * image_width, full_gradient, full_gradient); // FR
+		if (gradient_method == 2)
+			beta = (scalprod(image_width * image_width, full_gradient_new, full_gradient_new) - scalprod(image_width * image_width, full_gradient_new, full_gradient)) // PR
+					/ scalprod(image_width * image_width, full_gradient, full_gradient);
+        if (gradient_method == 3) // HS
+			beta = (scalprod(image_width * image_width, full_gradient_new, full_gradient_new) - scalprod(image_width * image_width, full_gradient_new, full_gradient))
+					/ (scalprod(image_width * image_width, descent_direction, full_gradient_new) - scalprod(image_width * image_width, descent_direction, full_gradient));
+        if(  fabs( scalprod(image_width * image_width, full_gradient, full_gradient_new) ) /  scalprod(image_width * image_width, full_gradient_new , full_gradient_new) > 1.0 )
+            beta = 0.;
+
+		//
+		// Compute descent direction
+		//
+		for (ii = 0; ii < image_width * image_width; ii++)
+		  descent_direction[ii] = beta * descent_direction[ii] - full_gradient_new[ii];
+		
+		// Some tests on descent direction
+/*            printf("Angle descent direction/gradient %lf \t Descent direction / previous descent direction : %lf \n",*/
+/*			       acos (- scalprod(descent_direction, full_gradient_new)*/
+/*				/ sqrt( scalprod(full_gradient_new , full_gradient_new) * scalprod(descent_direction, descent_direction) )) / PI * 180.,*/
+/*			       fabs( scalprod(full_gradient, full_gradient_new) ) /  scalprod(full_gradient_new , full_gradient_new)   );*/
+	  }
+
+	//      writefits(descent_direction, "!gradient.fits");
+
+
+	//
+	// Line search algorithm begins here
+	//
+
+	// Compute quantity for Wolfe condition 1
+	wolfe_product1 = scalprod(image_width, descent_direction, full_gradient_new);
+
+	// Initialize variables for line search
+	selected_steplength = 0.;
+	steplength = 1.;
+	steplength_old = 0.;
+	steplength_max = 100.; // use a clever scheme here
+	criterion_init = criterion;
+	criterion_old = criterion;
+	linesearch_iteration = 1;
+
+	while ( 1 )
+	{
+
+		//
+		// Evaluate criterion(steplength)
+		//
+
+		//  Step 1: compute the temporary image: I1 = I0 - coeff * descent direction
+		for (ii = 0; ii < image_width * image_width; ii++)
+		{
+			temp_image[ii] = current_image[ii] + steplength * descent_direction[ii];
+			if (temp_image[ii] < minvalue)
+				temp_image[ii] = minvalue;
+		}
+
+		// Step 2: Compute criterion(I1)
+		chi2 = image2chi2(data_info, temp_image);
+		entropy = GullSkilling_entropy(image_width, temp_image, default_model);
+		criterion = chi2 - hyperparameter_entropy * entropy;
+		criterion_evals++;
+
+		if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1) ) || ((criterion
+				>= criterion_old) && (linesearch_iteration > 1)))
+		{
+            ls_params params;
+            params.criterion_evals = &criterion_evals;
+            params.grad_evals = &grad_evals;
+            params.steplength_low  =  steplength_old;
+            params.steplength_high  =  steplength;
+            params.criterion_steplength_low  =  criterion_old;
+            params.wolfe_product1  =  wolfe_product1;
+            params.criterion_init  =  criterion_init;
+            params.current_image  =  current_image;
+            params.temp_image  =  temp_image;
+            params.descent_direction  = descent_direction;
+            params.temp_gradient  = temp_gradient;
+            params.data_gradient  = data_gradient;
+            params.entropy_gradient  = entropy_gradient;
+            params.visi  = visi;
+            params.default_model  = default_model;
+            params.hyperparameter_entropy  = hyperparameter_entropy;
+            params.mock  = mock;           
+
+
+            //printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
+            selected_steplength = linesearch_zoom(data_info, &params);
+	
+		    break;
+		}
+		
+		//
+		// Evaluate wolfe product 2
+		//
+		
+	    compute_data_gradient(data_info, temp_image, data_gradient);
+		GullSkilling_entropy_gradient(image_width, current_image, default_model, entropy_gradient);
+		for (ii = 0; ii < image_width * image_width; ii++)
+		    temp_gradient[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
+		
+		grad_evals++;
+		
+		wolfe_product2 = scalprod(image_width * image_width, descent_direction, temp_gradient);
+		
+		if (fabs(wolfe_product2) <= - wolfe_param2 * wolfe_product1 )
+        {
+            selected_steplength = steplength;
+            break;
+        }
+		
+		if (wolfe_product2 >= 0.)
+        {
+            printf("Test 2\n");
+            
+            ls_params params;
+            params.criterion_evals = &criterion_evals;
+            params.grad_evals = &grad_evals;
+            params.steplength_low  =  steplength;
+            params.steplength_high  =  steplength_old;
+            params.criterion_steplength_low  =  criterion_old;
+            params.wolfe_product1  =  wolfe_product1;
+            params.criterion_init  =  criterion_init;
+            params.current_image  =  current_image;
+            params.temp_image  =  temp_image;
+            params.descent_direction  = descent_direction;
+            params.temp_gradient  = temp_gradient;
+            params.data_gradient  = data_gradient;
+            params.entropy_gradient  = entropy_gradient;
+            params.visi  = visi;
+            params.default_model  = default_model;
+            params.hyperparameter_entropy  = hyperparameter_entropy;
+            params.mock  = mock;  
+            
+            selected_steplength = linesearch_zoom(data_info, &params);
+            break;
+        }
+			
+		
+		steplength_old = steplength;
+		// choose the next steplength
+		steplength *= 1.1;
+		if (steplength > steplength_max)
+		  steplength = steplength_max;
+		
+		criterion_old = criterion;
+		linesearch_iteration++;
+		printf("One loop in 3.2 done \n");
+	
+	}
+	// End of line search
+	//printf("Double check, selected_steplength = %le \n", selected_steplength); 
+	// Update image with the selected step length
+	for (ii = 0; ii < image_width * image_width; ii++)
+	{
+		current_image[ii] += selected_steplength * descent_direction[ii];
+		if (current_image[ii] < minvalue)
+			current_image[ii] = minvalue;
+	}
+
+	// Backup gradient
+	if (gradient_method != 0)
+		memcpy(full_gradient, full_gradient_new, image_width * image_width * sizeof(double));
+
+    // We're done with the conjugate gradient, free memory:
+	free(data_gradient);
+	free(entropy_gradient);
+	free(full_gradient);
+	free(full_gradient_new);
+	free(temp_gradient);
+	free(descent_direction);
+	free(temp_image);
+
+}
+
 
 float compute_flux(int image_width, float* image)
 {
@@ -10,16 +265,23 @@ float compute_flux(int image_width, float* image)
     return total;
 }
 
-void compute_data_gradient(int image_width, int npow, int nbis, oi_data * data_info, 
-    float * data, float * data_err, float complex * data_phasor,
-    float complex * DFT_tablex, float complex * DFT_tabley, 
-    float complex * visi, float * mock, float * image, float * data_gradient) // need to call vis2data before this
+void compute_data_gradient(chi2_info * data_info, float * image, float * data_gradient)
 {
+    // TODO: Convert this function over to use data_info directly when possible.
+    int image_width = (*data_info).image_width;
+    int npow = (*data_info).npow;
+    int nbis = (*data_info).nbis;
+    oi_data oifits_info = (*(*data_info).oifits_info);    // TODO: Clean this up, this is bad.
+    float * data = (*data_info).data;
+    float * data_err = (*data_info).data_err;
+    float complex * data_phasor = (*data_info).data_phasor;
+    float complex * DFT_tablex = (*data_info).dft_x;
+    float complex * DFT_tabley = (*data_info).dft_y;    
+    float complex * visi = (*data_info).visi;
+    float * mock = (*data_info).mock;
 
     register int ii, jj, kk;
     double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
-    
-    oi_data oifits_info = *data_info;
 
     double flux = 0.; // if the flux has already been computed, we could use its value 
     for(ii = 0 ; ii < image_width * image_width ; ii++)
@@ -137,13 +399,13 @@ float GullSkilling_entropy_diff(int image_width,
 }
 
 // A helper function to call necessary functions to compute the chi2.
-float image2chi2(chi2_info * info)
+float image2chi2(chi2_info * info, float * image)
 {   
     float chi2 = 0;
     chi2_info i2v_info = *info;
     
     // Compute the visibilities, data, and chi2.
-    image2vis(i2v_info.image_width, i2v_info.nuv, i2v_info.image, i2v_info.visi, i2v_info.dft_x, i2v_info.dft_y);
+    image2vis(i2v_info.image_width, i2v_info.nuv, image, i2v_info.visi, i2v_info.dft_x, i2v_info.dft_y);
     vis2data(i2v_info.npow, i2v_info.nbis, i2v_info.oifits_info, i2v_info.data_phasor, i2v_info.dft_y, i2v_info.dft_y, i2v_info.visi, i2v_info.mock);
     chi2 = data2chi2(i2v_info.npow, i2v_info.nbis, i2v_info.data, i2v_info.data_err, i2v_info.mock);
     
@@ -261,7 +523,7 @@ float linesearch_zoom(chi2_info * data_info, ls_params * linesearch_params)
     int * grad_evals = params.grad_evals; 
     float steplength_low = params.steplength_low;
     float steplength_high = params.steplength_high;
-    float criterion_steplength_low = params. criteron_steplength_low;
+    float criterion_steplength_low = params.criterion_steplength_low;
     float wolfe_product1 = params.wolfe_product1; 
     float criterion_init = params.criterion_init;
     float * current_image = params.current_image; 
@@ -270,12 +532,12 @@ float linesearch_zoom(chi2_info * data_info, ls_params * linesearch_params)
     float * temp_gradient = params.temp_gradient;
     float * data_gradient = params.data_gradient;
     float * entropy_gradient = params.entropy_gradient;
-    float complex* visi = params.visi;
+    //float complex * visi = params.visi;
     float * default_model = params.default_model;
     float hyperparameter_entropy = params.hyperparameter_entropy;
-    float * mock = params.mock;
+    //float * mock = params.mock;
 
-
+    int image_width = (*data_info).image_width;
 
     // Init a few variables
 	float chi2, entropy;
@@ -303,9 +565,9 @@ float linesearch_zoom(chi2_info * data_info, ls_params * linesearch_params)
 		}
 
 		chi2 = image2chi2(data_info, temp_image);
-		entropy = GullSkilling_entropy(temp_image, default_model);
+		entropy = GullSkilling_entropy(image_width, temp_image, default_model);
 		criterion = chi2 - hyperparameter_entropy * entropy;
-		*criterion_evals++;
+		*(criterion_evals) += 1;
 
 	    //printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
 		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
@@ -316,13 +578,13 @@ float linesearch_zoom(chi2_info * data_info, ls_params * linesearch_params)
 		{
 		  
             // Evaluate wolfe product 2
-            compute_data_gradient(visi, mock, temp_image, data_gradient);
-            GullSkilling_entropy_gradient(current_image, default_model, entropy_gradient);
+            compute_data_gradient(data_info, temp_image, data_gradient);
+            GullSkilling_entropy_gradient(image_width, current_image, default_model, entropy_gradient);
             for (ii = 0; ii < image_width * image_width; ii++)
                 temp_gradient[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
             
-            *grad_evals++;
-            wolfe_product2 = scalprod( descent_direction, temp_gradient );
+            (*grad_evals) += 1;
+            wolfe_product2 = scalprod(image_width * image_width, descent_direction, temp_gradient );
 		  
             //printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
 		 

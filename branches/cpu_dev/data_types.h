@@ -6,6 +6,7 @@
 #include "getoifits.h"
 #endif
 
+// TODO: Segment the data information from the DFT and Mock data info.
 typedef struct
 {
     // Information about the data:
@@ -47,7 +48,7 @@ typedef struct
     float * data_gradient;
     float * entropy_gradient; 
     float complex* visi; 
-    float * default_model ; 
+    float * default_model; 
     float hyperparameter_entropy; 
     float * mock; 
 } ls_params;

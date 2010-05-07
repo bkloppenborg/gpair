@@ -40,14 +40,36 @@ int nuv = 0;
 
 int main(int argc, char *argv[])
 {   
-    // TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
-    // by rounding to the nearest sum of powers of 2 (if it makes sense).
     register int ii = 0;
     register int uu = 0;
+    image_width = 128;
+	char filename[200];
+    float image_pixellation = 0.15;
+
+    // Parse command line arguments:
+    for (ii = 1; ii < argc; ii += 2)
+    {
+        if (strcmp(argv[ii], "-d") == 0)
+        {
+	        sscanf(argv[ii + 1], "%s", filename);
+	        printf("Filename = %s\n", filename);
+        }
+        else if (strcmp(argv[ii], "-s") == 0)
+        {
+	        sscanf(argv[ii + 1], "%f", &image_pixellation);
+	        printf("Pixellation = %f\n", image_pixellation);
+        }
+        else if (strcmp(argv[ii], "-w") == 0)
+        {
+	        sscanf(argv[ii + 1], "%d", &image_width);
+	        printf("Pixellation = %d\n", image_width);
+        }
+    }
+
     float chi2 = 0;
 
     // read OIFITS and visibilities
-    read_oifits(&oifits_info);
+	read_oifits(filename);
 
     // setup visibility/current data matrices
 
@@ -55,6 +77,9 @@ int main(int argc, char *argv[])
     nbis = oifits_info.nbis;
     nuv = oifits_info.nuv;
     printf("There are %d data : %d powerspectrum and %d bispectrum\n", npow + 2 * nbis, npow, nbis);
+
+    // TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
+    // by rounding to the nearest sum of powers of 2 (if it makes sense).
 
     // First thing we do is make all data occupy memory elements that are powers of two.  This makes
     // the GPU code much easier to speed up.
@@ -102,8 +127,6 @@ int main(int argc, char *argv[])
     }
 
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
-    image_width = 128;
-    float image_pixellation = 0.15 ;
     int image_size = image_width * image_width;
     printf("Image Buffer Size %i \n", image_size);
     float* current_image = malloc(image_size * sizeof(float)); 
@@ -139,7 +162,7 @@ int main(int argc, char *argv[])
 
    
     // TODO: Remove after testing
-    int iterations = 1;
+    int iterations = 10000;
 
     // #########
     // CPU Code:
@@ -158,15 +181,20 @@ int main(int argc, char *argv[])
     i2v_info.visi = visi;
     i2v_info.mock = mock;
     i2v_info.image_width = image_width;
+    
+    // Init the default model:
+    float * default_model = malloc(image_width * image_width * sizeof(float));
+	set_model(image_width, image_pixellation, 3, 3.0, 1.0, default_model);
+	//writefits(default_model, "!model.fits");
 
     // Test 1 : compute mock data, powerspectra + bispectra from scratch
     clock_t tick = clock();
     clock_t tock = 0;
     for(ii=0; ii < iterations; ii++)
     {
-        chi2 = image2chi2(&i2v_info, current_image);
-        
-    }        
+        conjugate_gradient(&i2v_info, 0, current_image, default_model, npow + 2 * nbis, ii);  
+    }   
+         
     tock=clock();
     float time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
     printf(SEP);
@@ -201,10 +229,7 @@ int main(int argc, char *argv[])
 /*    printf("CPU Chi2: %f (CPU only)\n", chi2);*/
 
     // Compute the gradient of the mock data.  Note, vis2data should have been caled before this call.
-    compute_data_gradient(image_width, npow, nbis, &oifits_info, 
-        data, data_err, data_phasor, 
-        DFT_tablex, DFT_tabley, 
-        visi, mock, current_image, data_gradient);
+    //compute_data_gradient(&i2v_info, current_image, data_gradient);
 
 #ifdef USE_GPU
     // #########
@@ -361,10 +386,10 @@ int main(int argc, char *argv[])
 
 }
 
-int read_oifits()
+int read_oifits(char * filename)
 {
   // Read the image
-  strcpy(usersel.file, "./2004contest1.oifits" );
+  strcpy(usersel.file, filename);
   get_oi_fits_selection( &usersel , &status );
   get_oi_fits_data( usersel , &oifits_info , &status );
   printf("OIFITS File read\n");  
