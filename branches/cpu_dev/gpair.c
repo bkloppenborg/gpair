@@ -6,6 +6,10 @@
 #include "getoifits.h"
 #endif
 
+#ifndef DATA_TYPES_H
+#include "data_types.h"
+#endif
+
 // Preprocessor directive for the GPU:
 #ifdef USE_GPU
 #include "gpu.h"
@@ -141,12 +145,27 @@ int main(int argc, char *argv[])
     // CPU Code:
     // #########
 
+    chi2_info i2v_info;
+    i2v_info.npow = npow;
+    i2v_info.nbis = nbis;
+    i2v_info.nuv = nuv;
+    i2v_info.data = data;
+    i2v_info.data_err = data_err;
+    i2v_info.data_phasor = data_phasor;
+    i2v_info.oifits_info = &oifits_info;
+    i2v_info.dft_x = DFT_tablex;
+    i2v_info.dft_y = DFT_tabley;
+    i2v_info.visi = visi;
+    i2v_info.mock = mock;
+    i2v_info.image_width = image_width;
+    i2v_info.image = current_image;
+
     // Test 1 : compute mock data, powerspectra + bispectra from scratch
     clock_t tick = clock();
     clock_t tock = 0;
     for(ii=0; ii < iterations; ii++)
     {
-        chi2 = image2chi2(npow, nbis, nuv, image_width, DFT_tablex, DFT_tabley, data, data_err, data_phasor, oifits_info, current_image, visi, mock);
+        chi2 = image2chi2(&i2v_info);
         
     }        
     tock=clock();
@@ -183,7 +202,7 @@ int main(int argc, char *argv[])
 /*    printf("CPU Chi2: %f (CPU only)\n", chi2);*/
 
     // Compute the gradient of the mock data.  Note, vis2data should have been caled before this call.
-    compute_data_gradient(image_width, npow, nbis, oifits_info, 
+    compute_data_gradient(image_width, npow, nbis, &oifits_info, 
         data, data_err, data_phasor, 
         DFT_tablex, DFT_tabley, 
         visi, mock, current_image, data_gradient);

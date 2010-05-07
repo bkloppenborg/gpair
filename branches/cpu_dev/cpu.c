@@ -10,7 +10,7 @@ float compute_flux(int image_width, float* image)
     return total;
 }
 
-void compute_data_gradient(int image_width, int npow, int nbis, oi_data oifits_info, 
+void compute_data_gradient(int image_width, int npow, int nbis, oi_data * data_info, 
     float * data, float * data_err, float complex * data_phasor,
     float complex * DFT_tablex, float complex * DFT_tabley, 
     float complex * visi, float * mock, float * image, float * data_gradient) // need to call vis2data before this
@@ -18,6 +18,8 @@ void compute_data_gradient(int image_width, int npow, int nbis, oi_data oifits_i
 
     register int ii, jj, kk;
     double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
+    
+    oi_data oifits_info = *data_info;
 
     double flux = 0.; // if the flux has already been computed, we could use its value 
     for(ii = 0 ; ii < image_width * image_width ; ii++)
@@ -134,19 +136,16 @@ float GullSkilling_entropy_diff(int image_width,
     return S_new - S_old;
 }
 
-
 // A helper function to call necessary functions to compute the chi2.
-float image2chi2(int npow, int nbis, int nuv, int image_width, 
-    float complex * DFT_tablex, float complex * DFT_tabley,
-    float * data, float * data_err, float complex * data_phasor, oi_data oifits_info,
-    float * current_image,
-    float complex * visi, float * mock)
+float image2chi2(chi2_info * info)
 {   
     float chi2 = 0;
+    chi2_info i2v_info = *info;
+    
     // Compute the visibilities, data, and chi2.
-    image2vis(image_width, nuv, current_image, visi, DFT_tablex, DFT_tabley);
-    vis2data(npow, nbis, oifits_info, data_phasor, DFT_tablex, DFT_tabley, visi, mock);
-    chi2 = data2chi2(npow, nbis, data, data_err, mock);
+    image2vis(i2v_info.image_width, i2v_info.nuv, i2v_info.image, i2v_info.visi, i2v_info.dft_x, i2v_info.dft_y);
+    vis2data(i2v_info.npow, i2v_info.nbis, i2v_info.oifits_info, i2v_info.data_phasor, i2v_info.dft_y, i2v_info.dft_y, i2v_info.visi, i2v_info.mock);
+    chi2 = data2chi2(i2v_info.npow, i2v_info.nbis, i2v_info.data, i2v_info.data_err, i2v_info.mock);
     
     return chi2;
 }
@@ -251,6 +250,18 @@ float L2_diff(int image_width,
         S_new = - image[ position_new ] * image[ position_new ] / ( 2. * default_model[ position_new ] );
 
     return S_new - S_old;
+}
+
+
+
+float scalprod(int array_size, float * array1, float * array2)
+{
+    float total = 0.0;
+    register int ii;
+    
+    for (ii = 0; ii < array_size; ii++)
+        total += array1[ii] * array2[ii];
+    return total;
 }
 
 // Prior image
@@ -367,7 +378,7 @@ float square( float number )
 
 // Given the visibilities, compute the resulting data.
 void vis2data(int npow, int nbis, 
-    oi_data oifits_info, float complex * data_phasor, 
+    oi_data * data_info, float complex * data_phasor, 
     float complex * DFT_tablex, float complex * DFT_tabley,
     float complex * visi, float * mock)
 {
@@ -376,6 +387,8 @@ void vis2data(int npow, int nbis,
     float complex vbc = 0;
     float complex vca = 0;
     float complex t3 = 0;
+    
+    oi_data oifits_info = *data_info;
 
     for( ii = 0; ii< npow; ii++)
     {
