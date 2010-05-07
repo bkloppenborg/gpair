@@ -707,7 +707,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		  
             //printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
 		 
-            if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 )) //|| (  counter > 10 ))
+            if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 ) || (  counter > 30 ))
             {
                 selected_steplength = steplength;
                 break;
