@@ -146,10 +146,7 @@ int main(int argc, char *argv[])
     clock_t tock = 0;
     for(ii=0; ii < iterations; ii++)
     {
-        //compute complex visibilities and the chi2
-        image2vis(image_width, nuv, current_image, visi, DFT_tablex, DFT_tabley);
-        vis2data(npow, nbis, oifits_info, data_phasor, DFT_tablex, DFT_tabley, visi, mock);
-        chi2 = data2chi2(npow, nbis, data, data_err, mock);
+        chi2 = image2chi2(npow, nbis, nuv, image_width, DFT_tablex, DFT_tabley, data, data_err, data_phasor, oifits_info, current_image, visi, mock);
         
     }        
     tock=clock();

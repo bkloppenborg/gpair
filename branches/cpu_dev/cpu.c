@@ -1,5 +1,21 @@
 #include "cpu.h"
 
+// A helper function to call necessary functions to compute the chi2.
+float image2chi2(int npow, int nbis, int nuv, int image_width, 
+    float complex * DFT_tablex, float complex * DFT_tabley,
+    float * data, float * data_err, float complex * data_phasor, oi_data oifits_info,
+    float * current_image,
+    float complex * visi, float * mock)
+{   
+    float chi2 = 0;
+    // Compute the visibilities, data, and chi2.
+    image2vis(image_width, nuv, current_image, visi, DFT_tablex, DFT_tabley);
+    vis2data(npow, nbis, oifits_info, data_phasor, DFT_tablex, DFT_tabley, visi, mock);
+    chi2 = data2chi2(npow, nbis, data, data_err, mock);
+    
+    return chi2;
+}
+
 void image2vis(int image_width, int nuv, 
     float * image, float complex * visi, 
     float complex * DFT_tablex, float complex * DFT_tabley) // DFT implementation

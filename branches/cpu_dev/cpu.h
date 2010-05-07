@@ -28,6 +28,12 @@ float GullSkilling_entropy_diff(int image_width,
     float old_flux, float new_flux, 
     float * default_model);
 
+float image2chi2(int npow, int nbis, int nuv, int image_width, 
+    float complex * DFT_tablex, float complex * DFT_tabley,
+    float * data, float * data_err, float complex * data_phasor,  oi_data oifits_info,
+    float * current_image,
+    float complex * visi, float * mock);
+
 void image2vis(int image_width, int nuv, 
     float * image, float complex * visi, 
     float complex * DFT_tablex, float complex * DFT_tabley);
