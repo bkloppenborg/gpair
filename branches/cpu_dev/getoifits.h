@@ -1,3 +1,7 @@
+#ifndef GETOIFITS_H
+#define GETOIFITS_H
+#endif
+
 /* Header for oifits routines.
  * This package uses the Oifits Exchange routines by John Young to view,
  * select and extract oi data.
