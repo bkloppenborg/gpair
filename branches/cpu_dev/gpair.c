@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
 		criterion_evals++;
 
 		printf(	"Grad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
-				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (double) ndata, chi2,
+				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndata, chi2,
 				hyperparameter_entropy * entropy, entropy );
 
         // TODO: Re-enable this:
@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
 
 		// Backup gradient
 		if (gradient_method != 0)
-			memcpy(full_gradient, full_gradient_new, image_width * image_width * sizeof(double));
+			memcpy(full_gradient, full_gradient_new, image_width * image_width * sizeof(float));
 
 	}   // End Conjugated Gradient.
          
@@ -659,12 +659,12 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		float *entropy_gradient, float complex* visi, float* default_model , float hyperparameter_entropy, float *mock, 
 		chi2_info * data_info)
 {
-	double chi2, entropy;
-	double steplength, selected_steplength = 0., criterion, wolfe_product2;
+	float chi2, entropy;
+	float steplength, selected_steplength = 0., criterion, wolfe_product2;
 	int ii;
 	int counter = 0;
-	double minvalue = 1e-8;
-	double wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
+	float minvalue = 1e-8;
+	float wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
 
 	//printf("Entering zoom algorithm \n");
 
@@ -680,7 +680,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		{
 			temp_image[ii] = current_image[ ii ] + steplength * descent_direction[ii];
 			if(temp_image[ii] < minvalue)
-			temp_image[ii] = minvalue;
+			    temp_image[ii] = minvalue;
 		}
 
 		chi2 = image2chi2(data_info, temp_image);
