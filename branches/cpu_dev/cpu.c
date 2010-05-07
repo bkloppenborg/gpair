@@ -1,11 +1,31 @@
 #include "cpu.h"
+#include <math.h>
 
-void conjugate_gradient(chi2_info * data_info, int gradient_method, float * current_image, float * default_model, 
+void conjugate_gradient(chi2_info * data_info, int gradient_method, ls_params * linesearch_params,
+    float * current_image, float * default_model, 
     int ndata, int iteration)
-
 {
 	// Gradient_method: 
 	// 0: steepest descent, 1: CG Fletcher-Reeves , 2: CG Polak-Ribiere, 3: CG Hestenes Stiefel
+	ls_params params = *linesearch_params;
+
+	int criterion_evals = *(params.criterion_evals);
+	int grad_evals = *(params.grad_evals);
+	int linesearch_iteration = *(params.linesearch_iteration);
+	
+	float steplength = *(params.steplength);
+	float steplength_old = *(params.steplength_old);
+	float steplength_max = *(params.steplength_max);
+	float selected_steplength = *(params.selected_steplength);
+	float beta = *(params.beta);
+	float minvalue = *(params.minvalue);
+	float criterion_init = *(params.criterion_init);
+	float criterion_old = *(params.criterion_old);
+	float wolfe_param1 = *(params.wolfe_param1);
+	float wolfe_param2 = *(params.wolfe_param2);
+	float wolfe_product1 = *(params.wolfe_product1);
+	float wolfe_product2 = *(params.wolfe_product2);
+	float * temp_image = params.temp_image;
 
     // TODO: Convert the functions to use this information directly
     int image_width = (*data_info).image_width;
@@ -27,18 +47,6 @@ void conjugate_gradient(chi2_info * data_info, int gradient_method, float * curr
 	// Init descent direction
 	float* descent_direction = malloc(image_width * image_width * sizeof(float));
 	memset(descent_direction, 0, image_width * image_width * sizeof(float));
-
-	// Line search
-	float* temp_image = malloc(image_width * image_width * sizeof(float));
-	float steplength, steplength_old, steplength_max, selected_steplength = 0.;
-	int criterion_evals = 0;
-	int grad_evals = 0;
-	float beta = 0.0;
-	float minvalue = 1e-8;
-	float criterion_init, criterion_old;
-	float wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
-	float wolfe_product1 = 0.0, wolfe_product2 = 0.0;
-	int linesearch_iteration = 0;
 
 	//
 	// Compute the criterion
@@ -97,10 +105,10 @@ void conjugate_gradient(chi2_info * data_info, int gradient_method, float * curr
 		  descent_direction[ii] = beta * descent_direction[ii] - full_gradient_new[ii];
 		
 		// Some tests on descent direction
-/*            printf("Angle descent direction/gradient %lf \t Descent direction / previous descent direction : %lf \n",*/
-/*			       acos (- scalprod(descent_direction, full_gradient_new)*/
-/*				/ sqrt( scalprod(full_gradient_new , full_gradient_new) * scalprod(descent_direction, descent_direction) )) / PI * 180.,*/
-/*			       fabs( scalprod(full_gradient, full_gradient_new) ) /  scalprod(full_gradient_new , full_gradient_new)   );*/
+            printf("Angle descent direction/gradient %lf \t Descent direction / previous descent direction : %lf \n",
+			       acos (- scalprod(image_width * image_width, descent_direction, full_gradient_new)
+				/ sqrt(scalprod(image_width * image_width, full_gradient_new , full_gradient_new) * scalprod(image_width * image_width, descent_direction, descent_direction) )) / PI * 180.,
+			       fabs( scalprod(image_width * image_width,full_gradient, full_gradient_new) ) /  scalprod(image_width * image_width, full_gradient_new , full_gradient_new)   );
 	  }
 
 	//      writefits(descent_direction, "!gradient.fits");
@@ -146,28 +154,28 @@ void conjugate_gradient(chi2_info * data_info, int gradient_method, float * curr
 		if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1) ) || ((criterion
 				>= criterion_old) && (linesearch_iteration > 1)))
 		{
-            ls_params params;
-            params.criterion_evals = &criterion_evals;
-            params.grad_evals = &grad_evals;
-            params.steplength_low  =  steplength_old;
-            params.steplength_high  =  steplength;
-            params.criterion_steplength_low  =  criterion_old;
-            params.wolfe_product1  =  wolfe_product1;
-            params.criterion_init  =  criterion_init;
-            params.current_image  =  current_image;
-            params.temp_image  =  temp_image;
-            params.descent_direction  = descent_direction;
-            params.temp_gradient  = temp_gradient;
-            params.data_gradient  = data_gradient;
-            params.entropy_gradient  = entropy_gradient;
-            params.visi  = visi;
-            params.default_model  = default_model;
-            params.hyperparameter_entropy  = hyperparameter_entropy;
-            params.mock  = mock;           
+            ls_zoom new_params;
+            new_params.criterion_evals = &criterion_evals;
+            new_params.grad_evals = &grad_evals;
+            new_params.steplength_low  =  steplength_old;
+            new_params.steplength_high  =  steplength;
+            new_params.criterion_steplength_low  =  criterion_old;
+            new_params.wolfe_product1  =  wolfe_product1;
+            new_params.criterion_init  =  criterion_init;
+            new_params.current_image  =  current_image;
+            new_params.temp_image  =  temp_image;
+            new_params.descent_direction  = descent_direction;
+            new_params.temp_gradient  = temp_gradient;
+            new_params.data_gradient  = data_gradient;
+            new_params.entropy_gradient  = entropy_gradient;
+            new_params.visi  = visi;
+            new_params.default_model  = default_model;
+            new_params.hyperparameter_entropy  = hyperparameter_entropy;
+            new_params.mock  = mock;           
 
 
             //printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-            selected_steplength = linesearch_zoom(data_info, &params);
+            selected_steplength = linesearch_zoom(data_info, &new_params);
 	
 		    break;
 		}
@@ -195,26 +203,26 @@ void conjugate_gradient(chi2_info * data_info, int gradient_method, float * curr
         {
             printf("Test 2\n");
             
-            ls_params params;
-            params.criterion_evals = &criterion_evals;
-            params.grad_evals = &grad_evals;
-            params.steplength_low  =  steplength;
-            params.steplength_high  =  steplength_old;
-            params.criterion_steplength_low  =  criterion_old;
-            params.wolfe_product1  =  wolfe_product1;
-            params.criterion_init  =  criterion_init;
-            params.current_image  =  current_image;
-            params.temp_image  =  temp_image;
-            params.descent_direction  = descent_direction;
-            params.temp_gradient  = temp_gradient;
-            params.data_gradient  = data_gradient;
-            params.entropy_gradient  = entropy_gradient;
-            params.visi  = visi;
-            params.default_model  = default_model;
-            params.hyperparameter_entropy  = hyperparameter_entropy;
-            params.mock  = mock;  
+            ls_zoom new_params;
+            new_params.criterion_evals = &criterion_evals;
+            new_params.grad_evals = &grad_evals;
+            new_params.steplength_low  =  steplength;
+            new_params.steplength_high  =  steplength_old;
+            new_params.criterion_steplength_low  =  criterion_old;
+            new_params.wolfe_product1  =  wolfe_product1;
+            new_params.criterion_init  =  criterion_init;
+            new_params.current_image  =  current_image;
+            new_params.temp_image  =  temp_image;
+            new_params.descent_direction  = descent_direction;
+            new_params.temp_gradient  = temp_gradient;
+            new_params.data_gradient  = data_gradient;
+            new_params.entropy_gradient  = entropy_gradient;
+            new_params.visi  = visi;
+            new_params.default_model  = default_model;
+            new_params.hyperparameter_entropy  = hyperparameter_entropy;
+            new_params.mock  = mock;  
             
-            selected_steplength = linesearch_zoom(data_info, &params);
+            selected_steplength = linesearch_zoom(data_info, &new_params);
             break;
         }
 			
@@ -514,10 +522,10 @@ float L2_diff(int image_width,
     return S_new - S_old;
 }
 
-float linesearch_zoom(chi2_info * data_info, ls_params * linesearch_params)
+float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params)
 {
     // Pull out the necessary information from the struct:
-    ls_params params = *linesearch_params;
+    ls_zoom params = *linesearch_params;
     // TODO: Clean up this function, use params directly
     int * criterion_evals = params.criterion_evals; 
     int * grad_evals = params.grad_evals; 

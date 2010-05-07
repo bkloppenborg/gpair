@@ -126,13 +126,18 @@ int main(int argc, char *argv[])
         mock[ii] = 0;
     }
 
+    // Init the default model:
+    float * default_model = malloc(image_width * image_width * sizeof(float));
+	set_model(image_width, image_pixellation, 3, 3.0, 1.0, default_model);
+	//writefits(default_model, "!model.fits");
+
     // setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
     int image_size = image_width * image_width;
     printf("Image Buffer Size %i \n", image_size);
-    float* current_image = malloc(image_size * sizeof(float)); 
+    float * current_image = malloc(image_size * sizeof(float)); 
     memset(current_image, 0, image_size);
-    current_image[(image_width * (image_width + 1 ) )/ 2 ] = 2.0;
-    float * data_gradient = malloc(image_size * sizeof(float));
+	for (ii = 0; ii < image_width * image_width; ii++)
+		current_image[ii] = default_model[ii];
 
 
     // setup precomputed DFT table
@@ -181,18 +186,54 @@ int main(int argc, char *argv[])
     i2v_info.visi = visi;
     i2v_info.mock = mock;
     i2v_info.image_width = image_width;
-    
-    // Init the default model:
-    float * default_model = malloc(image_width * image_width * sizeof(float));
-	set_model(image_width, image_pixellation, 3, 3.0, 1.0, default_model);
-	//writefits(default_model, "!model.fits");
+
+    // Init and copy over variables for the line search:
+	int criterion_evals;
+	int grad_evals;
+	int linesearch_iteration = 0;
+	float steplength = 0.0;
+	float steplength_old = 0.0;
+	float steplength_max = 0.0;
+	float selected_steplength = 0.0;
+	float beta = 0.0;
+	float minvalue = 1e-8;
+	float criterion_init = 0.0;
+	float criterion_old = 0.0;
+	float wolfe_param1 = 1e-4;
+	float wolfe_param2 = 0.0;
+	float wolfe_product1 = 0.0;
+	float wolfe_product2 = 0.0;
+	float * temp_image;
+	temp_image = malloc(image_width * image_width * sizeof(float));
+
+	// Line search
+	ls_params linesearch_params;
+	linesearch_params.steplength = &steplength;
+	linesearch_params.steplength_old = &steplength_old;
+	linesearch_params.steplength_max = &steplength_max;
+	linesearch_params.selected_steplength = &selected_steplength;
+	linesearch_params.criterion_evals = &criterion_evals;
+	linesearch_params.grad_evals = &grad_evals;
+	linesearch_params.beta = &beta;
+	linesearch_params.minvalue = &minvalue;
+	linesearch_params.criterion_init = &criterion_init;
+	linesearch_params.criterion_old = &criterion_old;
+	linesearch_params.wolfe_param1 = &wolfe_param1;
+	linesearch_params.wolfe_param2 = &wolfe_param2;
+	linesearch_params.wolfe_product1 = &wolfe_product1;
+	linesearch_params.wolfe_product2 = &wolfe_product2;
+	linesearch_params.linesearch_iteration = &linesearch_iteration;
+	linesearch_params.temp_image = temp_image;
+	
+	
 
     // Test 1 : compute mock data, powerspectra + bispectra from scratch
     clock_t tick = clock();
     clock_t tock = 0;
     for(ii=0; ii < iterations; ii++)
     {
-        conjugate_gradient(&i2v_info, 0, current_image, default_model, npow + 2 * nbis, ii);  
+        conjugate_gradient(&i2v_info, 0, &linesearch_params, current_image, default_model, npow + 2 * nbis, ii);  
+        
     }   
          
     tock=clock();

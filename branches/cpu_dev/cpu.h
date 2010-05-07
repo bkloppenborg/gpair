@@ -16,7 +16,7 @@ float compute_flux(int image_width, float* image);
 
 void compute_data_gradient(chi2_info * data_info, float * image, float * data_gradient);
 
-void conjugate_gradient(chi2_info * data_info, int gradient_method, 
+void conjugate_gradient(chi2_info * data_info, int gradient_method, ls_params * params,
     float * current_image, float * default_model, 
     int ndata, int iteration);
 
@@ -47,7 +47,7 @@ float L2_diff(int image_width,
     int x_old, int y_old, int x_new, int y_new, 
     float * image, float * default_model);
     
-float linesearch_zoom(chi2_info * data_info, ls_params * linesearch_params);
+float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params);
 
 float scalprod(int array_size, float * array1, float * array2);
 

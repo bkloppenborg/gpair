@@ -51,5 +51,28 @@ typedef struct
     float * default_model; 
     float hyperparameter_entropy; 
     float * mock; 
+} ls_zoom;
+
+typedef struct
+{
+	int * criterion_evals;
+	int * grad_evals;
+	int * linesearch_iteration;
+	
+	float * steplength;
+	float * steplength_old;
+	float * steplength_max;
+	float * selected_steplength;
+	float * beta;
+	float * minvalue;
+	float * criterion_init;
+	float * criterion_old;
+	float * wolfe_param1; 
+	float * wolfe_param2;
+	float * wolfe_product1;
+	float * wolfe_product2;
+	
+	float * temp_image;
+
 } ls_params;
 
