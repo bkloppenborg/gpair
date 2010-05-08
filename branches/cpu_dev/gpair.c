@@ -682,7 +682,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		chi2 = image2chi2(data_info, temp_image);
 		entropy = GullSkilling_entropy(image_width, temp_image, default_model);
 		criterion = chi2 - hyperparameter_entropy * entropy;
-		(*criterion_evals)++;
+		*criterion_evals++;
 
 		//printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
 		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
@@ -698,7 +698,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 			for (ii = 0; ii < image_width * image_width; ii++)
 			temp_gradient[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
 
-			(*grad_evals)++;
+			*grad_evals++;
 			wolfe_product2 = scalprod(image_width * image_width, descent_direction, temp_gradient );
 
 			//printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
