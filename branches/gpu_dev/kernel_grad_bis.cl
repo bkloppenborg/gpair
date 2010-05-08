@@ -78,6 +78,7 @@ __kernel void grad_bis(
     float2 vcaderr;
     float2 t3der;
     long4 uvpnt;
+    short4 sign;
     
     // Promote the flux to a float2.
     float2 invflux;
@@ -86,9 +87,9 @@ __kernel void grad_bis(
    
     float data_grad = 0;
     
-    int k = 9;
-/*    for(k = 0; k < 2; k++)*/
-/*    {*/
+    int k = 0;
+    for(k = 0; k < 2; k++)
+    {
         uvpnt = data_uvpnt[k];
         vab = visi[uvpnt.s0];
         vbc = visi[uvpnt.s1];
@@ -100,7 +101,7 @@ __kernel void grad_bis(
         vcaderr = MultComplex2(dft_x[uvpnt.s2 * image_width + i], dft_y[uvpnt.s2 * image_width + j]);
         
         // Take the conjugate when necessary:
-        short4 sign = data_sign[k];
+        sign = data_sign[k];
         vab.s1 *= sign.s0;
         vabderr.s1 *= sign.s0;
         vbc.s1 *= sign.s1;
@@ -112,27 +113,20 @@ __kernel void grad_bis(
         // We are going to use D as a temporary variable.
         // t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_bisphasor[kk] * invflux ;
         // Step 1: (vabder - vab) * vbc * vca
-        //t3der = MultComplex3((vabderr - vab), vbc, vca);
-        t3der = dft_y[uvpnt.s0 * image_width + j];// - vab); //, vbc, vca);
+        t3der = MultComplex3((vabderr - vab), vbc, vca);
         // Step 2: + vab * (vbcder - vbc) * vca
-        //t3der += MultComplex3(vab, (vbcderr - vbc), vca);
+        t3der += MultComplex3(vab, (vbcderr - vbc), vca);
         // Step 3: + vab * vbc * (vcader - vca)
-        //t3der += MultComplex3(vab, vbc, (vcaderr - vca));
+        t3der += MultComplex3(vab, vbc, (vcaderr - vca));
         // Step 4: (stuff) * data_bip[k] * fluxinv
-        //t3der = MultComplex3Special(t3der, data_phasor[k], invflux);
-         
-        //data_grad += 2 * data_err[npow + 2 * k] * data_err[npow + 2 * k] * ( mock[ npow + 2 * k] - data[npow + 2 * k] ); // * t3der.s0;
-        //data_grad += mock[ npow + 2 * k] - data[npow + 2 * k];
-        //data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[npow + 2 * k + 1] * mock[ npow + 2 * k + 1] * t3der.s1;	
-        //data_grad += mock[ npow + 2 * k + 1];// * t3der.s1;	
-         
-        data_grad = dft_y[uvpnt.s0 * image_width + j].s0;
-        //data_grad = dft_y[uvpnt.s0 * image_width + j];					
-/*    }*/
+        t3der = MultComplex3Special(t3der, data_phasor[k], invflux);
 
-    data_gradient[j * image_width + i] = \
-          dft_x[uvpnt.s0 * image_width + i].s0 * dft_y[uvpnt.s0 * image_width + j].s0 \
-        - dft_x[uvpnt.s0 * image_width + i].s1 * dft_y[uvpnt.s0 * image_width + j].s1;
-        
-        data_gradient[j * image_width + i] -= vabderr.s0;
+        // Error from the real part:         
+        data_grad += 2 * data_err[npow + 2 * k] * data_err[npow + 2 * k] * ( mock[ npow + 2 * k] - data[npow + 2 * k] ) * t3der.s0;
+
+        // Error from the imaginary part:
+        data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[npow + 2 * k + 1] * mock[ npow + 2 * k + 1] * t3der.s1;	   					
+    }
+
+    data_gradient[j * image_width + i] = data_grad;
 }
