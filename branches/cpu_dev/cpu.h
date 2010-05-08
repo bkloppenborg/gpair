@@ -16,9 +16,9 @@ float compute_flux(int image_width, float* image);
 
 void compute_data_gradient(chi2_info * data_info, float * image, float * data_gradient);
 
-void conjugate_gradient(chi2_info * data_info, int gradient_method, ls_params * params,
-    float * current_image, float * default_model, 
-    int ndata, int iteration);
+//void conjugate_gradient(chi2_info * data_info, int gradient_method, ls_params * params,
+//    float * current_image, float * default_model, 
+//    int ndata, int iteration);
 
 float data2chi2(int npow, int nbis,
     float * data, float * data_err,

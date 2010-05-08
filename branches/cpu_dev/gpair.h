@@ -10,7 +10,7 @@
 #endif
 
 int read_oifits(char *filename);
-void write_fits_image( float* image , int* status );
+void write_fits(int image_width, float * image , char * filename, int * status);
 
 float linesearch_zoom( float steplength_low, float steplength_high, float criterion_steplength_low, float wolfe_product1,
 		float criterion_init, int *criterion_evals, int *grad_evals, float *current_image, float *temp_image,
