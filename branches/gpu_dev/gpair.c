@@ -230,14 +230,14 @@ int main(int argc, char *argv[])
     gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short4));
     for(i = 0; i < nbis; i++)
     {
-        gpu_bsref_uvpnt[i].s0 = oifits_info.bsref[i].ab.uvpnt;
-        gpu_bsref_uvpnt[i].s1 = oifits_info.bsref[i].bc.uvpnt;
-        gpu_bsref_uvpnt[i].s2 = oifits_info.bsref[i].ca.uvpnt;
+        gpu_bsref_uvpnt[i].s0 = (long) oifits_info.bsref[i].ab.uvpnt;
+        gpu_bsref_uvpnt[i].s1 = (long) oifits_info.bsref[i].bc.uvpnt;
+        gpu_bsref_uvpnt[i].s2 = (long) oifits_info.bsref[i].ca.uvpnt;
         gpu_bsref_uvpnt[i].s3 = 0;
 
-        gpu_bsref_sign[i].s0 = oifits_info.bsref[i].ab.sign;
-        gpu_bsref_sign[i].s1 = oifits_info.bsref[i].bc.sign;
-        gpu_bsref_sign[i].s2 = oifits_info.bsref[i].ca.sign;
+        gpu_bsref_sign[i].s0 = (short) oifits_info.bsref[i].ab.sign;
+        gpu_bsref_sign[i].s1 = (short) oifits_info.bsref[i].bc.sign;
+        gpu_bsref_sign[i].s2 = (short) oifits_info.bsref[i].ca.sign;
         gpu_bsref_sign[i].s3 = 0;
     }    
     
@@ -509,17 +509,23 @@ float compute_flux( float* image )
   return total;
 }
 
-void compute_data_gradient(float complex* visi, float* mock, float* image, float* data_gradient) // need to call vis2data before this
+void compute_data_gradient(float complex * visi, float * mock, float * image, float * data_gradient) // need to call vis2data before this
 {
 
     register int ii, jj, kk;
-    double complex vab, vbc, vca, vabder, vbcder, vcader, t3der;
+    float complex vab;
+    float complex vbc;
+    float complex vca;
+    float complex vabder;
+    float complex vbcder;
+    float complex vcader; 
+    float complex t3der;
 
-    double flux = 0.; // if the flux has already been computed, we could use its value 
+    float flux = 0.; // if the flux has already been computed, we could use its value 
     for(ii = 0 ; ii < image_width * image_width ; ii++)
         flux +=  image[ ii ];
 
-    double invflux = 1. / flux;
+    float invflux = 1. / flux;
 
     for(ii=0; ii < image_width; ii++)
     {
@@ -528,19 +534,26 @@ void compute_data_gradient(float complex* visi, float* mock, float* image, float
             data_gradient[ii + jj * image_width] = 0.;
 
             // Add gradient of chi2v2
-            for(kk = 0 ; kk < npow; kk++)
-            {
-                data_gradient[ii + jj * image_width] += 4.0 * data_err[ kk ] * data_err[ kk ] * invflux 
-                *  ( mock[ kk ] - data[ kk ] ) 
-                * creal( conj( visi[ kk ] ) *  ( DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] - visi[ kk ] ) );
-            }
+/*            for(kk = 0 ; kk < npow; kk++)*/
+/*            {*/
+/*                data_gradient[ii + jj * image_width] += 4.0 * data_err[ kk ] * data_err[ kk ] * invflux */
+/*                *  ( mock[ kk ] - data[ kk ] ) */
+/*                * creal( conj( visi[ kk ] ) *  ( DFT_tablex[ image_width * kk +  ii ] * DFT_tabley[ image_width * kk +  jj ] - visi[ kk ] ) );*/
+/*            }*/
 
             // Add gradient of chi2bs
-            for(kk = 0 ; kk < nbis; kk++)
-            {
+            kk = 9;
+/*            for(kk = 0 ; kk < 2; kk++)*/
+/*            {*/
                 vab = visi[oifits_info.bsref[kk].ab.uvpnt];
                 vbc = visi[oifits_info.bsref[kk].bc.uvpnt];
                 vca = visi[oifits_info.bsref[kk].ca.uvpnt];
+                
+/*                printf("[%i %i] %e %e %e %e\n", ii, jj,*/
+/*                    creal(DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ]), */
+/*                    cimag(DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ]), */
+/*                    creal(DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj]),*/
+/*                    cimag(DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj]));*/
 
                 vabder =  DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ]  ; 
                 vbcder =  DFT_tablex[ oifits_info.bsref[kk].bc.uvpnt * image_width + ii  ] * DFT_tabley[ oifits_info.bsref[kk].bc.uvpnt * image_width + jj  ]  ;
@@ -553,14 +566,32 @@ void compute_data_gradient(float complex* visi, float* mock, float* image, float
                 if(oifits_info.bsref[kk].bc.sign < 0) { vbcder = conj(vbcder);}
                 if(oifits_info.bsref[kk].ca.sign < 0) { vabder = conj(vcader);}
 
-                t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_phasor[kk] * invflux ;
+
+                //t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_phasor[kk] * invflux ;
+
+                t3der = (vabder); // - vab);// * vbc * vca;
+                //t3der += vab * (vbcder - vbc) * vca;
+                //t3der += vab * vbc * (vcader - vca);
+                //t3der *= data_phasor[kk] * invflux;
 
                 // gradient from real part
-                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk] * data_err[npow + 2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ); // * creal( t3der );  
+                //data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk] * data_err[npow + 2 * kk]  * ( mock[ npow + 2 * kk] - data[npow + 2 * kk] ) * creal( t3der );  
 
                 // gradient from imaginary part
-                data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk + 1] * data_err[npow + 2 * kk + 1] * mock[ npow + 2 * kk + 1]; //  * cimag( t3der );			
-            }
+                //data_gradient[ii + jj * image_width] += 2. * data_err[npow + 2 * kk + 1] * data_err[npow + 2 * kk + 1] * mock[ npow + 2 * kk + 1] * cimag( t3der );			
+
+                // gradient from real part
+                data_gradient[ii + jj * image_width] = \
+                      creal(DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ]) * creal(DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj]) \
+                    - cimag(DFT_tablex[ oifits_info.bsref[kk].ab.uvpnt * image_width + ii  ]) * cimag(DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj]);
+
+                data_gradient[ii + jj * image_width] -= creal(vabder);
+
+                // gradient from imaginary part
+                //data_gradient[ii + jj * image_width] = DFT_tabley[ oifits_info.bsref[kk].ab.uvpnt * image_width + jj  ];
+
+
+/*            }*/
         }
     }
 }	

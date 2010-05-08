@@ -408,19 +408,19 @@ void gpu_check_data(float * cpu_chi2,
 {
     printf(SEP);
     printf("Comparing CPU and GPU Visiblity values:\n");
-    gpu_compare_complex_data(nuv, visi, pGpu_visi0);
+    //gpu_compare_complex_data(nuv, visi, pGpu_visi0);
 
     printf(SEP);    
-     printf("Comparing CPU and GPU Mock Data Values:\n");
-    gpu_compare_data(data_size, mock_data, pGpu_mock_data);   
+    printf("Comparing CPU and GPU Mock Data Values:\n");
+    //gpu_compare_data(data_size, mock_data, pGpu_mock_data);   
 
     printf(SEP);    
     printf("Comparing CPU and GPU chi2 values:\n");
-    gpu_compare_data(1, cpu_chi2, pGpu_chi2);
+    //gpu_compare_data(1, cpu_chi2, pGpu_chi2);
     
     printf(SEP);
     printf("Comparing CPU and GPU gradient values:\n");
-    gpu_compare_data(image_size, data_grad, pGpu_data_grad);
+    gpu_compare_data(10, data_grad, pGpu_data_grad);
 }
 
 void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
@@ -437,19 +437,30 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
         print_opencl_error("Could not read back GPU Data for comparision!", err);    
         
     int i;
-    float err_sum = 0;
+    float max_err = 0;
     float error = 0;
+    float perr = 0;
     for(i = 0; i < size; i++)
     {
-        error = fabs(gpu_data[i] - cpu_data[i]);
+        if(gpu_data[i] == cpu_data[i])
+        {
+            error = 0;
+            perr = 0;
+        }
+        else
+        {
+            error = gpu_data[i] - cpu_data[i];
+            perr = fabs(error / cpu_data[i]);
+        }
         
-        if(error > 0.01)
-            printf("[%i] %f %f %f \n", i, cpu_data[i], gpu_data[i], error);
-            
-       err_sum += error;
+        //if(perr > 0.01) // Greater than 1%
+            printf("[%i] %e %e %e %e\n", i, cpu_data[i], gpu_data[i], error, perr);
+        
+        if(perr > max_err)
+            max_err = perr;    
     }
         
-    printf("Total Difference: %f\n", error);
+    printf("Max Percent Difference: %f\n", 100 * max_err);
     
     free(gpu_data);
 }
@@ -483,7 +494,7 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
         err_sum += error;
     }   
         
-    printf("Total Difference: %f \n", err_sum);
+    printf("Total Difference: %e \n", err_sum);
     
     free(gpu_data);
 }
@@ -1114,9 +1125,9 @@ void gpu_compute_data_gradient(int npow, int nbis, int image_width)
 /*    if(gpu_enable_debug && gpu_enable_verbose)*/
 /*        printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);*/
         
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);
-    if (err)
-        print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
+/*    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);*/
+/*    if (err)*/
+/*        print_opencl_error("Cannot enqueue v2 gradient kernel.", err); */
     
     clFinish(*pQueue);    
      
