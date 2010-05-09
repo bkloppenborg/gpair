@@ -135,10 +135,8 @@ int main(int argc, char *argv[])
 	{
 		for (ii = 0; ii < image_width; ii++)
 		{
-			DFT_tablex[image_width * uu + ii] = cexp(-2.0 * I * PI * RPMAS * image_pixellation * oifits_info.uv[uu].u
-					* (float) ii);
-			DFT_tabley[image_width * uu + ii] = cexp(-2.0 * I * PI * RPMAS * image_pixellation * oifits_info.uv[uu].v
-					* (float) ii);
+			DFT_tablex[image_width * uu + ii] = cexp(2.0 * I * PI * RPMAS * image_pixellation * oifits_info.uv[uu].u * (float) ii);
+			DFT_tabley[image_width * uu + ii] = cexp(-2.0 * I * PI * RPMAS * image_pixellation * oifits_info.uv[uu].v * (float) ii);
 		}
 	}
 
@@ -222,7 +220,7 @@ int main(int argc, char *argv[])
 				hyperparameter_entropy * entropy, entropy);
 
 		// TODO: Re-enable this:
-		//writefits(current_image, "!reconst.fits");
+		writefits(current_image, "!reconst.fits");
 
 		//
 		// Compute full gradient (data + entropy)
@@ -597,15 +595,14 @@ int read_oifits(char * filename)
 	return 1;
 }
 
-void write_fits(int image_width, float * image, char * filename, int * status)
+void writefits(float* image, char* fitsimage)
 {
 	fitsfile *fptr;
-	int i;
+	int error = 0;
+	int* status = &error;
 	long fpixel = 1, naxis = 2, nelements;
 	long naxes[2];
-	char fitsimage[100];
-	for (i = 0; i < 100; i++)
-		fitsimage[i] = '\0';
+
 	/*Initialise storage*/
 	naxes[0] = (long) image_width;
 	naxes[1] = (long) image_width;
@@ -613,11 +610,11 @@ void write_fits(int image_width, float * image, char * filename, int * status)
 
 	/*Create new file*/
 	if (*status == 0)
-		fits_create_file(&fptr, filename, status);
+		fits_create_file(&fptr, fitsimage, status);
 
 	/*Create primary array image*/
 	if (*status == 0)
-		fits_create_img(fptr, FLOAT_IMG, naxis, naxes, status);
+		fits_create_img(fptr, DOUBLE_IMG, naxis, naxes, status);
 	/*Write a keywords (datafile, target, image pixelation) */
 	if (*status == 0)
 		fits_update_key(fptr, TSTRING, "DATAFILE", "dummy", "Data File Name", status);
