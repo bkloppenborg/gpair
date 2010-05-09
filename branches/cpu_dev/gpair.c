@@ -37,6 +37,7 @@ float complex* DFT_tabley = NULL;
 int npow = 0;
 int nbis = 0;
 int nuv = 0;
+int ndof = 0;
 
 int main(int argc, char *argv[])
 {
@@ -76,7 +77,9 @@ int main(int argc, char *argv[])
 	npow = oifits_info.npow;
 	nbis = oifits_info.nbis;
 	nuv = oifits_info.nuv;
-	printf("There are %d data : %d powerspectrum and %d bispectrum\n", npow + 2 * nbis, npow, nbis);
+	ndof = npow + 2 * nbis;
+
+	printf("%d data read : %d powerspectrum, %d bispectrum and Ndof = %d\n", npow + 2 * nbis, npow, nbis, ndof);
 
 	// TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
 	// by rounding to the nearest sum of powers of 2 (if it makes sense).
@@ -92,39 +95,21 @@ int main(int argc, char *argv[])
 	data = malloc(data_alloc * sizeof(float));
 	data_err = malloc(data_alloc * sizeof(float));
 	data_phasor = malloc(data_alloc_phasor * sizeof( float complex ));
+	init_data(0);
 
-	float complex * visi = malloc(data_alloc_uv * sizeof( float complex)); // current visibilities 
-	float complex * new_visi= malloc(data_alloc_uv * sizeof( float complex)); // tentative visibilities  
-	float * mock = malloc(data_alloc * sizeof(float)); // stores the mock current pseudo-data derived from the image
-
-
-	// Set elements [0, npow - 1] equal to the power spectrum
-	for (ii = 0; ii < npow; ii++)
-	{
-		data[ii] = oifits_info.pow[ii];
-		data_err[ii] = 1 / oifits_info.powerr[ii];
-		mock[ii] = 0;
-	}
-
-	// Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
-	for (ii = 0; ii < nbis; ii++)
-	{
-		data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii]);
-		data[npow + 2 * ii] = oifits_info.bisamp[ii];
-		data[npow + 2 * ii + 1] = 0.;
-		data_err[npow + 2 * ii] = 1 / oifits_info.bisamperr[ii];
-		data_err[npow + 2 * ii + 1] = 1 / (oifits_info.bisamp[ii] * oifits_info.bisphserr[ii]);
-		mock[npow + 2 * ii] = 0;
-		mock[npow + 2 * ii + 1] = 0;
-	}
-
-	// Pad the arrays with zeros and ones after this
+	// Pad the arrays with zeros and ones after the data
 	for (ii = data_size; ii < data_alloc; ii++)
 	{
 		data[ii] = 0;
 		data_err[ii] = 0;
-		mock[ii] = 0;
 	}
+
+	float complex * visi = malloc(data_alloc_uv * sizeof( float complex)); // current visibilities 
+	//float complex * new_visi= malloc(data_alloc_uv * sizeof( float complex)); // tentative visibilities  
+	float * mock = malloc(data_alloc * sizeof(float)); // stores the mock current pseudo-data derived from the image
+
+	for (ii = 0; ii < data_alloc; ii++)
+		mock[ii] = 0.;
 
 	// Init the default model:
 	float * default_model = malloc(image_width * image_width * sizeof(float));
@@ -136,7 +121,7 @@ int main(int argc, char *argv[])
 	printf("Image Buffer Size %i \n", image_size);
 	float * current_image = malloc(image_size * sizeof(float));
 	memset(current_image, 0, image_size);
-	for (ii = 0; ii < image_width * image_width; ii++)
+	for (ii = 0; ii < image_size; ii++)
 		current_image[ii] = default_model[ii];
 
 	// setup precomputed DFT table
@@ -201,26 +186,25 @@ int main(int argc, char *argv[])
 	float wolfe_param2 = 0.1;
 	float wolfe_product1 = 0.0;
 	float wolfe_product2 = 0.0;
-	
-	float entropy, hyperparameter_entropy = 0.;
-	float criterion;
-	int ndata = npow + 2 * nbis;
-	int gradient_method = 0;
 
-	float * data_gradient = malloc(image_width * image_width * sizeof(float));
-	float * entropy_gradient = malloc(image_width * image_width * sizeof(float));
-	float * full_gradient = malloc(image_width * image_width * sizeof(float));
-	float * full_gradient_new = malloc(image_width * image_width * sizeof(float));
-	float * temp_gradient = malloc(image_width * image_width * sizeof(float));
-	float * temp_image = malloc(image_width * image_width * sizeof(float));
+	float entropy, hyperparameter_entropy = 2000.;
+	float criterion;
+	int gradient_method = 3;
+
+	float * data_gradient = malloc(image_size * sizeof(float));
+	float * entropy_gradient = malloc(image_size * sizeof(float));
+	float * full_gradient = malloc(image_size * sizeof(float));
+	float * full_gradient_new = malloc(image_size * sizeof(float));
+	float * temp_gradient = malloc(image_size * sizeof(float));
+	float * temp_image = malloc(image_size * sizeof(float));
 
 	// Init descent direction
-	float * descent_direction = malloc(image_width * image_width * sizeof(float));
-	memset(descent_direction, 0, image_width * image_width * sizeof(float));
+	float * descent_direction = malloc(image_size * sizeof(float));
+	memset(descent_direction, 0, image_size * sizeof(float));
 
 	// Test 1 : compute mock data, powerspectra + bispectra from scratch
-	clock_t tick = clock();
-	clock_t tock = 0;
+	//clock_t tick = clock();
+	//clock_t tock = 0;
 	for (uu = 0; uu < iterations; uu++)
 	{
 
@@ -234,7 +218,7 @@ int main(int argc, char *argv[])
 
 		printf(
 				"Grad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
-				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndata, chi2,
+				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
 				hyperparameter_entropy * entropy, entropy);
 
 		// TODO: Re-enable this:
@@ -246,7 +230,7 @@ int main(int argc, char *argv[])
 
 		compute_data_gradient(&i2v_info, current_image, data_gradient);
 		GullSkilling_entropy_gradient(image_width, current_image, default_model, entropy_gradient);
-		for (ii = 0; ii < image_width * image_width; ii++)
+		for (ii = 0; ii < image_size; ii++)
 			full_gradient_new[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
 
 		grad_evals++;
@@ -258,37 +242,45 @@ int main(int argc, char *argv[])
 			//
 			// Compute descent direction
 			//
-			for (ii = 0; ii < image_width * image_width; ii++)
+			for (ii = 0; ii < image_size; ii++)
 				descent_direction[ii] = -full_gradient_new[ii];
 		}
 		else
 		{
+
 			if (gradient_method == 1) // CG
-				beta = scalprod(image_size, full_gradient_new, full_gradient_new) / scalprod(image_size, full_gradient,	full_gradient); // FR
+				beta = scalprod(full_gradient_new, full_gradient_new) / scalprod(full_gradient, full_gradient); // FR
 			if (gradient_method == 2)
-				beta = (scalprod(image_size, full_gradient_new, full_gradient_new) - scalprod(image_size, full_gradient_new, full_gradient)) // PR
-						/ scalprod(image_size, full_gradient, full_gradient);
+			{
+				beta = (scalprod(full_gradient_new, full_gradient_new) - scalprod(full_gradient_new, full_gradient)) // PR
+						/ scalprod(full_gradient, full_gradient);
+				if (beta < 0.)
+					beta = 0.;
+			}
+
 			if (gradient_method == 3) // HS
-				beta = (scalprod(image_size, full_gradient_new, full_gradient_new) - scalprod(image_size,
-						full_gradient_new, full_gradient))
-						/ (scalprod(image_size, descent_direction, full_gradient_new) - scalprod(image_size,
-								descent_direction, full_gradient));
-			if (fabs(scalprod(image_size, full_gradient, full_gradient_new)) / scalprod(image_size, full_gradient_new,
-					full_gradient_new) > 1.0)
+			{
+				beta = (scalprod(full_gradient_new, full_gradient_new) - scalprod(full_gradient_new, full_gradient))
+						/ (scalprod(descent_direction, full_gradient_new) - scalprod(descent_direction, full_gradient));
+				if (beta < 0.)
+					beta = 0.;
+			}
+
+			if (fabs(scalprod(full_gradient_new, full_gradient) / scalprod(full_gradient_new, full_gradient_new)) > .5)
 				beta = 0.;
-
-			//
-			// Compute descent direction
-			//
-			for (ii = 0; ii < image_width * image_width; ii++)
-				descent_direction[ii] = beta * descent_direction[ii] - full_gradient_new[ii];
-
-			// Some tests on descent direction
-			/*            printf("Angle descent direction/gradient %lf \t Descent direction / previous descent direction : %lf \n",*/
-			/*			       acos (- scalprod(descent_direction, full_gradient_new)*/
-			/*				/ sqrt( scalprod(full_gradient_new , full_gradient_new) * scalprod(descent_direction, descent_direction) )) / PI * 180.,*/
-			/*			       fabs( scalprod(full_gradient, full_gradient_new) ) /  scalprod(full_gradient_new , full_gradient_new)   );*/
 		}
+
+		//
+		// Compute descent direction
+		//
+		for (ii = 0; ii < image_size; ii++)
+			descent_direction[ii] = beta * descent_direction[ii] - full_gradient_new[ii];
+
+		// Some tests on descent direction
+		printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
+				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
+						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
+				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
 
 		//      writefits(descent_direction, "!gradient.fits");
 
@@ -298,7 +290,7 @@ int main(int argc, char *argv[])
 		//
 
 		// Compute quantity for Wolfe condition 1
-		wolfe_product1 = scalprod(image_size, descent_direction, full_gradient_new);
+		wolfe_product1 = scalprod(descent_direction, full_gradient_new);
 
 		// Initialize variables for line search
 		selected_steplength = 0.;
@@ -317,7 +309,7 @@ int main(int argc, char *argv[])
 			//
 
 			//  Step 1: compute the temporary image: I1 = I0 - coeff * descent direction
-			for (ii = 0; ii < image_width * image_width; ii++)
+			for (ii = 0; ii < image_size; ii++)
 			{
 				temp_image[ii] = current_image[ii] + steplength * descent_direction[ii];
 				if (temp_image[ii] < minvalue)
@@ -348,11 +340,11 @@ int main(int argc, char *argv[])
 
 			compute_data_gradient(&i2v_info, temp_image, data_gradient);
 			GullSkilling_entropy_gradient(image_width, current_image, default_model, entropy_gradient);
-			for (ii = 0; ii < image_width * image_width; ii++)
+			for (ii = 0; ii < image_size; ii++)
 				temp_gradient[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
 			grad_evals++;
 
-			wolfe_product2 = scalprod(image_size, descent_direction, temp_gradient);
+			wolfe_product2 = scalprod(descent_direction, temp_gradient);
 
 			if (fabs(wolfe_product2) <= -wolfe_param2 * wolfe_product1)
 			{
@@ -374,7 +366,7 @@ int main(int argc, char *argv[])
 
 			steplength_old = steplength;
 			// choose the next steplength
-			steplength *= 1.1;
+			steplength *= 1.05;
 			if (steplength > steplength_max)
 				steplength = steplength_max;
 
@@ -386,7 +378,7 @@ int main(int argc, char *argv[])
 		// End of line search
 		//printf("Double check, selected_steplength = %le \n", selected_steplength); 
 		// Update image with the selected step length
-		for (ii = 0; ii < image_width * image_width; ii++)
+		for (ii = 0; ii < image_size; ii++)
 		{
 			current_image[ii] += selected_steplength * descent_direction[ii];
 			if (current_image[ii] < minvalue)
@@ -395,24 +387,24 @@ int main(int argc, char *argv[])
 
 		// Backup gradient
 		if (gradient_method != 0)
-			memcpy(full_gradient, full_gradient_new, image_width * image_width * sizeof(float));
+			memcpy(full_gradient, full_gradient_new, image_size * sizeof(float));
 
 	} // End Conjugated Gradient.
 
-	tock = clock();
-	float time_chi2 = (float) (tock - tick) / (float) CLOCKS_PER_SEC;
-	printf(SEP);
-	printf("Full DFT Calculation (CPU)\n");
-	printf(SEP);
-	printf("CPU time (s): = %f\n", time_chi2);
-	printf("CPU Chi2: %f (CPU only)\n", chi2);
+	//	tock = clock();
+	//	float time_chi2 = (float) (tock - tick) / (float) CLOCKS_PER_SEC;
+	//	printf(SEP);
+	//	printf("Full DFT Calculation (CPU)\n");
+	//	printf(SEP);
+	//	printf("CPU time (s): = %f\n", time_chi2);
+	//	printf("CPU Chi2: %f (CPU only)\n", chi2);
 
 	// Test 2 : recompute mock data, powerspectra + bispectra when changing only the flux of one pixel
-	tick = clock();
-	float total_flux = compute_flux(image_width, current_image);
-	float inc = 1.1;
-	int x_changed = 64;
-	int y_changed = 4;
+	//	tick = clock();
+	//	float total_flux = compute_flux(image_width, current_image);
+	//	float inc = 1.1;
+	//	int x_changed = 64;
+	//	int y_changed = 4;
 
 	// Disabled for now, disagreement between CPU and GPU values.
 	/*    for(ii=0; ii < iterations; ii++)*/
@@ -605,47 +597,115 @@ int read_oifits(char * filename)
 	return 1;
 }
 
-void write_fits(int image_width, float * image , char * filename, int * status)
+void write_fits(int image_width, float * image, char * filename, int * status)
 {
-    fitsfile *fptr;
-    int i;
-    long fpixel = 1, naxis = 2, nelements;
-    long naxes[ 2 ];
-    char fitsimage[ 100 ];
-    for (i = 0; i < 100; i++)
-    fitsimage[ i ] = '\0';
-    /*Initialise storage*/
-    naxes[ 0 ] = (long) image_width;
-    naxes[ 1 ] = (long) image_width;
-    nelements = naxes[ 0 ] * naxes[ 1 ];
+	fitsfile *fptr;
+	int i;
+	long fpixel = 1, naxis = 2, nelements;
+	long naxes[2];
+	char fitsimage[100];
+	for (i = 0; i < 100; i++)
+		fitsimage[i] = '\0';
+	/*Initialise storage*/
+	naxes[0] = (long) image_width;
+	naxes[1] = (long) image_width;
+	nelements = naxes[0] * naxes[1];
 
-    /*Create new file*/
-    if (*status == 0)
-        fits_create_file(&fptr, filename, status);
+	/*Create new file*/
+	if (*status == 0)
+		fits_create_file(&fptr, filename, status);
 
-    /*Create primary array image*/
-    if (*status == 0)
-        fits_create_img(fptr, FLOAT_IMG, naxis, naxes, status); 
-    /*Write a keywords (datafile, target, image pixelation) */
-    if (*status == 0)
-        fits_update_key(fptr, TSTRING, "DATAFILE", "dummy", "Data File Name", status); 
-    if (*status == 0)
-        fits_update_key(fptr, TSTRING, "TARGET", "dummy", "Target Name", status); 
-    if (*status == 0)
-        fits_update_key(fptr, TFLOAT, "PIXSIZE", &image_pixellation, "Pixelation (mas)", status);
-    if (*status == 0)
-        fits_update_key(fptr, TINT, "WIDTH", &image_width, "Size (pixels)", status); 
+	/*Create primary array image*/
+	if (*status == 0)
+		fits_create_img(fptr, FLOAT_IMG, naxis, naxes, status);
+	/*Write a keywords (datafile, target, image pixelation) */
+	if (*status == 0)
+		fits_update_key(fptr, TSTRING, "DATAFILE", "dummy", "Data File Name", status);
+	if (*status == 0)
+		fits_update_key(fptr, TSTRING, "TARGET", "dummy", "Target Name", status);
+	if (*status == 0)
+		fits_update_key(fptr, TFLOAT, "PIXSIZE", &image_pixellation, "Pixelation (mas)", status);
+	if (*status == 0)
+		fits_update_key(fptr, TINT, "WIDTH", &image_width, "Size (pixels)", status);
 
-    /*Write image*/
-    if (*status == 0)
-        fits_write_img(fptr, TFLOAT, fpixel, nelements, &image[ 0 ], status); 
+	/*Write image*/
+	if (*status == 0)
+		fits_write_img(fptr, TFLOAT, fpixel, nelements, &image[0], status);
 
-    /*Close file*/
-    if (*status == 0)
-        fits_close_file(fptr, status);
+	/*Close file*/
+	if (*status == 0)
+		fits_close_file(fptr, status);
 
-    /*Report any errors*/
-    fits_report_error(stderr, *status);
+	/*Report any errors*/
+	fits_report_error(stderr, *status);
+
+}
+
+void init_data(int do_extrapolation)
+{
+	register int ii;
+	float infinity = 1e8;
+	float pow1, powerr1, pow2, powerr2, pow3, powerr3, sqamp1, sqamp2, sqamp3, sqamperr1, sqamperr2, sqamperr3;
+	// Set elements [0, npow - 1] equal to the power spectrum
+	for (ii = 0; ii < npow; ii++)
+	{
+		data[ii] = oifits_info.pow[ii];
+		data_err[ii] = 1 / oifits_info.powerr[ii];
+	}
+
+	// Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
+	for (ii = 0; ii < nbis; ii++)
+	{
+		data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii]);
+
+		if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > infinity))) // Missing triple amplitudes
+		{
+			if ((oifits_info.bsref[ii].ab.uvpnt < npow) && (oifits_info.bsref[ii].bc.uvpnt < npow)
+					&& (oifits_info.bsref[ii].ca.uvpnt < npow))
+			{
+				// if corresponding powerspectrum points are available
+				// Derive pseudo-triple amplitudes from powerspectrum data
+				// First select the relevant powerspectra
+				pow1 = oifits_info.pow[oifits_info.bsref[ii].ab.uvpnt];
+				powerr1 = oifits_info.powerr[oifits_info.bsref[ii].ab.uvpnt];
+				pow2 = oifits_info.pow[oifits_info.bsref[ii].bc.uvpnt];
+				powerr2 = oifits_info.powerr[oifits_info.bsref[ii].bc.uvpnt];
+				pow3 = oifits_info.pow[oifits_info.bsref[ii].ca.uvpnt];
+				powerr3 = oifits_info.powerr[oifits_info.bsref[ii].ca.uvpnt];
+				// Derive optimal visibility amplitudes + noise variance
+				sqamp1 = (pow1 + sqrt(square(pow1) + 2.0 * square(powerr1))) / 2.;
+				sqamperr1 = 1. / (1. / sqamp1 + 2. * (3. * sqamp1 - pow1) / square(powerr1));
+				sqamp2 = (pow2 + sqrt(square(pow2) + 2.0 * square(powerr2))) / 2.;
+				sqamperr2 = 1. / (1. / sqamp2 + 2. * (3. * sqamp2 - pow2) / square(powerr2));
+				sqamp3 = (pow3 + sqrt(square(pow3) + 2.0 * square(powerr3))) / 2.;
+				sqamperr3 = 1. / (1. / sqamp3 + 2. * (3. * sqamp3 - pow3) / square(powerr3));
+				// And form the triple amplitude statistics
+				oifits_info.bisamp[ii] = sqrt(sqamp1 * sqamp2 * sqamp3);
+				oifits_info.bisamperr[ii] = oifits_info.bisamp[ii] * sqrt(sqamperr1 / sqamp1 + sqamperr2 / sqamp2
+						+ sqamperr3 / sqamp3);
+			}
+
+			else // missing powerspectrum points -> cannot extrapolate bispectrum
+			{
+				printf(
+						"WARNING: triple amplitude extrapolation from powerspectrum failed because of missing powerspectrum\n");
+				oifits_info.bisamp[ii] = 1.0;
+				oifits_info.bisamperr[ii] = infinity;
+				// TDB - decrease the number of degrees of freedom
+				ndof--;
+			}
+
+		}
+
+		data[npow + 2 * ii] = fabs(oifits_info.bisamp[ii]);
+		data[npow + 2 * ii + 1] = 0.;
+		if (oifits_info.bisamperr[ii] < infinity / 2.)
+			data_err[npow + 2 * ii] = 1 / oifits_info.bisamperr[ii];
+		else
+			data_err[npow + 2 * ii] = 0.;
+
+		data_err[npow + 2 * ii + 1] = 1 / (fabs(oifits_info.bisamp[ii]) * oifits_info.bisphserr[ii]);
+	}
 
 }
 
@@ -656,7 +716,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		chi2_info * data_info)
 {
 	float chi2, entropy;
-	float steplength, selected_steplength = 0., criterion, wolfe_product2;
+	float steplength =0., selected_steplength = 0., criterion = 0., criterion_old = 0., steplength_old = 0., wolfe_product2;
 	int ii;
 	int counter = 0;
 	float minvalue = 1e-8;
@@ -668,8 +728,20 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 	{
 
 		// Interpolation - for the moment by bisection (simple for now)
+		//steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
+		//printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
+
+		if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
+		steplength = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
+
+		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
 		steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
-		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
+
+		if( fabs( steplength_high - steplength_low ) < 1e-14)
+		{
+			selected_steplength=steplength_low;
+			break;
+		}
 
 		// Evaluate criterion(steplength)
 		for(ii=0; ii < image_width * image_width; ii++)
@@ -699,7 +771,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 			temp_gradient[ii] = data_gradient[ii] - hyperparameter_entropy * entropy_gradient[ii];
 
 			*grad_evals++;
-			wolfe_product2 = scalprod(image_width * image_width, descent_direction, temp_gradient );
+			wolfe_product2 = scalprod( descent_direction, temp_gradient );
 
 			//printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
 			if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 ) || ( counter > 10 ))
@@ -715,9 +787,20 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 
 		}
 
+		steplength_old = steplength;
+		criterion_old = criterion;
+
 		counter++;
 	}
 
 	return selected_steplength;
 }
 
+float scalprod(float * array1, float * array2)
+{
+	float total = 0.0;
+	register int ii;
+	for (ii = 0; ii < image_width * image_width; ii++)
+		total += array1[ii] * array2[ii];
+	return total;
+}

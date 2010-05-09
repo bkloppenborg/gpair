@@ -49,8 +49,6 @@ float L2_diff(int image_width,
     
 //float linesearch_zoom(chi2_info * data_info, ls_zoom * linesearch_params);
 
-float scalprod(int array_size, float * array1, float * array2);
-
 void set_model(int image_width, float image_pixellation, 
     int modeltype, float modelwidth, float modelflux, float * default_model);
 

@@ -415,7 +415,7 @@ int get_oi_fits_selection(oi_usersel *usersel, int* status)
 	{
 	AGAIN1:
 	  printf("SELECT AN ID: ");
-	  scanf("%d",&usersel->target_id);
+	  scanf("%d", &usersel->target_id);
 	  
 	  tmpi = 0;
 	  for(i=0; i<targets.ntarget; i++)
