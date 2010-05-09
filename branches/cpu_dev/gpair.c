@@ -79,8 +79,6 @@ int main(int argc, char *argv[])
 	nuv = oifits_info.nuv;
 	ndof = npow + 2 * nbis;
 
-	printf("%d data read : %d powerspectrum, %d bispectrum and Ndof = %d\n", npow + 2 * nbis, npow, nbis, ndof);
-
 	// TODO: GPU Memory Allocations simply round to the nearest power of two, make this more intelligent
 	// by rounding to the nearest sum of powers of 2 (if it makes sense).
 
@@ -95,7 +93,7 @@ int main(int argc, char *argv[])
 	data = malloc(data_alloc * sizeof(float));
 	data_err = malloc(data_alloc * sizeof(float));
 	data_phasor = malloc(data_alloc_phasor * sizeof( float complex ));
-	init_data(0);
+	init_data(1);
 
 	// Pad the arrays with zeros and ones after the data
 	for (ii = data_size; ii < data_alloc; ii++)
@@ -103,7 +101,14 @@ int main(int argc, char *argv[])
 		data[ii] = 0;
 		data_err[ii] = 0;
 	}
+	
+	for (ii = nbis; ii < data_alloc_phasor ; ii++)
+		data_phasor[ii] = 0;
 
+
+	printf("%d data read : %d powerspectrum, %d bispectrum and Ndof = %d\n", npow + 2 * nbis, npow, nbis, ndof);
+
+	
 	float complex * visi = malloc(data_alloc_uv * sizeof( float complex)); // current visibilities 
 	//float complex * new_visi= malloc(data_alloc_uv * sizeof( float complex)); // tentative visibilities  
 	float * mock = malloc(data_alloc * sizeof(float)); // stores the mock current pseudo-data derived from the image
@@ -113,7 +118,7 @@ int main(int argc, char *argv[])
 
 	// Init the default model:
 	float * default_model = malloc(image_width * image_width * sizeof(float));
-	set_model(image_width, image_pixellation, 3, 3.0, 10., default_model);
+	set_model(image_width, image_pixellation, 3, 20.0, 10., default_model);
 	//writefits(default_model, "!model.fits");
 
 	// setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
@@ -187,7 +192,7 @@ int main(int argc, char *argv[])
 
 	float entropy, hyperparameter_entropy = 2000.;
 	float criterion;
-	int gradient_method = 3;
+	int gradient_method = 0;
 
 	float * data_gradient = malloc(image_size * sizeof(float));
 	float * entropy_gradient = malloc(image_size * sizeof(float));
@@ -275,11 +280,11 @@ int main(int argc, char *argv[])
 			descent_direction[ii] = beta * descent_direction[ii] - full_gradient_new[ii];
 
 		// Some tests on descent direction
-		printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
+	/*	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
 				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
 						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
 				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
-
+*/
 		//      writefits(descent_direction, "!gradient.fits");
 
 
@@ -726,7 +731,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 
 		// Interpolation - for the moment by bisection (simple for now)
 		//steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
-		//printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
+		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
 
 		if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
 		steplength = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
