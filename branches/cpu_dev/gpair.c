@@ -11,6 +11,8 @@
 #endif
 
 // Preprocessor directive for the GPU:
+#define USE_GPU
+
 #ifdef USE_GPU
 #include "gpu.h"
 #endif
@@ -185,6 +187,8 @@ int main(int argc, char *argv[])
 	// TODO: Remove after testing
 	int iterations = 10000;
 
+// Only perform the CPU calculations if we are not using the GPU
+#ifndef USE_GPU
 	// #########
 	// CPU Code:
 	// #########
@@ -469,7 +473,16 @@ int main(int argc, char *argv[])
 
 	// Compute the gradient of the mock data.  Note, vis2data should have been caled before this call.
 	//compute_data_gradient(&i2v_info, current_image, data_gradient);
+	
+	// Free CPU-based Memory
+	free(entropy_gradient);
+	free(full_gradient);
+	free(full_gradient_new);
+	free(temp_gradient);
+	free(descent_direction);
+#endif
 
+// Use the GPU if specified.
 #ifdef USE_GPU
 	// #########
 	// GPU Code:  
@@ -557,10 +570,11 @@ int main(int argc, char *argv[])
 	gpu_init();
 
 	gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
-			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
-			image_width);
+			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
+			default_model,
+			image_size,	image_width);
 
-	gpu_build_kernels(data_alloc, image_size);
+	gpu_build_kernels(data_alloc, image_size, image_width);
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
 
 	// Free variables used to store values pepared for the GPU
@@ -572,21 +586,21 @@ int main(int argc, char *argv[])
 	free(gpu_dft_y);
 
 	// Do the full DFT calculation:
-	tick = clock();
+/*	tick = clock();*/
 	for(ii=0; ii < iterations; ii++)
 	{
 		// In the final version of the code, the following lines will be iterated.
 		gpu_copy_image(current_image, image_width, image_width);
-		gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv);
+		//gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv);
 	}
-	tock = clock();
-	time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-	printf(SEP);
-	printf("Full DFT (GPU)\n");
-	printf(SEP);
-	printf("GPU time (s): = %f\n", time_chi2);
+/*	tock = clock();*/
+/*	time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
+/*	printf(SEP);*/
+/*	printf("Full DFT (GPU)\n");*/
+/*	printf(SEP);*/
+/*	printf("GPU time (s): = %f\n", time_chi2);*/
 
-	gpu_compute_data_gradient(npow, nbis, image_width);
+	//gpu_compute_data_gradient(npow, nbis, image_width);
 
 	// Disabled for now, there be a bug between GPU and CPU values.
 	/*    // Now do the Atomic change to visi*/
@@ -610,12 +624,6 @@ int main(int argc, char *argv[])
 	gpu_cleanup();
 
 #endif  // End of ifdef USE_GPU
-	// Free CPU-based Memory
-	free(entropy_gradient);
-	free(full_gradient);
-	free(full_gradient_new);
-	free(temp_gradient);
-	free(descent_direction);
 
 	free(mock);
 	free(data);
