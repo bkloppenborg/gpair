@@ -11,7 +11,7 @@
 #endif
 
 // Preprocessor directive for the GPU:
-#define USE_GPU
+#undef USE_GPU
 
 #ifdef USE_GPU
 #include "gpu.h"
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	char filename[200] = "2004contest1.oifits";
 	char modelfile[200] = "";
 	float image_pixellation = 0.15;
-	float modelwidth = 5., modelflux = 10., wavmin=0, wavmax=1e9;
+	float modelwidth = 5., modelflux = 10.;
 	int modeltype = 3;
 	
 	// Parse command line arguments:
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 		else if (strcmp(argv[ii], "-w") == 0)
 		{
 			sscanf(argv[ii + 1], "%d", &image_width);
-			printf("Pixellation = %d\n", image_width);
+			printf("Image size = %d\n", image_width);
 		}
 		else if (strcmp(argv[ii], "-mw") == 0)
 		{
@@ -92,16 +92,6 @@ int main(int argc, char *argv[])
 			sscanf(argv[ii + 1], "%s", modelfile);
 			printf("Model image = %s\n", modelfile);
 		}		
-		else if (strcmp(argv[ii], "-wavmin") == 0)
-		{
-			sscanf(argv[ii + 1], "%f", &wavmin);
-			printf("Low wav = %f\n", wavmin);
-		}
-		else if (strcmp(argv[ii], "-wavmax") == 0)
-		{
-			sscanf(argv[ii + 1], "%f", &wavmax);
-			printf("High wav = %f\n", wavmax);
-		}
 		
 	}
 	
@@ -133,22 +123,21 @@ int main(int argc, char *argv[])
 	data_phasor = malloc(data_alloc_phasor * sizeof( float complex ));
 	init_data(1);
 
-	// Pad the arrays with zeros and ones after the data
+	// Pad the arrays with zeros and ones after the data (for opencl)
 	for (ii = data_size; ii < data_alloc; ii++)
 	{
-		data[ii] = 0;
-		data_err[ii] = 0;
+		data[ii] = 0.;
+		data_err[ii] = 0.;
 	}
 	
 	for (ii = nbis; ii < data_alloc_phasor ; ii++)
-		data_phasor[ii] = 0;
+		data_phasor[ii] = 0.;
 
 
 	printf("%d data read : %d powerspectrum, %d bispectrum and Ndof = %d\n", npow + 2 * nbis, npow, nbis, ndof);
 
 	
 	float complex * visi = malloc(data_alloc_uv * sizeof( float complex)); // current visibilities 
-	//float complex * new_visi= malloc(data_alloc_uv * sizeof( float complex)); // tentative visibilities  
 	float * mock = malloc(data_alloc * sizeof(float)); // stores the mock current pseudo-data derived from the image
 
 	for (ii = 0; ii < data_alloc; ii++)
@@ -197,7 +186,27 @@ int main(int argc, char *argv[])
 	// TODO: Remove after testing
 	int iterations = 10000;
 
-	// Init variables for the line search:
+// Only perform the CPU calculations if we are not using the GPU
+#ifndef USE_GPU
+	// #########
+	// CPU Code:
+	// #########
+
+	chi2_info i2v_info;
+	i2v_info.npow = npow;
+	i2v_info.nbis = nbis;
+	i2v_info.nuv = nuv;
+	i2v_info.data = data;
+	i2v_info.data_err = data_err;
+	i2v_info.data_phasor = data_phasor;
+	i2v_info.oifits_info = &oifits_info;
+	i2v_info.dft_x = DFT_tablex;
+	i2v_info.dft_y = DFT_tabley;
+	i2v_info.visi = visi;
+	i2v_info.mock = mock;
+	i2v_info.image_width = image_width;
+
+	// Init and copy over variables for the line search:
 	int criterion_evals = 0;
 	int grad_evals = 0;
 	int linesearch_iteration = 0;
@@ -218,26 +227,6 @@ int main(int argc, char *argv[])
 	float entropy, hyperparameter_entropy = 1000.;
 	float criterion;
 	int gradient_method = 1;
-
-// Only perform the CPU calculations if we are not using the GPU
-#ifndef USE_GPU
-	// #########
-	// CPU Code:
-	// #########
-
-	chi2_info i2v_info;
-	i2v_info.npow = npow;
-	i2v_info.nbis = nbis;
-	i2v_info.nuv = nuv;
-	i2v_info.data = data;
-	i2v_info.data_err = data_err;
-	i2v_info.data_phasor = data_phasor;
-	i2v_info.oifits_info = &oifits_info;
-	i2v_info.dft_x = DFT_tablex;
-	i2v_info.dft_y = DFT_tabley;
-	i2v_info.visi = visi;
-	i2v_info.mock = mock;
-	i2v_info.image_width = image_width;
 
 	float * data_gradient = malloc(image_size * sizeof(float));
 	float * entropy_gradient = malloc(image_size * sizeof(float));
@@ -583,8 +572,6 @@ int main(int argc, char *argv[])
 			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
 			default_model,
 			image_size,	image_width);
-			
-	gpu_copy_image(current_image, image_width, image_width);
 
 	gpu_build_kernels(data_alloc, image_size, image_width);
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
@@ -596,208 +583,41 @@ int main(int argc, char *argv[])
 	free(gpu_bsref_sign);
 	free(gpu_dft_x);
 	free(gpu_dft_y);
-	
-	cl_mem * pFull_gradient_new = gpu_getp_fgn();
-	cl_mem * pFull_gradient = gpu_getp_fg();
-	cl_mem * pDescent_direction = gpu_getp_dd();
-	cl_mem * pTemp_gradient= gpu_getp_tg();
-	
-    printf("Entering Main CG Loop.\n");
 
-	for (uu = 0; uu < iterations; uu++)
+	// Do the full DFT calculation:
+/*	tick = clock();*/
+	for(ii=0; ii < iterations; ii++)
 	{
+		// In the final version of the code, the following lines will be iterated.
+		gpu_copy_image(current_image, image_width, image_width);
+		//gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv);
+	}
+/*	tock = clock();*/
+/*	time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
+/*	printf(SEP);*/
+/*	printf("Full DFT (GPU)\n");*/
+/*	printf(SEP);*/
+/*	printf("GPU time (s): = %f\n", time_chi2);*/
 
-		//
-		// Compute the criterion
-		//
-		chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
-		entropy = gpu_get_entropy_curr(image_width);
-		criterion = chi2 - hyperparameter_entropy * entropy;
-		criterion_evals++;
+	//gpu_compute_data_gradient(npow, nbis, image_width);
 
-		printf("Grad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
-				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
-				hyperparameter_entropy * entropy, entropy);
+	// Disabled for now, there be a bug between GPU and CPU values.
+	/*    // Now do the Atomic change to visi*/
+	/*    tick = clock();*/
+	/*    for(ii=0; ii < iterations; ii++)*/
+	/*    {*/
+	/*        gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, nuv, data_alloc_uv);*/
+	/*        gpu_new_chi2(nuv, npow, nbis, data_alloc); */
+	/*    }       */
+	/*    tock=clock();*/
+	/*    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
+	/*    printf(SEP);*/
+	/*    printf("Atomic change (GPU)\n");*/
+	/*    printf(SEP);*/
+	/*    printf("GPU time (s): = %f\n", time_chi2);*/
 
-		if(uu%2 == 0)
-			writefits(current_image, "!reconst.fits");
-
-		//
-		// Compute full gradient (data + entropy)
-		//
-		
-		gpu_compute_data_gradient_curr(npow, nbis, image_width);
-		gpu_compute_entropy_gradient_curr(image_width);
-        
-        // Now compute the criterion gradient:
-        gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
-		grad_evals++;
-
-		// Compute the modifier of the gradient direction depending on the method
-		if ((uu == 0) || (gradient_method == 0))
-		{
-			beta = 0.; // steepest descent
-		}
-		else
-		{
-			if (gradient_method == 1) // CG
-				beta = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) 
-				        / gpu_get_scalprod(image_width, image_width, pFull_gradient, pFull_gradient); // FR
-			if (gradient_method == 2)
-			{
-				beta = (gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) 
-				        - gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient)) // PR
-						/ gpu_get_scalprod(image_width, image_width, pFull_gradient, pFull_gradient);
-				if (beta < 0.)
-					beta = 0.;
-			}
-
-			if (gradient_method == 3) // HS
-			{
-				beta = (gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) 
-				        - gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient))
-					    / (gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new) 
-					        - gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient));
-				if (beta < 0.)
-					beta = 0.;
-			}
-
-			if (fabs(gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient) 
-			    / gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new)) > .5)
-				beta = 0.;
-		}
-
-		//
-		// Compute descent direction
-		//
-		gpu_compute_descent_dir(image_width, beta);
-
-		// Some tests on descent direction
-		// TODO: Note this hasn't been rewritten for the GPU side yet:
-	/*	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
-				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
-						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
-				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
-*/
-		//      writefits(descent_direction, "!gradient.fits");
-
-
-		//
-		// Line search algorithm begins here
-		//
-
-		// Compute quantity for Wolfe condition 1
-		wolfe_product1 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new);
-
-		// Initialize variables for line search
-		selected_steplength = 0.;
-		//if(uu > 0)
-	//		steplength = 2. * (criterion - criterion_old) / wolfe_product1 ;
-	//	else steplength = 1.;
-		steplength = 1.;
-		steplength_old = 0.;
-		steplength_max = 100.; // use a clever scheme here
-		criterion_init = criterion;
-		criterion_old = criterion;
-		linesearch_iteration = 1;
-
-		while (1)
-		{
-
-			//
-			// Evaluate criterion(steplength)
-			//
-
-			//  Step 1: compute the temporary image: I1 = I0 - coeff * descent direction
-			gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
-
-			// Step 2: Compute criterion(I1)
-		    chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
-		    entropy = gpu_get_entropy_temp(image_width);
-			criterion = chi2 - hyperparameter_entropy * entropy;
-			criterion_evals++;
-
-			if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1)) || ((criterion
-					>= criterion_old) && (linesearch_iteration > 1)))
-			{
-			    selected_steplength = gpu_linesearch_zoom(nuv, npow, nbis, data_alloc, data_alloc_uv, image_width,
-			        steplength_old, steplength, criterion_old, wolfe_product1, criterion_init,
-			        &criterion_evals, &grad_evals,
-			        pDescent_direction, pTemp_gradient,
-			        hyperparameter_entropy);
-			
-				//printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-/*				selected_steplength = linesearch_zoom(steplength_old, steplength, criterion_old, wolfe_product1,*/
-/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
-/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
-/*						mock, &i2v_info);*/
-
-				break;
-			}
-
-			//
-			// Evaluate wolfe product 2
-			//
-
-            gpu_compute_data_gradient_temp(npow, nbis, image_width);
-			gpu_compute_entropy_gradient_temp(image_width);
-			gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
-			
-			grad_evals++;
-
-			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
-
-			if (fabs(wolfe_product2) <= -wolfe_param2 * wolfe_product1)
-			{
-				selected_steplength = steplength;
-				break;
-			}
-
-			if (wolfe_product2 >= 0.)
-			{
-				printf("Test 2\n");
-
-			    selected_steplength = gpu_linesearch_zoom(nuv, npow, nbis, data_alloc, data_alloc_uv, image_width,
-			        steplength, steplength_old, criterion, wolfe_product1, criterion_init,
-			        &criterion_evals, &grad_evals,
-			        pDescent_direction, pTemp_gradient,
-			        hyperparameter_entropy);
-
-/*				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,*/
-/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
-/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
-/*						mock, &i2v_info);*/
-
-				break;
-			}
-
-			steplength_old = steplength;
-			criterion_old = criterion;
-
-			// choose the next steplength
-			//if((linesearch_iteration > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
-			//					steplength_temp = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
-			//else 
-			steplength_temp = 10.0 * steplength;
-			
-			steplength = steplength_temp;
-			
-			if (steplength > steplength_max)
-				steplength = steplength_max;
-			
-			linesearch_iteration++;
-			printf("Steplength %f Steplength old %f\n", steplength, steplength_old);
-
-		}
-		// End of line search
-		//printf("Double check, selected_steplength = %le \n", selected_steplength); 
-		// Update image with the selected step length
-		gpu_update_image(image_width, selected_steplength, minvalue, pDescent_direction);
-
-		// Backup gradient
-		gpu_backup_gradient(image_width * image_width, pFull_gradient, pFull_gradient_new);
-
-	} // End Conjugated Gradient.
+	// Enable for debugging purposes.
+	gpu_check_data(&chi2, nuv, visi, data_alloc, mock, image_size, data_gradient);
 
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();
@@ -822,7 +642,7 @@ int read_oifits(char * filename)
 	// Read the image
 	strcpy(usersel.file, filename);
 	get_oi_fits_selection(&usersel, &status);
-	get_oi_fits_data(usersel, &oifits_info, &status);
+	get_oi_fits_data(&usersel, &oifits_info, &status);
 	printf("OIFITS File read\n");
 	return 1;
 }
@@ -873,78 +693,72 @@ void writefits(float* image, char* fitsimage)
 void init_data(int do_extrapolation)
 {
 	register int ii;
-	float infinity = 1e8;
 	int warning_extrapolation = 0;
 	float pow1, powerr1, pow2, powerr2, pow3, powerr3, sqamp1, sqamp2, sqamp3, sqamperr1, sqamperr2, sqamperr3;
 	// Set elements [0, npow - 1] equal to the power spectrum
 	for (ii = 0; ii < npow; ii++)
 	{
 		data[ii] = oifits_info.pow[ii];
-		data_err[ii] = 1 / oifits_info.powerr[ii];
+		data_err[ii] = 1. / fabs(oifits_info.powerr[ii]);
 	}
 
 	// Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
 	for (ii = 0; ii < nbis; ii++)
 	{
-		
-		if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > infinity))) // Missing triple amplitudes
+	  if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > 1e3))) // Missing triple amplitudes
+	    {
+	      if ((oifits_info.bsref[ii].ab.uvpnt < npow) && (oifits_info.bsref[ii].bc.uvpnt < npow)
+		  && (oifits_info.bsref[ii].ca.uvpnt < npow))
 		{
-			if ((oifits_info.bsref[ii].ab.uvpnt < npow) && (oifits_info.bsref[ii].bc.uvpnt < npow)
-					&& (oifits_info.bsref[ii].ca.uvpnt < npow))
-			{
-				// if corresponding powerspectrum points are available
-				// Derive pseudo-triple amplitudes from powerspectrum data
-				// First select the relevant powerspectra
-				pow1 = oifits_info.pow[oifits_info.bsref[ii].ab.uvpnt];
-				powerr1 = oifits_info.powerr[oifits_info.bsref[ii].ab.uvpnt];
-				pow2 = oifits_info.pow[oifits_info.bsref[ii].bc.uvpnt];
-				powerr2 = oifits_info.powerr[oifits_info.bsref[ii].bc.uvpnt];
-				pow3 = oifits_info.pow[oifits_info.bsref[ii].ca.uvpnt];
-				powerr3 = oifits_info.powerr[oifits_info.bsref[ii].ca.uvpnt];
-				// Derive optimal visibility amplitudes + noise variance
-				sqamp1 = (pow1 + sqrt(square(pow1) + 2.0 * square(powerr1))) / 2.;
-				sqamperr1 = 1. / (1. / sqamp1 + 2. * (3. * sqamp1 - pow1) / square(powerr1));
-				sqamp2 = (pow2 + sqrt(square(pow2) + 2.0 * square(powerr2))) / 2.;
-				sqamperr2 = 1. / (1. / sqamp2 + 2. * (3. * sqamp2 - pow2) / square(powerr2));
-				sqamp3 = (pow3 + sqrt(square(pow3) + 2.0 * square(powerr3))) / 2.;
-				sqamperr3 = 1. / (1. / sqamp3 + 2. * (3. * sqamp3 - pow3) / square(powerr3));
-				// And form the triple amplitude statistics
-				oifits_info.bisamp[ii] = sqrt(sqamp1 * sqamp2 * sqamp3);
-				oifits_info.bisamperr[ii] = oifits_info.bisamp[ii] * sqrt(sqamperr1 / sqamp1 + sqamperr2 / sqamp2
-						+ sqamperr3 / sqamp3);
-				if(warning_extrapolation == 0)
-				{
-					printf("*************************  Warning - Recalculating T3amp from Powerspectra  ********************\n");
-					warning_extrapolation = 1;
-				}
-				
-			}
-
-			else // missing powerspectrum points -> cannot extrapolate bispectrum
-			{
-				printf(
-						"WARNING: triple amplitude extrapolation from powerspectrum failed because of missing powerspectrum\n");
-				oifits_info.bisamp[ii] = 1.0;
-				oifits_info.bisamperr[ii] = infinity;
-				// TDB - decrease the number of degrees of freedom
-				ndof--;
-			}
-
+		  // if corresponding powerspectrum points are available
+		  // Derive pseudo-triple amplitudes from powerspectrum data
+		  // First select the relevant powerspectra
+		  pow1 = oifits_info.pow[oifits_info.bsref[ii].ab.uvpnt];
+		  powerr1 = oifits_info.powerr[oifits_info.bsref[ii].ab.uvpnt];
+		  pow2 = oifits_info.pow[oifits_info.bsref[ii].bc.uvpnt];
+		  powerr2 = oifits_info.powerr[oifits_info.bsref[ii].bc.uvpnt];
+		  pow3 = oifits_info.pow[oifits_info.bsref[ii].ca.uvpnt];
+		  powerr3 = oifits_info.powerr[oifits_info.bsref[ii].ca.uvpnt];
+		  // Derive optimal visibility amplitudes + noise variance
+		  sqamp1 = (pow1 + sqrt(square(pow1) + 2.0 * square(powerr1))) / 2.;
+		  sqamperr1 = 1. / (1. / sqamp1 + 2. * (3. * sqamp1 - pow1) / square(powerr1));
+		  sqamp2 = (pow2 + sqrt(square(pow2) + 2.0 * square(powerr2))) / 2.;
+		  sqamperr2 = 1. / (1. / sqamp2 + 2. * (3. * sqamp2 - pow2) / square(powerr2));
+		  sqamp3 = (pow3 + sqrt(square(pow3) + 2.0 * square(powerr3))) / 2.;
+		  sqamperr3 = 1. / (1. / sqamp3 + 2. * (3. * sqamp3 - pow3) / square(powerr3));
+		  // And form the triple amplitude statistics
+		  oifits_info.bisamp[ii] = sqrt(sqamp1 * sqamp2 * sqamp3);
+		  oifits_info.bisamperr[ii] = oifits_info.bisamp[ii] 
+		    * sqrt(sqamperr1 / sqamp1 + sqamperr2 / sqamp2 + sqamperr3 / sqamp3);
+		  
+		  if(warning_extrapolation == 0)
+		    {
+		      printf("*************************  Warning - Recalculating T3amp from Powerspectra - Check this is wanted ********************\n");
+		      warning_extrapolation = 1;
+		    }
+		  
 		}
-
-		data[npow + 2 * ii] = fabs(oifits_info.bisamp[ii]);
-		data[npow + 2 * ii + 1] = 0.;
-		if (oifits_info.bisamperr[ii] < infinity / 2.)
-			data_err[npow + 2 * ii] = 1 / oifits_info.bisamperr[ii];
-		else
-			data_err[npow + 2 * ii] = 0.;
-
-		data_err[npow + 2 * ii + 1] = 1 / (fabs(oifits_info.bisamp[ii] * oifits_info.bisphserr[ii] ));
-		
-		data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii]);
-		// printf("Debug phs: %f phs_err: %f\n", oifits_info.bisphs[ii], oifits_info.bisphserr[ii]);
+	      
+	      else // missing powerspectrum points -> cannot extrapolate bispectrum
+		{
+		  printf("WARNING: triple amplitude extrapolation from powerspectrum failed because of missing powerspectrum\n");
+		  oifits_info.bisamp[ii] = 1.0;
+		  oifits_info.bisamperr[ii] = 1e99;
+		  ndof--;
+		}
+	      
+	    }
+	  
+	  
+	  data[npow + 2 * ii] = fabs(oifits_info.bisamp[ii]);
+	  data[npow + 2 * ii + 1] = 0.;
+	  
+	  data_err[npow + 2 * ii] = 1. / oifits_info.bisamperr[ii];
+	  data_err[npow + 2 * ii + 1] = 1. / fabs(oifits_info.bisamp[ii] * oifits_info.bisphserr[ii] * PI / 180. );	  
+	  data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii] * PI / 180.);
+	  printf("ii %d err1 %f err2 %f \n ", ii, data_err[npow + 2 * ii], data_err[npow + 2 * ii + 1]);
 	}
-
+	
 }
 
 float linesearch_zoom( float steplength_low, float steplength_high, float criterion_steplength_low, float wolfe_product1,
@@ -969,10 +783,10 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		//steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
 		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
 
-		if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
-		steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
+		//	if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
+		//	steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
 
-		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
+		//		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
 		steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
 
 		if( fabs( steplength_high - steplength_low ) < 1e-14)

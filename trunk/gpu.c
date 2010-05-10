@@ -12,7 +12,7 @@
 
 // Global variable to enable/disable debugging output:
 int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -40,15 +40,10 @@ cl_program * pPro_entropy_grad = NULL;
 cl_kernel * pKernel_entropy_grad = NULL;
 cl_program * pPro_criterion_grad = NULL;
 cl_kernel * pKernel_criterion_grad = NULL;
-cl_program * pPro_criterion_step = NULL;
-cl_kernel * pKernel_criterion_step = NULL;
 cl_program * pPro_descent_dir = NULL;
 cl_kernel * pKernel_descent_dir = NULL;
 cl_program * pPro_update_image = NULL;
 cl_kernel * pKernel_update_image = NULL;
-cl_program * pPro_update_tempimage = NULL;
-cl_kernel * pKernel_update_tempimage = NULL;
-
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -264,9 +259,6 @@ char * print_cl_errstring(cl_int err)
 
 void gpu_backup_gradient(int data_size, cl_mem * input, cl_mem * output)
 {
-    if(gpu_enable_verbose)
-        printf("Backing up gradient kernel.\n");
-        
     // Enqueue a copy operation, wait for it to complete before returning.
     clEnqueueCopyBuffer(*pQueue, *input, *output, 0, 0, sizeof(float) * data_size, 0, NULL, NULL);
     clFinish(*pQueue);
@@ -283,7 +275,7 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
     // Create the program
     *program = clCreateProgramWithSource(*pContext, 1, (const char **) & kernel_source, NULL, &err);     
     if (err != CL_SUCCESS)   
-        print_opencl_error("clCreateProgramWithSource with kernel", err);    
+        print_opencl_error("clCreateProgramWithSource", err);    
         
     // Build the program executable
     err = clBuildProgram(*program, 0, NULL, NULL, NULL, NULL);
@@ -307,9 +299,6 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
 
 void gpu_build_kernels(int data_size, int image_width, int image_size)
 {
-    if(gpu_enable_verbose)
-        printf("Building Kernels\n");
-        
     // Kernel and program for computing chi2:
     static cl_program pro_chi2;
     static cl_kernel kern_chi2;
@@ -382,29 +371,17 @@ void gpu_build_kernels(int data_size, int image_width, int image_size)
     pPro_criterion_grad = &pro_criterion_grad;
     pKernel_criterion_grad = &kern_criterion_grad; 
 
-    static cl_program pro_criterion_step;
-    static cl_kernel kern_criterion_step;
-    gpu_build_kernel(&pro_criterion_step, &kern_criterion_step, "criterion_step", "./kernel_criterion_step.cl");
-    pPro_criterion_step = &pro_criterion_step;
-    pKernel_criterion_step = &kern_criterion_step; 
-
     static cl_program pro_descent_dir;
     static cl_kernel kern_descent_dir;
     gpu_build_kernel(&pro_descent_dir, &kern_descent_dir, "descent_dir", "./kernel_descent_dir.cl");
     pPro_descent_dir = &pro_descent_dir;
     pKernel_descent_dir = &kern_descent_dir;     
- 
+
     static cl_program pro_update_image;
     static cl_kernel kern_update_image;
     gpu_build_kernel(&pro_update_image, &kern_update_image, "update_image", "./kernel_update_image.cl");
     pPro_update_image = &pro_update_image;
     pKernel_update_image = &kern_update_image; 
- 
-    static cl_program pro_update_tempimage;
-    static cl_kernel kern_update_tempimage;
-    gpu_build_kernel(&pro_update_tempimage, &kern_update_tempimage, "update_tempimage", "./kernel_update_tempimage.cl");
-    pPro_update_tempimage = &pro_update_tempimage;
-    pKernel_update_tempimage = &kern_update_tempimage; 
 }
 
 void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kernel ** pKernels, 
@@ -500,9 +477,6 @@ void gpu_check_data(float * cpu_chi2,
     int data_size, float * mock_data,
     int image_size, float * data_grad)
 {
-    if(gpu_enable_verbose)
-        printf("Checking data.\n");
-        
     printf(SEP);
     printf("Comparing CPU and GPU Visiblity values:\n");
     gpu_compare_complex_data(nuv, visi, pGpu_visi0);
@@ -611,9 +585,6 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
 // Compute the gradient of the entropy for the image, gpu_image.  This gets stored in pGpu_entropy_grad
 void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entropy)
 {
-    if(gpu_enable_verbose)
-        printf("Computing Criterion Gradient.\n");
-        
     int err = 0;
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
@@ -646,48 +617,8 @@ void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entrop
     clFinish(*pQueue);   
 }
 
-void gpu_compute_criterion_step(int image_width, float steplength, float minvalue)
-{
-    if(gpu_enable_verbose)
-        printf("Computing Criterion Step.\n");
-        
-    int err = 0;
-    // TODO: Figure out how to determine the size of local dynamically.
-    size_t * local;
-    local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
-    
-    size_t * global;
-    global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
-    
-    // Set the arguments for the entropy kernel:
-    err  = clSetKernelArg(*pKernel_criterion_step, 0, sizeof(cl_mem), pGpu_image);
-    err |= clSetKernelArg(*pKernel_criterion_step, 1, sizeof(cl_mem), pGpu_descent_dir);
-    err |= clSetKernelArg(*pKernel_criterion_step, 2, sizeof(float), &steplength);
-    err |= clSetKernelArg(*pKernel_criterion_step, 3, sizeof(cl_mem), pGpu_image_width);  
-    err |= clSetKernelArg(*pKernel_criterion_step, 4, sizeof(cl_mem), pGpu_image_temp); 
-
-/*   // Get the maximum work-group size for executing the kernel on the device*/
-/*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
-
-/*    // Round down to the nearest power of two.*/
-/*    local = pow(2, floor(log(npow) / log(2)));*/
-        
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_criterion_step, 2, 0, global, local, 0, NULL, NULL);
-    if (err)
-        print_opencl_error("Cannot enqueue entropy kernel.", err); 
-    
-    clFinish(*pQueue);   
-}
-
 void gpu_compute_descent_dir(int image_width, float beta)
 {
-    if(gpu_enable_verbose)
-        printf("Computing Descent Direction.\n");
-        
     int err = 0;
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
@@ -722,9 +653,6 @@ void gpu_compute_descent_dir(int image_width, float beta)
 // Compute the sum of the entropy, stores it in the location specified by entropy_storage.
 void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_storage)
 {
-    if(gpu_enable_verbose)
-        printf("Computing Entropy.\n");
-        
     int err = 0;
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
@@ -762,9 +690,6 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
 // Compute the gradient of the entropy for the image, gpu_image.  This gets stored in pGpu_entropy_grad
 void gpu_compute_entropy_gradient(int image_width, cl_mem * gpu_image)
 {
-    if(gpu_enable_verbose)
-        printf("Computing Entropy Gradient.\n");
-        
     int err = 0;
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
@@ -796,22 +721,9 @@ void gpu_compute_entropy_gradient(int image_width, cl_mem * gpu_image)
     clFinish(*pQueue);   
 }
 
-void gpu_compute_entropy_gradient_curr(int image_width)
-{
-    gpu_compute_entropy_gradient(image_width, pGpu_image);
-}
-
-void gpu_compute_entropy_gradient_temp(int image_width)
-{
-    gpu_compute_entropy_gradient(image_width, pGpu_image_temp);
-}
-
 // Computes the flux of the image located in pGpu_image.
 void gpu_compute_flux(cl_mem * gpu_image, cl_mem * flux_storage, cl_mem * flux_inverse_storage)
 {
-    if(gpu_enable_verbose)
-        printf("Computing Flux.\n");
-        
     // Computes the sum of the image array, stores the result in the flux_storage buffer
     gpu_compute_sum(gpu_image, pGpu_flux_buffer1, pGpu_flux_buffer2, flux_storage, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
 
@@ -873,14 +785,10 @@ void gpu_cleanup()
         err |= clReleaseProgram(*pPro_entropy_grad);
     if(pPro_criterion_grad != NULL)
         err |= clReleaseProgram(*pPro_criterion_grad);
-    if(pPro_criterion_step != NULL)
-        err |= clReleaseProgram(*pPro_criterion_step);
     if(pPro_descent_dir != NULL)
         err |= clReleaseProgram(*pPro_descent_dir);
     if(pPro_update_image != NULL)
         err |= clReleaseProgram(*pPro_update_image);
-    if(pPro_update_tempimage != NULL)
-        err |= clReleaseProgram(*pPro_update_tempimage);
         
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Program Memory.\n");
@@ -922,14 +830,10 @@ void gpu_cleanup()
         err |= clReleaseKernel(*pKernel_entropy_grad);
     if(pKernel_criterion_grad != NULL)
         err |= clReleaseKernel(*pKernel_criterion_grad);
-    if(pKernel_criterion_step != NULL)
-        err |= clReleaseKernel(*pKernel_criterion_step);
     if(pKernel_descent_dir != NULL)
         err |= clReleaseKernel(*pKernel_descent_dir);        
     if(pKernel_update_image != NULL)
         err |= clReleaseKernel(*pKernel_update_image); 
-    if(pKernel_update_tempimage != NULL)
-        err |= clReleaseKernel(*pKernel_update_tempimage);
     
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
@@ -1407,9 +1311,6 @@ void gpu_copy_image(float * image, int x_size, int y_size)
 // Compute the chi2 of the data using a GPU
 void gpu_data2chi2(int data_size)
 {
-    if(gpu_enable_verbose)
-        printf("Computing chi2 from data.\n");
-        
     int err;                          // error code returned from api calls
 
     size_t global;                    // global domain size for our calculation
@@ -1548,9 +1449,6 @@ void gpu_device_stats(cl_device_id device_id)
 
 void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image_width)
 {
-    if(gpu_enable_verbose)
-        printf("Computing data gradient.\n");
-        
     // Compute the current flux
     gpu_compute_flux(gpu_image, pGpu_flux0, pGpu_flux1);
     
@@ -1619,16 +1517,6 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
     clFinish(*pQueue);
 }
 
-void gpu_compute_data_gradient_curr(int npow, int nbis, int image_width)
-{
-    gpu_compute_data_gradient(pGpu_image, npow, nbis, image_width);
-}
-
-void gpu_compute_data_gradient_temp(int npow, int nbis, int image_width)
-{
-    gpu_compute_data_gradient(pGpu_image_temp, npow, nbis, image_width);
-}
-
 void gpu_init()
 {
     // Init a few variables.  Static so they won't go out of scope.
@@ -1682,9 +1570,6 @@ float gpu_get_chi2_temp(int nuv, int npow, int nbis, int data_alloc, int data_al
 
 float gpu_get_chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image)
 {
-    if(gpu_enable_verbose)
-        printf("Getting chi2 value from the GPU.\n");
-        
     gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv, gpu_image);
     clFinish(*pQueue);
 
@@ -1698,13 +1583,9 @@ float gpu_get_chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_u
     return chi2;   
 }
 
-
 // Get the entropy from the GPU
 float gpu_get_entropy(int image_width, cl_mem * gpu_image)
 {
-    if(gpu_enable_verbose)
-        printf("Getting the entropy from the GPU.\n");
-        
     // TODO: We may need to modify this function to just return the entropy, for now we compute it too.
     // Becuase we are, presumably, calling this from the CPU, first call all functions to generate the entropy
     gpu_compute_entropy(image_width, gpu_image, pGpu_entropy);
@@ -1721,46 +1602,6 @@ float gpu_get_entropy(int image_width, cl_mem * gpu_image)
     return entropy;
 }
 
-float gpu_get_entropy_curr(int image_width)
-{
-    if(gpu_enable_verbose)
-        printf("Getting current image entropy.\n");
-        
-    return gpu_get_entropy(image_width, pGpu_image);
-}
-
-float gpu_get_entropy_temp(int image_width)
-{
-    if(gpu_enable_verbose)
-        printf("Getting the entropy from the GPU.\n");
-        
-    return gpu_get_entropy(image_width, pGpu_image_temp);
-}
-
-// Get a pointer to pGpu_full_gradient_new
-cl_mem * gpu_getp_fgn()
-{
-    return pGpu_full_grad_new;
-}
-
-// Get a pointer to pGpu_full_gradient
-cl_mem * gpu_getp_fg()
-{
-    return pGpu_full_grad;
-}
-
-// Get a pointer to pGpu_descent_dir
-cl_mem * gpu_getp_dd()
-{
-    return pGpu_descent_dir;
-}
-
-// Get a pointer to pGpu_descent_dir
-cl_mem * gpu_getp_tg()
-{
-    return pGpu_grad_temp;
-}
-
 // Given the image copied onto the GPU's buffer
 void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image)
 {
@@ -1771,10 +1612,6 @@ void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_
 
 void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image)
 { 
-    // Do a quick error check, make sure gpu_image is not null
-    if(gpu_image == NULL)
-        print_opencl_error("Invalid Image, did you forget to initalize?", 0);
-
     int err = 0;
     size_t global;                    // global domain size for our calculation
     size_t local;                     // local domain size for our calculation
@@ -1821,92 +1658,6 @@ void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image)
 
 }
 
-float gpu_linesearch_zoom(
-    int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, int image_width,
-    float steplength_low, float steplength_high, 
-    float criterion_steplength_low, float wolfe_product1, float criterion_init, 
-	int * criterion_evals, int * grad_evals, 
-	cl_mem * pDescent_direction, cl_mem * pTemp_gradient,
-	float hyperparameter_entropy)
-{
-    if(gpu_enable_verbose)
-        printf("Running GPU Linesearch Zoom.\n");
-        
-	float chi2, entropy;
-	float steplength =0., selected_steplength = 0., criterion = 0., criterion_old = 0., steplength_old = 0., wolfe_product2;
-	int counter = 0;
-	float minvalue = 1e-8;
-	float wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
-
-	//printf("Entering zoom algorithm \n");
-
-	while( 1 )
-	{
-
-		// Interpolation - for the moment by bisection (simple for now)
-		//steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
-		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
-
-		if((counter > 0) && (criterion_old - criterion_init - wolfe_product1 * steplength_old) != 0.)
-		    steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
-
-		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
-		    steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
-
-		if(fabs( steplength_high - steplength_low ) < 1e-14)
-		{
-			selected_steplength = steplength_low;
-			break;
-		}
-
-		// Evaluate criterion(steplength)
-        gpu_compute_criterion_step(image_width, steplength, minvalue);
-
-		chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
-		entropy = gpu_get_entropy_temp(image_width);
-		criterion = chi2 - hyperparameter_entropy * entropy;
-		*criterion_evals++;
-
-		//printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
-		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
-		{
-			steplength_high = steplength;
-		}
-		else
-		{
-
-			// Evaluate wolfe product 2
-			gpu_compute_data_gradient_temp(npow, nbis, image_width);
-			gpu_compute_entropy_gradient_temp(image_width);
-			
-			gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
-
-			*grad_evals++;
-			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
-
-			//printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
-			if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 ) || ( counter > 10 ))
-			{
-				selected_steplength = steplength;
-				break;
-			}
-
-			if(wolfe_product2 * (steplength_high - steplength_low) >= 0. )
-			    steplength_high = steplength_low;
-
-			steplength_low = steplength;
-
-		}
-
-		steplength_old = steplength;
-		criterion_old = criterion;
-
-		counter++;
-	}
-
-	return selected_steplength;
-}
-
 void gpu_new_chi2(int nuv, int npow, int nbis, int data_alloc)
 {
     gpu_vis2data(pGpu_visi1, nuv, npow, nbis);
@@ -1915,12 +1666,6 @@ void gpu_new_chi2(int nuv, int npow, int nbis, int data_alloc)
 
 void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * array2, cl_mem * final_output)
 {
-    if(gpu_enable_verbose)
-        printf("Computing Scalar Product.\n");
-        
-    if(final_output == NULL)
-        print_opencl_error("Can't write scalar product result to NULL!", 0);
-        
     size_t global = data_width;
     size_t local = 0;
     int err = 0;
@@ -1940,37 +1685,22 @@ void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * 
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
     // Round down to the nearest power of two.
-    // TODO: Un-fix this value:
-    local = 32; //pow(2, floor(log(local) / log(2)));
+    local = pow(2, floor(log(local) / log(2)));
     
     if(gpu_enable_debug && gpu_enable_verbose)
       printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_visi, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Could not enqueue scalar product kernel.", err);  
+        print_opencl_error("clEnqueueNDRangeKernel visi", err);  
     
     
     // And now we need to run a parallel sum:
     gpu_compute_sum(pGpu_scaprod_buffer0, pGpu_scaprod_buffer1, pGpu_scaprod_buffer2, final_output, pGpu_scaprod_kernels, Scaprod_pass_count, Scaprod_group_counts, Scaprod_work_item_counts, Scaprod_operation_counts, Scaprod_entry_counts);
 
-    clFinish(*pQueue);
-}
-
-float gpu_get_scalprod(int data_width, int data_height, cl_mem * array1, cl_mem * array2)
-{
-    if(gpu_enable_verbose)
-        printf("Getting Scalar Product from the GPU.\n");
-        
-    gpu_scalar_prod(data_width, data_height, array1, array2, pGpu_scaprod);
-    int err = 0;
-    float value = 0;
     
-    err = clEnqueueReadBuffer(*pQueue, *pGpu_scaprod, CL_TRUE, 0, sizeof(float), &value, 0, NULL, NULL );
-    if (err != CL_SUCCESS)
-        print_opencl_error("Could not read back scalar product value from GPU!", err);
-        
-    return value;     
+    clFinish(*pQueue);
+    // Copy the data over to the output location
 }
 
 
@@ -2087,7 +1817,7 @@ static char * LoadProgramSourceFromFile(const char *filename)
 
     fh = fopen(filename, "r");
     if (fh == 0)
-        print_opencl_error("Could not Load Source file!  Enable Verbosity to see more information.", 0);
+        return 0;
 
     stat(filename, &statbuf);
     source = (char *) malloc(statbuf.st_size + 1);
@@ -2097,11 +1827,8 @@ static char * LoadProgramSourceFromFile(const char *filename)
     return source;
 }
 
-void gpu_update_image(int image_width, float steplength, float minval, cl_mem * descent_direction)
+void gpu_update_image(int image_width, float steplength, float minval, cl_mem * gpu_image, cl_mem * descent_direction)
 {
-    if(gpu_enable_verbose)
-        printf("Updating an the current image.\n");
-        
     int err = 0;
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
@@ -2113,7 +1840,7 @@ void gpu_update_image(int image_width, float steplength, float minval, cl_mem * 
     global[0] = global[1] = image_width;
     
     // Set the arguments for the entropy kernel:
-    err  = clSetKernelArg(*pKernel_update_image, 0, sizeof(cl_mem), pGpu_image);
+    err  = clSetKernelArg(*pKernel_update_image, 0, sizeof(cl_mem), gpu_image);
     err |= clSetKernelArg(*pKernel_update_image, 1, sizeof(cl_mem), descent_direction);
     err |= clSetKernelArg(*pKernel_update_image, 2, sizeof(float), &steplength);
     err |= clSetKernelArg(*pKernel_update_image, 3, sizeof(float), &minval);  
@@ -2128,44 +1855,6 @@ void gpu_update_image(int image_width, float steplength, float minval, cl_mem * 
 /*    local = pow(2, floor(log(npow) / log(2)));*/
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_update_image, 2, 0, global, local, 0, NULL, NULL);
-    if (err)
-        print_opencl_error("Cannot enqueue entropy kernel.", err); 
-    
-    clFinish(*pQueue);   
-}
-
-void gpu_update_tempimage(int image_width, float steplength, float minval, cl_mem * descent_direction)
-{
-    if(gpu_enable_verbose)
-        printf("Updating the temporary image.\n");
-        
-    int err = 0;
-    // TODO: Figure out how to determine the size of local dynamically.
-    size_t * local;
-    local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
-    
-    size_t * global;
-    global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
-    
-    // Set the arguments for the entropy kernel:
-    err  = clSetKernelArg(*pKernel_update_tempimage, 0, sizeof(cl_mem), pGpu_image);
-    err |= clSetKernelArg(*pKernel_update_tempimage, 1, sizeof(cl_mem), descent_direction);
-    err |= clSetKernelArg(*pKernel_update_tempimage, 2, sizeof(float), &steplength);
-    err |= clSetKernelArg(*pKernel_update_tempimage, 3, sizeof(float), &minval);  
-    err |= clSetKernelArg(*pKernel_update_tempimage, 4, sizeof(cl_mem), pGpu_image_width); 
-    err |= clSetKernelArg(*pKernel_update_tempimage, 5, sizeof(cl_mem), pGpu_image_temp); 
-
-/*   // Get the maximum work-group size for executing the kernel on the device*/
-/*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
-
-/*    // Round down to the nearest power of two.*/
-/*    local = pow(2, floor(log(npow) / log(2)));*/
-        
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_update_tempimage, 2, 0, global, local, 0, NULL, NULL);
     if (err)
         print_opencl_error("Cannot enqueue entropy kernel.", err); 
     

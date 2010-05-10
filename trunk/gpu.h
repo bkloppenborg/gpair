@@ -24,12 +24,9 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
 void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
 
 void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entropy);
-void gpu_compute_criterion_step(int image_width, float steplength, float minvalue);
 
 void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_storage);
 void gpu_compute_entropy_gradient(int image_width, cl_mem * gpu_image);
-void gpu_compute_entropy_gradient_curr(int image_width);
-void gpu_compute_entropy_gradient_temp(int image_width);
 
 void gpu_compute_flux(cl_mem * gpu_image, cl_mem * flux_storage, cl_mem * flux_inverse_storage);
 
@@ -39,10 +36,6 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     int * operation_counts, int * entry_counts);
 
 void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image_width);
-void gpu_compute_data_gradient_curr(int npow, int nbis, int image_width);
-void gpu_compute_data_gradient_temp(int npow, int nbis, int image_width);
-
-void gpu_compute_descent_dir(int image_width, float beta);
 
 void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_uv,\
                     cl_float2 * data_phasor, int phasor_size, int pow_size, \
@@ -63,29 +56,12 @@ float gpu_get_chi2_temp(int nuv, int npow, int nbis, int data_alloc, int data_al
 float gpu_get_chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image);
 
 float gpu_get_entropy();
-float gpu_get_entropy_curr(int image_width);
-float gpu_get_entropy_temp(int image_width);
-
-float gpu_get_scalprod(int data_width, int data_height, cl_mem * array1, cl_mem * array2);
-
-cl_mem * gpu_getp_fgn();
-cl_mem * gpu_getp_fg();
-cl_mem * gpu_getp_dd();
-cl_mem * gpu_getp_tg();
 
 void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image);
 
 void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image);
 
 void gpu_init();
-
-float gpu_linesearch_zoom(
-    int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, int image_width,
-    float steplength_low, float steplength_high, 
-    float criterion_steplength_low, float wolfe_product1, float criterion_init, 
-	int * criterion_evals, int * grad_evals, 
-	cl_mem * pDescent_direction, cl_mem * pTemp_gradient,
-	float hyperparameter_entropy);
 
 void gpu_new_chi2(int nuv, int npow, int nbis, int data_alloc);
 
@@ -101,6 +77,5 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
 
 void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * array2, cl_mem * output);
 
-void gpu_update_image(int image_width, float steplength, float minval, cl_mem * descent_direction);
-void gpu_update_tempimage(int image_width, float steplength, float minval, cl_mem * descent_direction);
+void gpu_update_image(int image_width, float steplength, float minval, cl_mem * gpu_image, cl_mem * descent_direction);
 
