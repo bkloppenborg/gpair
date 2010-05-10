@@ -1,9 +1,9 @@
 // A kernel to compute the temporary gradient
 __kernel void criterion_grad(
     __global float * data_gradient,
-    __global float * entropy_gradient,
-    __local float h_entropy,
-    __local int * image_width,
+    __global float * entropy_grad,
+    __private float h_entropy,
+    __global int * image_width,
     __global float * output)
 {
     int i = get_global_id(0);
