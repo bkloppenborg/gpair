@@ -1,3 +1,7 @@
+// Function prototypes:
+float2 MultComplex2(float2 A, float2 B);
+float2 MultComplex4(float2 A, float2 B, float2 C, float2 D);
+
 // Multiply four complex numbers.
 float2 MultComplex4(float2 A, float2 B, float2 C, float2 D)
 {
@@ -14,6 +18,33 @@ float2 MultComplex4(float2 A, float2 B, float2 C, float2 D)
     temp.s0 = a*b - c*b - d*e - f*e - d*g - f*g - a*h + c*h;
     temp.s1 = f*h + d*h + c*g - a*g + c*e - a*e - f*b - d*b;
 
+    return temp;
+    
+/*    float2 temp;*/
+/*    temp = MultComplex2(A, B);*/
+/*    temp = MultComplex2(temp, C);*/
+/*    temp = MultComplex2(temp, D);*/
+/*    return temp;*/
+}
+
+// Multiply two complex numbers
+float2 MultComplex2(float2 A, float2 B)
+{
+    // There is the obvious way to do this:
+/*    float2 temp;*/
+/*    temp.s0 = A.s0*B.s0 - A.s1*B.s1;*/
+/*    temp.s1 = A.s0*B.s1 + A.s1*B.s0;  */
+/*    */
+/*    return temp;*/
+    
+    // We can trade off one multiplication for three additional additions
+    float k1 = A.s0 * B.s0;
+    float k2 = A.s1 * B.s1;
+    float k3 = (A.s0 + A.s1) * (B.s0 + B.s1);
+    
+    float2 temp;
+    temp.s0 = k1 - k2;
+    temp.s1 = k3 - k1 - k2;
     return temp;
 }
 
