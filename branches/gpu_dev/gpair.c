@@ -272,10 +272,11 @@ int main(int argc, char *argv[])
 
     gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
         npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
+        current_image,
         image_width);    
          
-    gpu_build_kernels(data_alloc, image_size);
-    gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
+    //gpu_build_kernels(data_alloc, image_width, image_size);
+    //gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
     
     // Free variables used to store values pepared for the GPU
     free(gpu_visi);
@@ -285,22 +286,22 @@ int main(int argc, char *argv[])
     free(gpu_dft_x);
     free(gpu_dft_y);
     
-    // Do the full DFT calculation:
-    tick = clock();
-    for(ii=0; ii < iterations; ii++)
-    {
-        // In the final version of the code, the following lines will be iterated.
-        gpu_copy_image(current_image, image_width, image_width);
-        gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv);
-    }
-    tock = clock();
-    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-    printf(SEP);
-    printf("Full DFT (GPU)\n");
-    printf(SEP);
-    printf("GPU time (s): = %f\n", time_chi2);
+/*    // Do the full DFT calculation:*/
+/*    tick = clock();*/
+/*    for(ii=0; ii < iterations; ii++)*/
+/*    {*/
+/*        // In the final version of the code, the following lines will be iterated.*/
+/*        gpu_copy_image(current_image, image_width, image_width);*/
+/*        gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv);*/
+/*    }*/
+/*    tock = clock();*/
+/*    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
+/*    printf(SEP);*/
+/*    printf("Full DFT (GPU)\n");*/
+/*    printf(SEP);*/
+/*    printf("GPU time (s): = %f\n", time_chi2);*/
     
-    gpu_compute_data_gradient(npow, nbis, image_width);
+    //gpu_compute_data_gradient(npow, nbis, image_width);
 
     // Disabled for now, there be a bug between GPU and CPU values.
 /*    // Now do the Atomic change to visi*/
@@ -318,8 +319,8 @@ int main(int argc, char *argv[])
 /*    printf("GPU time (s): = %f\n", time_chi2);*/
     
     // Enable for debugging purposes.
-    gpu_check_data(&chi2, nuv, visi, data_alloc, mock, image_size, data_gradient);
-    
+    //gpu_check_data(&chi2, nuv, visi, data_alloc, mock, image_size, data_gradient);
+        
     // Cleanup, shutdown, were're done.
     gpu_cleanup();
     
