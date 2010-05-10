@@ -271,9 +271,9 @@ int main(int argc, char *argv[])
     gpu_init();
 
     gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
-        npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref, image_size,
+        npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
         current_image,
-        image_width);    
+        image_size, image_width);    
          
     //gpu_build_kernels(data_alloc, image_width, image_size);
     //gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);

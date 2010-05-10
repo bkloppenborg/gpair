@@ -624,10 +624,10 @@ void gpu_compute_entropy_gradient(int image_width, cl_mem * gpu_image)
 }
 
 // Computes the flux of the image located in pGpu_image.
-void gpu_compute_flux(cl_mem * flux_storage, cl_mem * flux_inverse_storage)
+void gpu_compute_flux(cl_mem * gpu_image, cl_mem * flux_storage, cl_mem * flux_inverse_storage)
 {
     // Computes the sum of the image array, stores the result in the flux_storage buffer
-    gpu_compute_sum(pGpu_image, pGpu_flux_buffer1, pGpu_flux_buffer2, flux_storage, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
+    gpu_compute_sum(gpu_image, pGpu_flux_buffer1, pGpu_flux_buffer2, flux_storage, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
 
     int err = 0;
     // First copy the normalization value back to the CPU (blocking call)
@@ -944,7 +944,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
 
     // Buffers for Gradients, entropy
     static cl_mem gpu_data_grad;
-/*    static cl_mem gpu_entropy_image;    // Buffer to store the entropy of each pixel in the image*/
+    static cl_mem gpu_entropy_image;    // Buffer to store the entropy of each pixel in the image
     static cl_mem gpu_entropy_grad;
     static cl_mem gpu_full_grad;        // Buffer to store the full gradient of the image
     static cl_mem gpu_full_grad_new;
@@ -1015,7 +1015,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
 
     // Buffers for Gradients, entropy, for the line search.
     gpu_data_grad = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
-/*    gpu_entropy_image = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);*/
+    gpu_entropy_image = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_entropy_grad = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL); 
     gpu_full_grad = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL); 
     gpu_full_grad_new = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
@@ -1067,7 +1067,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
      
     // Gradient buffers
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_grad, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
-/*    err |= clEnqueueWriteBuffer(*pQueue, gpu_entropy_image, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);*/
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_entropy_image, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_entropy_grad, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_full_grad, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_full_grad_new, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
@@ -1120,7 +1120,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     pGpu_scaprod_buffer2 = &gpu_scaprod_buffer2;
     
     pGpu_data_grad = &gpu_data_grad;
-/*    pGpu_entropy_image = &gpu_entropy_image;    // Buffer to store the entropy of each pixel in the image*/
+    pGpu_entropy_image = &gpu_entropy_image;    // Buffer to store the entropy of each pixel in the image
     pGpu_entropy_grad = &gpu_entropy_grad;
     pGpu_full_grad = &gpu_full_grad;        // Buffer to store the full gradient of the image
     pGpu_full_grad_new = &gpu_full_grad_new;
@@ -1338,10 +1338,10 @@ void gpu_device_stats(cl_device_id device_id)
 	printf("\n");
 }
 
-void gpu_compute_data_gradient(int npow, int nbis, int image_width)
+void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image_width)
 {
     // Compute the current flux
-    gpu_compute_flux(pGpu_flux0, pGpu_flux1);
+    gpu_compute_flux(gpu_image, pGpu_flux0, pGpu_flux1);
     
     // Now launch the kernels
     int err = 0;
@@ -1405,9 +1405,7 @@ void gpu_compute_data_gradient(int npow, int nbis, int image_width)
         print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
         
     // Let the queue finish out
-    clFinish(*pQueue);      
-    
-
+    clFinish(*pQueue);
 }
 
 void gpu_init()
@@ -1451,15 +1449,59 @@ void gpu_init()
     pQueue = &queue;
 }
 
-// Given the image copied onto the GPU's buffer
-void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv)
+float gpu_get_chi2_curr(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv)
 {
-    gpu_image2vis(data_alloc_uv);
+    return gpu_get_chi2(nuv, npow, nbis, data_alloc, data_alloc_uv, pGpu_image);
+}
+
+float gpu_get_chi2_temp(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv)
+{
+    return gpu_get_chi2(nuv, npow, nbis, data_alloc, data_alloc_uv, pGpu_image_temp);
+}
+
+float gpu_get_chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image)
+{
+    gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv, gpu_image);
+    clFinish(*pQueue);
+
+    int err = 0;
+    float chi2 = 0;
+    
+    err = clEnqueueReadBuffer(*pQueue, *pGpu_chi2, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
+    if (err != CL_SUCCESS)
+        print_opencl_error("Could not read back Entropy from the GPU!", err);
+        
+    return chi2;   
+}
+
+// Get the entropy from the GPU
+float gpu_get_entropy(int image_width, cl_mem * gpu_image)
+{
+    // TODO: We may need to modify this function to just return the entropy, for now we compute it too.
+    // Becuase we are, presumably, calling this from the CPU, first call all functions to generate the entropy
+    gpu_compute_entropy(image_width, gpu_image, pGpu_entropy);
+    
+    clFinish(*pQueue);
+    
+    float entropy = 0;
+    int err = 0;
+    
+    err = clEnqueueReadBuffer(*pQueue, *pGpu_entropy, CL_TRUE, 0, sizeof(float), &entropy, 0, NULL, NULL );
+    if (err != CL_SUCCESS)
+        print_opencl_error("Could not read back Entropy from the GPU!", err);
+        
+    return entropy;
+}
+
+// Given the image copied onto the GPU's buffer
+void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image)
+{
+    gpu_image2vis(data_alloc_uv, gpu_image);
     gpu_vis2data(pGpu_visi0, nuv, npow, nbis);
     gpu_data2chi2(data_alloc);
 }
 
-void gpu_image2vis(int data_alloc_uv)
+void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image)
 { 
     int err = 0;
     size_t global;                    // global domain size for our calculation
@@ -1470,7 +1512,7 @@ void gpu_image2vis(int data_alloc_uv)
         printf("%sComputing Flux Sum on the GPU.\nPre and post normalization\n%s", SEP, SEP);
             
     // First, compute the total flux, storing it in the flux0 buffer, then normalize the image.
-    gpu_compute_flux(pGpu_flux0, pGpu_flux1);
+    gpu_compute_flux(gpu_image, pGpu_flux0, pGpu_flux1);
     
     if(gpu_enable_debug)
         printf("%sComputing DFT on the GPU.\n%s", SEP, SEP);
@@ -1484,7 +1526,7 @@ void gpu_image2vis(int data_alloc_uv)
     local = pow(2, floor(log(local) / log(2)));
 
     // Now we compute the DFT
-    err  = clSetKernelArg(*pKernel_visi, 0, sizeof(cl_mem), pGpu_image);
+    err  = clSetKernelArg(*pKernel_visi, 0, sizeof(cl_mem), gpu_image);
     err |= clSetKernelArg(*pKernel_visi, 1, sizeof(cl_mem), pGpu_dft_x);
     err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), pGpu_dft_y);
     err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), pGpu_image_width);
