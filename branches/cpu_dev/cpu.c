@@ -371,10 +371,12 @@ void compute_data_gradient(chi2_info * data_info, float * image, float * data_gr
 float data2chi2(int npow, int nbis, float * data, float * data_err, float * mock)
 {
 	float chi2 = 0.;
+	float temp;
 	register int ii = 0;
 	for (ii = 0; ii < npow + 2 * nbis; ii++)
 	{
-		chi2 += square((mock[ii] - data[ii]) * data_err[ii]);
+	  temp = ( mock[ii] - data[ii] ) * data_err[ii];
+	  chi2 += temp * temp;
 	}
 
 	return chi2;
@@ -761,12 +763,14 @@ void vis2data(int npow, int nbis,
 	float complex vbc = 0;
 	float complex vca = 0;
 	float complex t3 = 0;
+	float temp;
 
 	oi_data oifits_info = *data_info;
 
 	for( ii = 0; ii< npow; ii++)
 	{
-		mock[ ii ] = square ( cabs( visi[ii] ) );
+	  temp = cabs( visi[ii] );
+	  mock[ ii ] = temp * temp;
 	}
 
 	for( ii = 0; ii< nbis; ii++)
