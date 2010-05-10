@@ -6,6 +6,8 @@ void print_opencl_error(char* error_message, int error_code);
 
 char * print_cl_errstring(cl_int err);
 
+void gpu_backup_gradient(int data_size, cl_mem * input, cl_mem * output);
+
 void gpu_build_kernels(int data_size, int image_width, int image_size);
 
 void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kernel ** pKernels, 
@@ -74,4 +76,6 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
 void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
 
 void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * array2, cl_mem * output);
+
+void gpu_update_image(int image_width, float steplength, float minval, cl_mem * gpu_image, cl_mem * descent_direction);
 
