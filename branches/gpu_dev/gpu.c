@@ -11,8 +11,8 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -748,8 +748,6 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
 
 /*    // Round down to the nearest power of two.*/
 /*    local = pow(2, floor(log(npow) / log(2)));*/
-
-    print_opencl_error("Made it this far!", 0);
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_entropy, 2, 0, global, local, 0, NULL, NULL);
     if (err)
@@ -1773,6 +1771,10 @@ void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_
 
 void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image)
 { 
+    // Do a quick error check, make sure gpu_image is not null
+    if(gpu_image == NULL)
+        print_opencl_error("Invalid Image, did you forget to initalize?", 0);
+
     int err = 0;
     size_t global;                    // global domain size for our calculation
     size_t local;                     // local domain size for our calculation
@@ -1916,6 +1918,9 @@ void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * 
     if(gpu_enable_verbose)
         printf("Computing Scalar Product.\n");
         
+    if(final_output == NULL)
+        print_opencl_error("Can't write scalar product result to NULL!", 0);
+        
     size_t global = data_width;
     size_t local = 0;
     int err = 0;
@@ -1935,14 +1940,15 @@ void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * 
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
     // Round down to the nearest power of two.
-    local = pow(2, floor(log(local) / log(2)));
+    // TODO: Un-fix this value:
+    local = 32; //pow(2, floor(log(local) / log(2)));
     
     if(gpu_enable_debug && gpu_enable_verbose)
       printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_visi, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("clEnqueueNDRangeKernel visi", err);  
+        print_opencl_error("Could not enqueue scalar product kernel.", err);  
     
     
     // And now we need to run a parallel sum:
@@ -2149,7 +2155,7 @@ void gpu_update_tempimage(int image_width, float steplength, float minval, cl_me
     err |= clSetKernelArg(*pKernel_update_tempimage, 2, sizeof(float), &steplength);
     err |= clSetKernelArg(*pKernel_update_tempimage, 3, sizeof(float), &minval);  
     err |= clSetKernelArg(*pKernel_update_tempimage, 4, sizeof(cl_mem), pGpu_image_width); 
-    err |= clSetKernelArg(*pKernel_update_tempimage, 4, sizeof(cl_mem), pGpu_image_temp); 
+    err |= clSetKernelArg(*pKernel_update_tempimage, 5, sizeof(cl_mem), pGpu_image_temp); 
 
 /*   // Get the maximum work-group size for executing the kernel on the device*/
 /*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/

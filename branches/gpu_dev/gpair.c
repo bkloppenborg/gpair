@@ -573,6 +573,8 @@ int main(int argc, char *argv[])
 			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
 			default_model,
 			image_size,	image_width);
+			
+	gpu_copy_image(current_image, image_width, image_width);
 
 	gpu_build_kernels(data_alloc, image_size, image_width);
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
