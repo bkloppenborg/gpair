@@ -40,6 +40,9 @@ cl_program * pPro_entropy_grad = NULL;
 cl_kernel * pKernel_entropy_grad = NULL;
 cl_program * pPro_criterion_grad = NULL;
 cl_kernel * pKernel_criterion_grad = NULL;
+cl_program * pPro_descent_dir = NULL;
+cl_kernel * pKernel_descent_dir = NULL;
+
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -359,7 +362,12 @@ void gpu_build_kernels(int data_size, int image_width, int image_size)
     gpu_build_kernel(&pro_criterion_grad, &kern_criterion_grad, "criterion_grad", "./kernel_criterion_grad.cl");
     pPro_criterion_grad = &pro_criterion_grad;
     pKernel_criterion_grad = &kern_criterion_grad; 
-    
+
+    static cl_program pro_descent_dir;
+    static cl_kernel kern_descent_dir;
+    gpu_build_kernel(&pro_descent_dir, &kern_descent_dir, "descent_dir", "./kernel_descent_dir.cl");
+    pPro_descent_dir = &pro_descent_dir;
+    pKernel_descent_dir = &kern_descent_dir;     
 }
 
 void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kernel ** pKernels, 
@@ -595,6 +603,39 @@ void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entrop
     clFinish(*pQueue);   
 }
 
+void gpu_compute_descent_dir(int image_width, float beta)
+{
+    int err = 0;
+    // TODO: Figure out how to determine the size of local dynamically.
+    size_t * local;
+    local = malloc(2 * sizeof(size_t));
+    local[0] = local[1] = 16;
+    
+    size_t * global;
+    global = malloc(2 * sizeof(size_t));
+    global[0] = global[1] = image_width;
+    
+    // Set the arguments for the entropy kernel:
+    err  = clSetKernelArg(*pKernel_descent_dir, 0, sizeof(cl_mem), pGpu_descent_dir);
+    err |= clSetKernelArg(*pKernel_descent_dir, 1, sizeof(cl_mem), pGpu_full_grad_new);
+    err |= clSetKernelArg(*pKernel_descent_dir, 2, sizeof(cl_mem), &beta);
+    err |= clSetKernelArg(*pKernel_descent_dir, 3, sizeof(cl_mem), pGpu_image_width);   
+
+/*   // Get the maximum work-group size for executing the kernel on the device*/
+/*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
+/*    if (err != CL_SUCCESS)*/
+/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
+
+/*    // Round down to the nearest power of two.*/
+/*    local = pow(2, floor(log(npow) / log(2)));*/
+        
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_descent_dir, 2, 0, global, local, 0, NULL, NULL);
+    if (err)
+        print_opencl_error("Cannot enqueue entropy kernel.", err); 
+    
+    clFinish(*pQueue);   
+}
+
 // Compute the sum of the entropy, stores it in the location specified by entropy_storage.
 void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_storage)
 {
@@ -730,6 +771,8 @@ void gpu_cleanup()
         err |= clReleaseProgram(*pPro_entropy_grad);
     if(pPro_criterion_grad != NULL)
         err |= clReleaseProgram(*pPro_criterion_grad);
+    if(pPro_descent_dir != NULL)
+        err |= clReleaseProgram(*pPro_descent_dir);
 
         
     if(err != CL_SUCCESS)
@@ -772,7 +815,8 @@ void gpu_cleanup()
         err |= clReleaseKernel(*pKernel_entropy_grad);
     if(pKernel_criterion_grad != NULL)
         err |= clReleaseKernel(*pKernel_criterion_grad);
-        
+    if(pKernel_descent_dir != NULL)
+        err |= clReleaseKernel(*pKernel_descent_dir);        
     
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
