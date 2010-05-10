@@ -26,11 +26,11 @@ typedef struct _usersel
   char target[FLEN_VALUE];
   long numvis2;
   long numt3;
-  double wavel;
+  float wavel;
   char insname[maxins][FLEN_VALUE];
   long numins;
-  double minband;
-  double maxband;
+  float minband;
+  float maxband;
   int ntelescopes;
 }oi_usersel;
 
@@ -88,7 +88,7 @@ typedef struct _dataonly
 
 /* Function declarations */
 int get_oi_fits_selection(oi_usersel *usersel, int* status);
-int get_oi_fits_data(oi_usersel usersel, oi_data *data, int* status);
+int get_oi_fits_data(oi_usersel* usersel, oi_data *data, int* status);
 int compare_uv(oi_uv uv, oi_uv withuv, float thresh);
 void free_oi_target(oi_target *targets);
 void free_oi_wavelength(oi_wavelength *wave);

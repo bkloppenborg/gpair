@@ -11,7 +11,7 @@
 #endif
 
 // Preprocessor directive for the GPU:
-#define USE_GPU
+#undef USE_GPU
 
 #ifdef USE_GPU
 #include "gpu.h"
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 		else if (strcmp(argv[ii], "-w") == 0)
 		{
 			sscanf(argv[ii + 1], "%d", &image_width);
-			printf("Pixellation = %d\n", image_width);
+			printf("Image size = %d\n", image_width);
 		}
 		else if (strcmp(argv[ii], "-mw") == 0)
 		{
@@ -123,22 +123,21 @@ int main(int argc, char *argv[])
 	data_phasor = malloc(data_alloc_phasor * sizeof( float complex ));
 	init_data(1);
 
-	// Pad the arrays with zeros and ones after the data
+	// Pad the arrays with zeros and ones after the data (for opencl)
 	for (ii = data_size; ii < data_alloc; ii++)
 	{
-		data[ii] = 0;
-		data_err[ii] = 0;
+		data[ii] = 0.;
+		data_err[ii] = 0.;
 	}
 	
 	for (ii = nbis; ii < data_alloc_phasor ; ii++)
-		data_phasor[ii] = 0;
+		data_phasor[ii] = 0.;
 
 
 	printf("%d data read : %d powerspectrum, %d bispectrum and Ndof = %d\n", npow + 2 * nbis, npow, nbis, ndof);
 
 	
 	float complex * visi = malloc(data_alloc_uv * sizeof( float complex)); // current visibilities 
-	//float complex * new_visi= malloc(data_alloc_uv * sizeof( float complex)); // tentative visibilities  
 	float * mock = malloc(data_alloc * sizeof(float)); // stores the mock current pseudo-data derived from the image
 
 	for (ii = 0; ii < data_alloc; ii++)
@@ -812,7 +811,7 @@ int read_oifits(char * filename)
 	// Read the image
 	strcpy(usersel.file, filename);
 	get_oi_fits_selection(&usersel, &status);
-	get_oi_fits_data(usersel, &oifits_info, &status);
+	get_oi_fits_data(&usersel, &oifits_info, &status);
 	printf("OIFITS File read\n");
 	return 1;
 }
@@ -863,78 +862,72 @@ void writefits(float* image, char* fitsimage)
 void init_data(int do_extrapolation)
 {
 	register int ii;
-	float infinity = 1e8;
 	int warning_extrapolation = 0;
 	float pow1, powerr1, pow2, powerr2, pow3, powerr3, sqamp1, sqamp2, sqamp3, sqamperr1, sqamperr2, sqamperr3;
 	// Set elements [0, npow - 1] equal to the power spectrum
 	for (ii = 0; ii < npow; ii++)
 	{
 		data[ii] = oifits_info.pow[ii];
-		data_err[ii] = 1 / oifits_info.powerr[ii];
+		data_err[ii] = 1. / fabs(oifits_info.powerr[ii]);
 	}
 
 	// Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
 	for (ii = 0; ii < nbis; ii++)
 	{
-		
-		if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > infinity))) // Missing triple amplitudes
+	  if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > 1e3))) // Missing triple amplitudes
+	    {
+	      if ((oifits_info.bsref[ii].ab.uvpnt < npow) && (oifits_info.bsref[ii].bc.uvpnt < npow)
+		  && (oifits_info.bsref[ii].ca.uvpnt < npow))
 		{
-			if ((oifits_info.bsref[ii].ab.uvpnt < npow) && (oifits_info.bsref[ii].bc.uvpnt < npow)
-					&& (oifits_info.bsref[ii].ca.uvpnt < npow))
-			{
-				// if corresponding powerspectrum points are available
-				// Derive pseudo-triple amplitudes from powerspectrum data
-				// First select the relevant powerspectra
-				pow1 = oifits_info.pow[oifits_info.bsref[ii].ab.uvpnt];
-				powerr1 = oifits_info.powerr[oifits_info.bsref[ii].ab.uvpnt];
-				pow2 = oifits_info.pow[oifits_info.bsref[ii].bc.uvpnt];
-				powerr2 = oifits_info.powerr[oifits_info.bsref[ii].bc.uvpnt];
-				pow3 = oifits_info.pow[oifits_info.bsref[ii].ca.uvpnt];
-				powerr3 = oifits_info.powerr[oifits_info.bsref[ii].ca.uvpnt];
-				// Derive optimal visibility amplitudes + noise variance
-				sqamp1 = (pow1 + sqrt(square(pow1) + 2.0 * square(powerr1))) / 2.;
-				sqamperr1 = 1. / (1. / sqamp1 + 2. * (3. * sqamp1 - pow1) / square(powerr1));
-				sqamp2 = (pow2 + sqrt(square(pow2) + 2.0 * square(powerr2))) / 2.;
-				sqamperr2 = 1. / (1. / sqamp2 + 2. * (3. * sqamp2 - pow2) / square(powerr2));
-				sqamp3 = (pow3 + sqrt(square(pow3) + 2.0 * square(powerr3))) / 2.;
-				sqamperr3 = 1. / (1. / sqamp3 + 2. * (3. * sqamp3 - pow3) / square(powerr3));
-				// And form the triple amplitude statistics
-				oifits_info.bisamp[ii] = sqrt(sqamp1 * sqamp2 * sqamp3);
-				oifits_info.bisamperr[ii] = oifits_info.bisamp[ii] * sqrt(sqamperr1 / sqamp1 + sqamperr2 / sqamp2
-						+ sqamperr3 / sqamp3);
-				if(warning_extrapolation == 0)
-				{
-					printf("*************************  Warning - Recalculating T3amp from Powerspectra  ********************\n");
-					warning_extrapolation = 1;
-				}
-				
-			}
-
-			else // missing powerspectrum points -> cannot extrapolate bispectrum
-			{
-				printf(
-						"WARNING: triple amplitude extrapolation from powerspectrum failed because of missing powerspectrum\n");
-				oifits_info.bisamp[ii] = 1.0;
-				oifits_info.bisamperr[ii] = infinity;
-				// TDB - decrease the number of degrees of freedom
-				ndof--;
-			}
-
+		  // if corresponding powerspectrum points are available
+		  // Derive pseudo-triple amplitudes from powerspectrum data
+		  // First select the relevant powerspectra
+		  pow1 = oifits_info.pow[oifits_info.bsref[ii].ab.uvpnt];
+		  powerr1 = oifits_info.powerr[oifits_info.bsref[ii].ab.uvpnt];
+		  pow2 = oifits_info.pow[oifits_info.bsref[ii].bc.uvpnt];
+		  powerr2 = oifits_info.powerr[oifits_info.bsref[ii].bc.uvpnt];
+		  pow3 = oifits_info.pow[oifits_info.bsref[ii].ca.uvpnt];
+		  powerr3 = oifits_info.powerr[oifits_info.bsref[ii].ca.uvpnt];
+		  // Derive optimal visibility amplitudes + noise variance
+		  sqamp1 = (pow1 + sqrt(square(pow1) + 2.0 * square(powerr1))) / 2.;
+		  sqamperr1 = 1. / (1. / sqamp1 + 2. * (3. * sqamp1 - pow1) / square(powerr1));
+		  sqamp2 = (pow2 + sqrt(square(pow2) + 2.0 * square(powerr2))) / 2.;
+		  sqamperr2 = 1. / (1. / sqamp2 + 2. * (3. * sqamp2 - pow2) / square(powerr2));
+		  sqamp3 = (pow3 + sqrt(square(pow3) + 2.0 * square(powerr3))) / 2.;
+		  sqamperr3 = 1. / (1. / sqamp3 + 2. * (3. * sqamp3 - pow3) / square(powerr3));
+		  // And form the triple amplitude statistics
+		  oifits_info.bisamp[ii] = sqrt(sqamp1 * sqamp2 * sqamp3);
+		  oifits_info.bisamperr[ii] = oifits_info.bisamp[ii] 
+		    * sqrt(sqamperr1 / sqamp1 + sqamperr2 / sqamp2 + sqamperr3 / sqamp3);
+		  
+		  if(warning_extrapolation == 0)
+		    {
+		      printf("*************************  Warning - Recalculating T3amp from Powerspectra - Check this is wanted ********************\n");
+		      warning_extrapolation = 1;
+		    }
+		  
 		}
-
-		data[npow + 2 * ii] = fabs(oifits_info.bisamp[ii]);
-		data[npow + 2 * ii + 1] = 0.;
-		if (oifits_info.bisamperr[ii] < infinity / 2.)
-			data_err[npow + 2 * ii] = 1 / oifits_info.bisamperr[ii];
-		else
-			data_err[npow + 2 * ii] = 0.;
-
-		data_err[npow + 2 * ii + 1] = 1 / (fabs(oifits_info.bisamp[ii] * oifits_info.bisphserr[ii] ));
-		
-		data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii]);
-		// printf("Debug phs: %f phs_err: %f\n", oifits_info.bisphs[ii], oifits_info.bisphserr[ii]);
+	      
+	      else // missing powerspectrum points -> cannot extrapolate bispectrum
+		{
+		  printf("WARNING: triple amplitude extrapolation from powerspectrum failed because of missing powerspectrum\n");
+		  oifits_info.bisamp[ii] = 1.0;
+		  oifits_info.bisamperr[ii] = 1e99;
+		  ndof--;
+		}
+	      
+	    }
+	  
+	  
+	  data[npow + 2 * ii] = fabs(oifits_info.bisamp[ii]);
+	  data[npow + 2 * ii + 1] = 0.;
+	  
+	  data_err[npow + 2 * ii] = 1. / oifits_info.bisamperr[ii];
+	  data_err[npow + 2 * ii + 1] = 1. / fabs(oifits_info.bisamp[ii] * oifits_info.bisphserr[ii] * PI / 180. );	  
+	  data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii] * PI / 180.);
+	  printf("ii %d err1 %f err2 %f \n ", ii, data_err[npow + 2 * ii], data_err[npow + 2 * ii + 1]);
 	}
-
+	
 }
 
 float linesearch_zoom( float steplength_low, float steplength_high, float criterion_steplength_low, float wolfe_product1,
@@ -959,10 +952,10 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		//steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
 		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
 
-		if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
-		steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
+		//	if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
+		//	steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
 
-		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
+		//		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
 		steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
 
 		if( fabs( steplength_high - steplength_low ) < 1e-14)

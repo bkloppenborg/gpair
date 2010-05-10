@@ -11,6 +11,8 @@
 #include <complex.h>
 #include "getoifits.h"
 
+#define uv_threshold 5.0e-5
+#define infinity 1e99
 
 int compare_uv(oi_uv uv, oi_uv withuv, float thresh)
 {
@@ -60,644 +62,651 @@ int compare_uv(oi_uv uv, oi_uv withuv, float thresh)
 }
 
 
-int get_oi_fits_data(oi_usersel usersel, oi_data* data, int* status)
+int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 {
-/* 
- *  ROUTINE FOR READING OI_FITS DATA.
- *  All uv coords are conjuagetd into +ve u half plane.
- */
-  /* Declare data structure variables*/
-  /*     OI-FITS */
-  /* oi_array array; */
-  oi_wavelength wave;
-  oi_vis2 vis2;
-  oi_t3 t3;
-  /* Declare other variables */
-  int i,k,l;
-  int phu;
-  int npve, uvexists;
-  oi_uv puv1,puv2,puv3;
-  fitsfile *fptr;
+	/*
+	*  ROUTINE FOR READING OI_FITS DATA.
+	*  All uv coords are conjugated into +ve u half plane.
+	*/
+	/* Declare data structure variables*/
+	/*     OI-FITS */
+	/* oi_array array; */
+	oi_wavelength wave;
+	oi_vis2 vis2;
+	oi_t3 t3;
+	/* Declare other variables */
+	int i,k,l;
+	int phu;
+	int npve, uvexists;
+	oi_uv puv1,puv2,puv3;
+	fitsfile *fptr;
 
-  /* If error do nothing */
-  if(*status) return *status;
-  
-  /* Read fits file */
-  fits_open_file(&fptr, usersel.file, READONLY, status);
-  if(*status) {
-    fits_report_error(stderr, *status);
-    exit(1);
-  }
 
-  /* Allocate memory */
-  data->pow = (float*)malloc(usersel.numvis2*sizeof(float));
-  data->powerr = (float*)malloc(usersel.numvis2*sizeof(float));
-  data->bisamp=(float*)malloc(usersel.numt3*sizeof(float));
-  data->bisphs=(float*)malloc(usersel.numt3*sizeof(float));
-  data->bisamperr=(float*)malloc(usersel.numt3*sizeof(float));
-  data->bisphserr=(float*)malloc(usersel.numt3*sizeof(float));
-  data->bsref = (oi_bsref*)malloc(usersel.numt3*sizeof(oi_bsref));
-  data->uv = (oi_uv*)malloc((usersel.numvis2+3*usersel.numt3)*sizeof(oi_uv));
-  data->time = (float*)malloc((usersel.numvis2+3*usersel.numt3)*sizeof(float));
+	/* If error do nothing */
+	if(*status) return *status;
 
-  /* Allocate as much space for UV as possible initially and then reallocate in the end */
-  /* Read in visibility */
-  if(*status==0)
-    {
-      /* powerspectrum */
-      fits_movabs_hdu(fptr,1,NULL,status);
-      data->npow = 0;
-      data->nuv  = 0;
-      while(*status==0)
-	{
-	  read_next_oi_vis2(fptr, &vis2, status);
-	  fits_get_hdu_num(fptr, &phu);
-	  read_oi_wavelength(fptr, vis2.insname, &wave, status);
-	  fits_movabs_hdu(fptr,phu,NULL,status);
-	  
-	  if(*status==0)
-	    {
-	      if((vis2.record[0].target_id == usersel.target_id))
-		{
-		  for(i=0; i<vis2.numrec; i++)
-		    {
-		      for(k=0; k<vis2.nwave; k++)
-			{
-			  if(((wave.eff_wave[k]*billion)>usersel.minband)&&((wave.eff_wave[k]*billion)<usersel.maxband)&&(!(vis2.record[i].flag[k])))
-			    {
-			      data->pow[data->npow] = (float)vis2.record[i].vis2data[k];
-			      data->powerr[data->npow] = (float)vis2.record[i].vis2err[k];
-			      
-			      data->uv[data->nuv].u = (float)(vis2.record[i].ucoord/wave.eff_wave[k]); 
-			      data->uv[data->nuv].v = (float)(vis2.record[i].vcoord/wave.eff_wave[k]);
-			      
-			      data->time[data->npow] = (float)vis2.record[i].time;
-			      
-			      /* flip into +u half plane */
-			      if(data->uv[data->nuv].u<0.0)
-				{
-				  data->uv[data->nuv].u = -data->uv[data->nuv].u;
-				  data->uv[data->nuv].v = -data->uv[data->nuv].v;
-				}
-			      
-			      data->npow++;
-			      data->nuv++;
-			    }
-			}
-		    }
-		}
-	    }
-	  /* free memory */
-	  if(*status == 0)
-	    {
-	      free_oi_wavelength(&wave);
-	      free_oi_vis2(&vis2);
-	    }
+	/* Read fits file */
+	fits_open_file(&fptr, usersel->file, READONLY, status);
+	if(*status) {
+	  fits_report_error(stderr, *status);
+	  exit(1);
 	}
-      *status = 0;
 
-      /* bispectrum */
-      fits_movabs_hdu(fptr,1,NULL,status);
-      data->nbis  = 0;
-      while(*status==0)
+	/* Allocate memory */
+	data->pow = malloc( (usersel->numvis2 + 1) *sizeof(float));
+	data->powerr = malloc( (usersel->numvis2 + 1 ) *sizeof(float));
+	data->bisamp = malloc(usersel->numt3 *sizeof(float));
+	data->bisamperr = malloc(usersel->numt3 *sizeof(float));
+	data->bisphs = malloc(usersel->numt3 *sizeof(float));
+	data->bisphserr = malloc(usersel->numt3 *sizeof(float));
+	data->bsref = malloc(usersel->numt3 *sizeof(oi_bsref));
+	data->uv = malloc((1 + usersel->numvis2+3 *usersel->numt3)*sizeof(oi_uv));
+	/* Allocate as much space for UV as possible initially and then reallocate in the end */
+
+	/* Read in visibility */
+	if(*status==0)
 	{
-	  read_next_oi_t3(fptr, &t3, status);
-	  fits_get_hdu_num(fptr, &phu);
-	  read_oi_wavelength(fptr, t3.insname, &wave, status);
-	  fits_movabs_hdu(fptr,phu,NULL,status);
+		/* powerspectrum */
+		fits_movabs_hdu(fptr,1,NULL,status);
 
-	  if(*status==0)
-	    {
-	      if((t3.record[0].target_id == usersel.target_id))
+		/* Add total "zero" flux component for normalization */
+		//		data->npow = 1;
+		//		data->nuv  = 1;
+		//		data->pow[0]=1.0;
+		//		data->powerr[0]=usersel->fluxerr;
+		//		data->uv[0].u=0.;
+		//		data->uv[0].v=0.;
+		while(*status==0)
 		{
-		  for(i=0; i<t3.numrec; i++)
-		    {
-		      for(k=0; k<t3.nwave; k++)
+			read_next_oi_vis2(fptr, &vis2, status);
+			fits_get_hdu_num(fptr, &phu);
+			read_oi_wavelength(fptr, vis2.insname, &wave, status);
+			fits_movabs_hdu(fptr,phu,NULL,status);
+
+			if(*status==0)
 			{
-
-			  if(((wave.eff_wave[k]*billion)>usersel.minband)&&((wave.eff_wave[k]*billion)<usersel.maxband)&&(!(t3.record[i].flag[k])))
-			    {
-			      data->bisamp[data->nbis]=(float)(t3.record[i].t3amp[k]);
-			      data->bisphs[data->nbis]=(float)(t3.record[i].t3phi[k]) * PI / 180.;
-			      data->bisamperr[data->nbis]=(float)(t3.record[i].t3amperr[k]) ;
-			      data->bisphserr[data->nbis]=(float)(t3.record[i].t3phierr[k]) * PI / 180.;
-			      data->time[data->npow+data->nbis] = t3.record[i].time;
-
-			      if(isnan(t3.record[i].t3amp[k]))
+				if((vis2.record[0].target_id == usersel->target_id))
 				{
-				 data->bisamperr[data->nbis]=1e9;
-				}
-
-
-			      /* Read UV coords and check if they exist. If do not exist -> update UV.
-			       * Set the bsref.
-			       */
-			      puv1.u = (float)(t3.record[i].u1coord/wave.eff_wave[k]);
-			      puv1.v = (float)(t3.record[i].v1coord/wave.eff_wave[k]);
-			      puv2.u = (float)(t3.record[i].u2coord/wave.eff_wave[k]);
-			      puv2.v = (float)(t3.record[i].v2coord/wave.eff_wave[k]);
-			      puv3.u = -(puv1.u+puv2.u);
-			      puv3.v = -(puv1.v+puv2.v);
-			      
-			      /* Check if UV1, UV2, UV3 exist */
-			      
-			      /*uv1*/
-			      uvexists = 0;
-			      for(l=0; l<data->nuv; l++)
-				{
-				  if((npve = compare_uv(puv1, data->uv[l], (1.0e-5))))
-				    {
-				      data->bsref[data->nbis].ab.uvpnt = l;
-				      data->bsref[data->nbis].ab.sign = 1;
-				      
-				      /* conjugated ref if u -ve */
-				      if(npve == -1)
+					for(i=0; i<vis2.numrec; i++)
 					{
-					  data->bsref[data->nbis].ab.sign = -1;
+						for(k=0; k<vis2.nwave; k++)
+						{
+							if(((wave.eff_wave[k]*billion)> usersel->minband)&&((wave.eff_wave[k]*billion)
+										      < usersel->maxband)&&(!(vis2.record[i].flag[k])))
+							{
+								data->pow[data->npow] = (float)vis2.record[i].vis2data[k];
+								data->powerr[data->npow] = (float)vis2.record[i].vis2err[k];
+
+								data->uv[data->nuv].u = (float)(vis2.record[i].ucoord / wave.eff_wave[k]);
+								data->uv[data->nuv].v = (float)(vis2.record[i].vcoord / wave.eff_wave[k]);
+								//printf("%d %e %e %e\n", k,  wave.eff_wave[k], wave.eff_band[k], wave.eff_band[k] / wave.eff_wave[k]);
+								//data->uv[data->nuv].wavelength = wave.eff_wave[k];
+								//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+								
+								/* flip into +u half plane */
+								if(data->uv[data->nuv].u<0.0)
+								{
+									data->uv[data->nuv].u = -data->uv[data->nuv].u;
+									data->uv[data->nuv].v = -data->uv[data->nuv].v;
+								}
+
+								data->npow++;
+								data->nuv++;
+							}
+						}
 					}
-				      uvexists = 1;
-				      break; /*so that first match is referenced */
-				    }
 				}
-			      if(uvexists == 0)
-				{
-				  /* create new uv point */
-				  data->uv[data->nuv].u = puv1.u;
-				  data->uv[data->nuv].v = puv1.v;
-				  data->bsref[data->nbis].ab.uvpnt = l;
-				  data->bsref[data->nbis].ab.sign = 1;
-				  
-				  /* conjugate if u -ve */
-				  if(data->uv[data->nuv].u<0.0)
-				    {
-				      data->uv[data->nuv].u = -puv1.u;
-				      data->uv[data->nuv].v = -puv1.v;
-				      data->bsref[data->nbis].ab.sign = -1;
-				    }
-				  data->nuv++;
-				}
-			      
-			      /*uv2*/
-			      uvexists = 0;
-			      for(l=0; l<data->nuv; l++)
-				{
-				  if((npve = compare_uv(puv2, data->uv[l], (1.0e-5))))
-				    {
-				      data->bsref[data->nbis].bc.uvpnt = l;
-				      data->bsref[data->nbis].bc.sign = 1;
-				      
-				      /* conjugated ref if u -ve */
-				      if(npve == -1)
-					{
-					  data->bsref[data->nbis].bc.sign = -1;
-					}
-				      uvexists = 1;
-				      break;
-				    }
-				}
-			      if(uvexists == 0)
-				{
-				  /* create new uv point */
-				  data->uv[data->nuv].u = puv2.u;
-				  data->uv[data->nuv].v = puv2.v;
-				  data->bsref[data->nbis].bc.uvpnt = l;
-				  data->bsref[data->nbis].bc.sign = 1;
-				  
-				  /* conjugate if u -ve */
-				  if(data->uv[data->nuv].u<0.0)
-				    {
-				      data->uv[data->nuv].u = -puv2.u;
-				      data->uv[data->nuv].v = -puv2.v;
-				      data->bsref[data->nbis].bc.sign = -1;
-				    }
-				  data->nuv++;
-				}
-			      
-			      /*uv3 = (-uv2-uv2)*/
-			      uvexists = 0;
-			      for(l=0; l<data->nuv; l++)
-				{
-				  if((npve = compare_uv(puv3, data->uv[l], (1.0e-5))))
-				    {
-				      data->bsref[data->nbis].ca.uvpnt = l;
-				      data->bsref[data->nbis].ca.sign = 1;
-				      
-				      /* conjugated ref if u -ve */
-				      if(npve == -1)
-					{
-					  data->bsref[data->nbis].ca.sign = -1;
-					}
-				      uvexists = 1;
-				      break;
-				    }
-				}
-			      if(uvexists == 0)
-				{
-				  /* create new uv point */
-				  data->uv[data->nuv].u = puv3.u;
-				  data->uv[data->nuv].v = puv3.v;
-				  data->bsref[data->nbis].ca.uvpnt = l;
-				  data->bsref[data->nbis].ca.sign = 1;
-				  
-				  /* conjugate if u -ve */
-				  if(data->uv[data->nuv].u<0.0)
-				    {
-				      data->uv[data->nuv].u = -puv3.u;
-				      data->uv[data->nuv].v = -puv3.v;
-				      data->bsref[data->nbis].ca.sign = -1;
-				    }
-				  data->nuv++;
-				}
-			      
-			      data->nbis++;
-			    }
 			}
-		    }
+			/* free memory */
+			if(*status == 0)
+			{
+				free_oi_wavelength(&wave);
+				free_oi_vis2(&vis2);
+			}
 		}
-	    }
-	  /* free memory */
-	  if(*status == 0)
-	    {
-	      free_oi_wavelength(&wave);
-	      free_oi_t3(&t3);
-	    }
+		*status = 0;
+
+		/* bispectrum */
+		fits_movabs_hdu(fptr,1,NULL,status);
+		data->nbis  = 0;
+		while(*status==0)
+		{
+			read_next_oi_t3(fptr, &t3, status);
+			fits_get_hdu_num(fptr, &phu);
+			read_oi_wavelength(fptr, t3.insname, &wave, status);
+			fits_movabs_hdu(fptr,phu,NULL,status);
+
+			if(*status==0)
+			{
+				if((t3.record[0].target_id == usersel->target_id))
+				{
+					for(i=0; i<t3.numrec; i++)
+					{
+						for(k=0; k<t3.nwave; k++)
+						{
+
+							if(((wave.eff_wave[k]*billion)>usersel->minband)&&((wave.eff_wave[k]*billion)<usersel->maxband)&&(!(t3.record[i].flag[k])))
+							{
+								/* Trick to use closure data without available bis amplitudes */
+								if(isnan(t3.record[i].t3amp[k]))
+								{
+									data->bisamp[data->nbis] = 1.0;
+									data->bisamperr[data->nbis] = infinity ;
+								}
+								else
+								{
+									data->bisamp[data->nbis] = (float)(t3.record[i].t3amp[k]);
+									data->bisamperr[data->nbis] = (float)(t3.record[i].t3amperr[k]);
+								}
+
+								data->bisphs[data->nbis] = (float)(t3.record[i].t3phi[k]);
+								data->bisphserr[data->nbis] = (float)(t3.record[i].t3phierr[k]);
+
+								// data->bistime[data->nbis] = t3.time;
+
+								/* Read UV coords and check if they exist. If do not exist -> update UV.
+								* Set the bsref.
+								*/
+								puv1.u = (float)( t3.record[ i ].u1coord / wave.eff_wave[ k ] );
+								puv1.v = (float)( t3.record[ i ].v1coord / wave.eff_wave[ k ] );
+								puv2.u = (float)( t3.record[ i ].u2coord / wave.eff_wave[ k ] );
+								puv2.v = (float)( t3.record[ i ].v2coord / wave.eff_wave[ k ] );
+								puv3.u = -(puv1.u + puv2.u);
+								puv3.v = -(puv1.v + puv2.v);
+
+								/* Check if UV1, UV2, UV3 exist */
+
+								/*uv1*/
+								uvexists = 0;
+								for(l=0; l<data->nuv; l++)
+								{
+									if((npve = compare_uv(puv1, data->uv[l], uv_threshold)))
+									{
+										data->bsref[data->nbis].ab.uvpnt = l;
+										data->bsref[data->nbis].ab.sign = 1;
+
+										/* conjugated ref if u -ve */
+										if(npve == -1)
+										{
+											data->bsref[data->nbis].ab.sign = -1;
+										}
+										uvexists = 1;
+										break; /*so that first match is referenced */
+									}
+								}
+								if(uvexists == 0)
+								{
+									/* create new uv point */
+									data->uv[data->nuv].u = puv1.u;
+									data->uv[data->nuv].v = puv1.v;
+									//data->uv[data->nuv].wavelength = wave.eff_wave[k];
+									//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+									data->bsref[data->nbis].ab.uvpnt = l;
+									data->bsref[data->nbis].ab.sign = 1;
+
+									/* conjugate if u -ve */
+									if(data->uv[data->nuv].u<0.0)
+									{
+										data->uv[data->nuv].u = -puv1.u;
+										data->uv[data->nuv].v = -puv1.v;
+										data->bsref[data->nbis].ab.sign = -1;
+									}
+									data->nuv++;
+								}
+
+								/*uv2*/
+								uvexists = 0;
+								for(l=0; l<data->nuv; l++)
+								{
+									if((npve = compare_uv(puv2, data->uv[l], uv_threshold)))
+									{
+										data->bsref[data->nbis].bc.uvpnt = l;
+										data->bsref[data->nbis].bc.sign = 1;
+
+										/* conjugated ref if u -ve */
+										if(npve == -1)
+										{
+											data->bsref[data->nbis].bc.sign = -1;
+										}
+										uvexists = 1;
+										break;
+									}
+								}
+
+								if(uvexists == 0)
+								{
+									/* create new uv point */
+									data->uv[data->nuv].u = puv2.u;
+									data->uv[data->nuv].v = puv2.v;
+									//data->uv[data->nuv].wavelength = wave.eff_wave[k];
+									//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+									data->bsref[data->nbis].bc.uvpnt = l;
+									data->bsref[data->nbis].bc.sign = 1;
+
+									/* conjugate if u -ve */
+									if(data->uv[data->nuv].u<0.0)
+									{
+										data->uv[data->nuv].u = -puv2.u;
+										data->uv[data->nuv].v = -puv2.v;
+										data->bsref[data->nbis].bc.sign = -1;
+									}
+									data->nuv++;
+								}
+
+								/*uv3 = (-uv2-uv2)*/
+								uvexists = 0;
+								for(l=0; l<data->nuv; l++)
+								{
+									if((npve = compare_uv(puv3, data->uv[l], uv_threshold)))
+									{
+										data->bsref[data->nbis].ca.uvpnt = l;
+										data->bsref[data->nbis].ca.sign = 1;
+
+										/* conjugated ref if u -ve */
+										if(npve == -1)
+										{
+											data->bsref[data->nbis].ca.sign = -1;
+										}
+										uvexists = 1;
+										break;
+									}
+								}
+
+								if(uvexists == 0)
+								{
+									/* create new uv point */
+									data->uv[data->nuv].u = puv3.u;
+									data->uv[data->nuv].v = puv3.v;
+									//data->uv[data->nuv].wavelength = wave.eff_wave[k];
+									//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+									data->bsref[data->nbis].ca.uvpnt = l;
+									data->bsref[data->nbis].ca.sign = 1;
+
+									/* conjugate if u -ve */
+									if(data->uv[data->nuv].u<0.0)
+									{
+										data->uv[data->nuv].u = -puv3.u;
+										data->uv[data->nuv].v = -puv3.v;
+										data->bsref[data->nbis].ca.sign = -1;
+									}
+									data->nuv++;
+								}
+
+								data->nbis++;
+							}
+						}
+					}
+				}
+			}
+			/* free memory */
+			if(*status == 0)
+			{
+				free_oi_wavelength(&wave);
+				free_oi_t3(&t3);
+			}
+		}
+		*status = 0;
 	}
-      *status = 0;
-    }
 
- 
-
-  /* ERROR HANDLING */
-  return *status;
+	/* ERROR HANDLING */
+	return *status;
 }
 
-int get_oi_fits_selection(oi_usersel *usersel, int* status)
+int get_oi_fits_selection(oi_usersel* usersel, int* status)
 {
-/* 
- * ROUTINE FOR READING OI_FITS INFO.
- */
-  /* Declare data structure variables*/
-  /*     OI-FITS */
-  /* oi_array array; */
-  oi_target targets;
-  oi_wavelength wave;
-  oi_vis2 vis2;
-  oi_t3 t3;
-  /* Data description */
-  int nv2tab=0, nt3tab=0;
-  int phu;
-  /* Declare other variables */
+	/*
+	* ROUTINE FOR READING OI_FITS INFO.
+	*/
+	/* Declare data structure variables*/
+	/*     OI-FITS */
+	/* oi_array array; */
+	oi_target targets;
+	oi_wavelength wave;
+	oi_vis2 vis2;
+	oi_t3 t3;
+	/* Data description */
+	int nv2tab=0, nt3tab=0;
+	int phu;
+	/* Declare other variables */
 
-  char comment[FLEN_COMMENT];
-  char extname[FLEN_VALUE];
-  char zerostring[FLEN_VALUE];
-  char commstring[100];
-  int hdutype;
-  int i,k;
-  int nhu=0;
-  int tmpi;
+	char comment[FLEN_COMMENT];
+	char extname[FLEN_VALUE];
+	char zerostring[FLEN_VALUE];
+	char commstring[100];
+	int hdutype;
+	int i,k;
+	int nhu=0;
+	int tmpi;
 
-  fitsfile *fptr;
+	fitsfile *fptr;
 
-  /* If error do nothing */
-  if(*status) return *status;
+	/* If error do nothing */
+	if(*status) return *status;
 
-  /* Initialise */
-  usersel->numins = 0;
-  for(k=0; k<FLEN_VALUE; k++)zerostring[k] = ' ';
+	/* Initialise */
+	usersel->numins = 0;
+	for(k=0; k<FLEN_VALUE; k++)zerostring[k] = ' ';
 
-  /* Read fits file */
-  fits_open_file(&fptr, usersel->file, READONLY, status);
-  if(*status) {
-    fits_report_error(stderr, *status);
-    exit(1);
-  }
-
-  /* GET NO OF HEADER UNITS */
-  fits_get_num_hdus(fptr,&nhu,status);
-  /* PRINT HEADER UNIT LABELS */
-  if(*status == 0)
-    {
-      //  printf("=====================================================================\n");
-      // printf("HEADER UNITS\n");
-      // printf("---------------------------------------------------------------------\n");
-      for(i = 1; i<(nhu+1); i++)
-	{
-	  fits_movabs_hdu(fptr,i,&hdutype,status);
-	  if (hdutype == BINARY_TBL) {
-	    fits_read_key(fptr, TSTRING, "EXTNAME", extname, comment, status);
-	    //   printf("%s\n",extname);
-	  }
+	/* Read fits file */
+	fits_open_file(&fptr, usersel->file, READONLY, status);
+	if(*status) {
+		fits_report_error(stderr, *status);
+		exit(1);
 	}
-      printf("\n");
-      /*  getchar(); */
-    }
-    
-   
-    
-    
-  /* GET TARGETS AND SELECT */
-  if(*status == 0)
-    {
-      fits_movabs_hdu(fptr,1,NULL,status);
-      read_oi_target(fptr,&targets,status);
-      printf("=====================================================================\n");
-      printf("TARGETS\n");
-      printf("Id         Name\n");
-      printf("---------------------------------------------------------------------\n");
-      
-      for(i=0; i<(targets.ntarget); i++)
+
+	/* GET NO OF HEADER UNITS */
+	fits_get_num_hdus(fptr,&nhu,status);
+	/* PRINT HEADER UNIT LABELS */
+	if(*status == 0)
 	{
-	  printf("%-10d           %s\n",targets.targ[i].target_id,targets.targ[i].target);
-	}
-      printf("---------------------------------------------------------------------\n");
-      if(targets.ntarget>1)
-	{
-	AGAIN1:
-	  printf("SELECT AN ID: ");
-	  scanf("%d", &usersel->target_id);
-	  
-	  tmpi = 0;
-	  for(i=0; i<targets.ntarget; i++)
-	    {
-	      if( targets.targ[i].target_id == usersel->target_id )
+		printf("Reading unit labels:\t");
+		for(i = 1; i<(nhu+1); i++)
 		{
-		  tmpi = 1;
-		  strcpy(usersel->target, targets.targ[i].target);
+			fits_movabs_hdu(fptr,i,&hdutype,status);
+			if (hdutype == BINARY_TBL) {
+				fits_read_key(fptr, TSTRING, "EXTNAME", extname, comment, status);
+				printf("%s ",extname);
+			}
 		}
-	    }
-	  if(tmpi==1)goto AGAIN1;
-	}
-      else
-	{
-	  printf("Selecting the target \"%s\".\n",targets.targ[0].target);
-	  usersel->target_id = targets.targ[0].target_id;
-	  strcpy(usersel->target,zerostring);
-	  strcpy(usersel->target,targets.targ[0].target);
-	  // TODO: re-enable getchar();
-	}
-      printf("\n");
-      /* free memory */
-      if(*status == 0)
-	{
-	  free_oi_target(&targets);
-	}
-    }
 
-  /* PRINT AVAILABLE DATA ON SELECTED TARGET */
-  if(*status == 0)
-    {
-      printf("========================================================================\n");
-      printf("AVAILABLE DATA ON \"%s\"\n",usersel->target);
-      /* V2 TABLES */
-      printf("------------------------------------------------------------------------\n");
-      printf("POWERSPECTRUM TABLES\n");
-      printf("#     Date          Array               Instrument             Nrec/Nwav\n");
-      printf("------------------------------------------------------------------------\n");
-      fits_movabs_hdu(fptr,1,NULL,status);
-      while(*status == 0)
+	}
+	/* GET TARGETS AND SELECT */
+	if(*status == 0)
 	{
-	  read_next_oi_vis2(fptr, &vis2, status);
-	  fits_get_hdu_num(fptr, &phu);
-	  if(*status==0)
-	    {
-	      if((vis2.record[0].target_id == usersel->target_id))
+		fits_movabs_hdu(fptr,1,NULL,status);
+		read_oi_target(fptr,&targets,status);
+
+		for(i=0; i<(targets.ntarget); i++)
 		{
-		  nv2tab++;
-		  printf("%-6.3d%-14.11s%-20.20s%-20.20s%ld/%d\n",nv2tab,vis2.date_obs,vis2.arrname,
-			 vis2.insname,vis2.numrec,vis2.nwave);
-		  /* Check if need to register new array for this one */
-		  tmpi = 0;
-		  for(i=0; i<usersel->numins; i++)
-		    {
-		      tmpi += (int)(strcmp(vis2.insname,usersel->insname[i]) == 0);
-		    }
+			printf("\nTarget id/name:\t\t%d/%s\n",targets.targ[i].target_id,targets.targ[i].target);
+		}
+
+		if(targets.ntarget>1)
+		{
+			AGAIN1:
+			printf("\nSELECT AN ID: ");
+			scanf("%d",&usersel->target_id);
+			tmpi = 0;
+			for(i=0; i<targets.ntarget; i++)
+			{
+				if(targets.targ[i].target_id == usersel->target_id)
+				{
+					tmpi=1;
+					strcpy(usersel->target, targets.targ[i].target);
+				}
+			}
+			if(tmpi==0)goto AGAIN1;
+		}
+		else
+		{
+			printf("Auto selecting the only target \"%s\".\n",targets.targ[0].target);
+			usersel->target_id = targets.targ[0].target_id;
+			strcpy(usersel->target,zerostring);
+			strcpy(usersel->target,targets.targ[0].target);
+		}
+		printf("\n");
+		/* free memory */
+		if(*status == 0)
+		{
+			free_oi_target(&targets);
+		}
+	}
+
+	/* PRINT AVAILABLE DATA ON SELECTED TARGET */
+	if(*status == 0)
+	{
+		/* V2 TABLES */
+		printf("POWERSPECTRUM TABLES\n");
+		printf("#\tDate\t\tArray\t\t\tInstrument\t\tNrec/Nwav\n");
+		fits_movabs_hdu(fptr,1,NULL,status);
+		while(*status == 0)
+		{
+			read_next_oi_vis2(fptr, &vis2, status);
+			fits_get_hdu_num(fptr, &phu);
+			if(*status==0)
+			{
+				if((vis2.record[0].target_id == usersel->target_id))
+				{
+					nv2tab++;
+					printf("%-6.3d\t%-14.11s\t%-20.20s\t%-20.20s\t%ld/%d\n",nv2tab,vis2.date_obs,vis2.arrname,
+					vis2.insname,vis2.numrec,vis2.nwave);
+					/* Check if need to register new array for this one */
+					tmpi = 0;
+					for(i=0; i<usersel->numins; i++)
+					{
+						tmpi += ( (int)strcmp(vis2.insname,usersel->insname[i]) == 0) ;
+					}
+
+					if((tmpi != 0)||(usersel->numins==0))
+					{
+						strcpy(usersel->insname[usersel->numins], zerostring);
+						strcpy(usersel->insname[usersel->numins], vis2.insname);
+						usersel->numins++;
+					}
+				}
+			}
+
+			/* free memory */
+			if(*status == 0)
+			{
+				free_oi_vis2(&vis2);
+			}
+		}
+		phu = 1;
+		*status = 0;
+		if(nv2tab<0)printf("\nNo powerspectrum data available for \"%s\"\n",usersel->target);
+	}
+
+
+	/* T3 TABLES */
+	if(*status == 0)
+	{
+		printf("\n");
+		printf("BISPECTRUM TABLES\n");
+		printf("#\tDate\t\tArray\t\t\tInstrument\t\tNrec/Nwav\n");
+		fits_movabs_hdu(fptr,1,NULL,status);
+
+		while(*status == 0)
+		{
+			read_next_oi_t3(fptr, &t3, status);
+			if(*status==0)
+			{
+				if((t3.record[0].target_id == usersel->target_id))
+				{
+					nt3tab++;
+					printf("%-6.3d\t%-14.11s\t%-20.20s\t%-20.20s\t%ld/%d\n",nt3tab,
+					t3.date_obs,t3.arrname,t3.insname,t3.numrec,t3.nwave);
+					/* Check if need to register new array for this one */
+					tmpi = 0;
+					for(i=0; i<usersel->numins; i++)
+					{
+					  tmpi += ( (int)strcmp(t3.insname,usersel->insname[i]) == 0) ;
+					}
+					if((tmpi != 0)||(usersel->numins==0))
+					{
+						strcpy(usersel->insname[usersel->numins],zerostring);
+						strcpy(usersel->insname[usersel->numins], t3.insname);
+						usersel->numins++;
+					}
+				}
+			}
+			if(*status == 0)
+			{
+				free_oi_t3(&t3);
+			}
+		}
+		phu = 1;
+		*status = 0;
+		if(nv2tab<0)printf("\nNo bispectrum data available for \"%s\"\n",usersel->target);
+	}
+
+
+	/* CHANNELS IN INSTRUMENTS */
+	if(*status == 0)
+	  {
+	    printf("\nINSTRUMENT SPECTRAL CHANNELS\n");
+	    printf("#\tInstrument\t\tChannel_id\tBand/Bandwidth (nm)\n");
+	    for(i=0; i<usersel->numins; i++)
+	      {
+		fits_movabs_hdu(fptr,1,NULL,status);
+		/* Read wave table */
+		read_oi_wavelength(fptr, usersel->insname[i], &wave, status);
+		/* Display wave table */
+		for(k=0; k<wave.nwave; k++)
+		  {
+		    if(k==0)printf("%-6d\t%-25.20s",i,usersel->insname[i]);
+		    else printf("%-6.6s\t%-25.20s",zerostring,zerostring);
+		    
+		    printf("%-3.3d_%-14.3d\t%.0f/%.0f\n",i,k,(wave.eff_wave[k]*billion),(wave.eff_band[k]*billion));
+		    
+		    /*
+		      if (strlen(usersel->insname[i]) > 0)
+		      {
+		      read_oi_array(fptr, usersel->insname[i], &array, status);
+		      printf("Note: array %s has %d telescopes\n", vis2.arrname, array.nelement);
+		      usersel->ntelescopes = array.nelement;
+		      }
+		    */
+		  }
+		/* free memory */
+		if(*status == 0)
+		  {
+		    free_oi_wavelength(&wave);
+		  }
+	      }
+
+	  AGAIN2: //waveband selection
+	    if( ( usersel->minband < 0.) || (usersel->maxband <= usersel->minband) ) // waveband not set (well) externally
+	      {
+		if(wave.nwave > 1)
+		  {
+		    printf("Select a wavelength range (default value = 1 50000) :");
+		    fgets(commstring,100,stdin);
+		    tmpi = sscanf(commstring,"%f %f", &usersel->minband, &usersel->maxband);
+		  }
+		else
+		  {
+		    tmpi = -1;
+		    printf("Only one spectral channel. ");
+		  }
 		
-		  if((tmpi != 0)||(usersel->numins==0))
-		    {
-		      strcpy(usersel->insname[usersel->numins], zerostring);
-		      strcpy(usersel->insname[usersel->numins], vis2.insname);		    
-		      usersel->numins++;
-		    }
-		}
-
-	    }
-	
-	  /* free memory */
-	  if(*status == 0)
-	    {
-	      free_oi_vis2(&vis2);
-	    }
-	}
-      phu = 1;
-      *status = 0;
-      if(nv2tab<0)printf("No powerspectrum data available for \"%s\"\n",usersel->target);
-      /* getchar(); */
-    }
- 
-
-  /* T3 TABLES */
-  if(*status == 0)
-    {
-      printf("------------------------------------------------------------------------\n");
-      printf("BISPECTRUM TABLES\n");
-      printf("#     Date          Array               Instrument             Nrec/Nwav\n");
-      printf("------------------------------------------------------------------------\n");
-      fits_movabs_hdu(fptr,1,NULL,status);
-      
-      while(*status == 0)
-	{
-	  read_next_oi_t3(fptr, &t3, status);
-	  if(*status==0)
-	    {
-	      if((t3.record[0].target_id == usersel->target_id))
-		{
-		  nt3tab++;
-		  printf("%-6.3d%-14.11s%-20.20s%-20.20s%ld/%d\n",nt3tab,
-			 t3.date_obs,t3.arrname,t3.insname,t3.numrec,t3.nwave);
-		  /* Check if need to register new array for this one */
-		  tmpi = 0;
-		  for(i=0; i<usersel->numins; i++)
-		    {
-		      tmpi += (int)(strcmp(t3.insname,usersel->insname[i]) == 0 );
-		    }
-		  if((tmpi != 0)||(usersel->numins==0))
-		    {
-		      strcpy(usersel->insname[usersel->numins],zerostring);
-		      strcpy(usersel->insname[usersel->numins], t3.insname);
-		      usersel->numins++;
-		    }
-		}
-	    }
-	  /* free memory */
-	  if(*status == 0)
-	    {
-	      free_oi_t3(&t3);
-	    }
-	}
-      phu = 1;
-      *status = 0;
-      if(nv2tab<0)printf("No bispectrum data available for \"%s\"\n",usersel->target);
-      printf("\n");
-      /*  getchar(); */
-    }
-
-
-  /* CHANNELS IN INSTRUMENTS */
-  if(*status == 0)
-    {
-      printf("=====================================================================\n");
-      printf("INSTRUMENT SPECTRAL CHANNELS\n");
-      printf("#   Instrument                 Channel_id        Band/Bandwidth (nm)\n");
-      printf("---------------------------------------------------------------------\n");
-      for(i=0; i<usersel->numins; i++)
-	{
-	  fits_movabs_hdu(fptr,1,NULL,status);
-	  /* Read wave table */
-	  read_oi_wavelength(fptr, usersel->insname[i], &wave, status);
-	  /* Display wave table */
-	  for(k=0; k<wave.nwave; k++)
-	    {
-	      if(k==0)printf("%-6d%-25.20s",i,usersel->insname[i]);      
-	      else printf("%-6.6s%-25.20s",zerostring,zerostring);      
-	      
-	      printf("%-3.3d_%-14.3d%.0f/%.0f\n",i,k,(wave.eff_wave[k]*billion),(wave.eff_band[k]*billion));
-	      /*	   
-	    	if (strlen(usersel->insname[i]) > 0) 
-		{
-			read_oi_array(fptr, usersel->insname[i], &array, status);
-			printf("Note: array %s has %d telescopes\n", vis2.arrname, array.nelement);
-			usersel->ntelescopes = array.nelement;
-		}
-	      */
+		if(tmpi == 2)
+		  {
+		    if((usersel->maxband <= usersel->minband)||(usersel->minband < 0.0))
+		      {
+			printf("Invalid band selection!\n");
+			goto AGAIN2;
+		      }
+		  }
+		else if(tmpi == -1)
+		  {
+		    printf("Automatic selection of the full channel\n");
+		    usersel->minband = 1. ; /* (wave.eff_wave[0]-wave.eff_band[0]/2.)*billion ; */
+		    usersel->maxband = 50000. ; /*(wave.eff_wave[0]+wave.eff_band[0]/2.)*billion ; */
+		  }
+		else
+		  {
+		    printf("Invalid band selection!\n");
+		    goto AGAIN2;
+		  }
+	      }
 	    
-	    }
-	  /* free memory */
-	  if(*status == 0)
-	    {
-	      free_oi_wavelength(&wave);
-	    }
-	}
-      printf("---------------------------------------------------------------------\n");
-    AGAIN2:
-      printf("Select a wavelength range (default value = 1 50000) :");
-      /* printf("%.0f %.0f ) : ",(wave.eff_wave[0]-wave.eff_band[0]/2.)*billion,(wave.eff_wave[0]+wave.eff_band[0]/2.)*billion); */
-      // TODO: Renable
-      //fgets(commstring,100,stdin);
-      tmpi = -1; //sscanf(commstring,"%lf %lf",&usersel->minband,&usersel->maxband);
-    if(tmpi == 2)
-    {
-        if((usersel->maxband <= usersel->minband)||(usersel->minband < 0.0))
-        {
-          printf("Invalid band selection!\n");
-          goto AGAIN2;
-        }
-    }    
-
-    else if(tmpi == -1)
-    {
-        printf("1 50000");
-        usersel->minband = 1. ; /* (wave.eff_wave[0]-wave.eff_band[0]/2.)*billion ; */
-        usersel->maxband = 50000. ; /*(wave.eff_wave[0]+wave.eff_band[0]/2.)*billion ; */
-    }
-    else
-    { 
-        printf("Invalid band selection!\n");
-        goto AGAIN2;
-    }
-    printf("\n");
-    }
-
-  /* Count number of vis2 and t3 available in this range for this target */
-  if(*status==0)
-    {
-      /* powerspectrum */
-      usersel->numvis2 = 0; 
-      fits_movabs_hdu(fptr,1,NULL,status);
-      while(*status==0)
-	{
-	  read_next_oi_vis2(fptr, &vis2, status);
-	  fits_get_hdu_num(fptr, &phu);
-	  read_oi_wavelength(fptr, vis2.insname, &wave, status);
-	  fits_movabs_hdu(fptr,phu,NULL,status);
-
-	  if(*status==0)
-	    {
-	      if(vis2.record[0].target_id == usersel->target_id)
-		{
-		  for(i=0; i<vis2.numrec; i++)
-		    {
-		      for(k=0; k<vis2.nwave; k++)
+	  }
+	
+	/* Count number of vis2 and t3 available in this range for this target */
+	if(*status==0)
+	  {
+	    /* powerspectrum */
+	    usersel->numvis2 = 0;
+	    fits_movabs_hdu(fptr,1,NULL,status);
+	    while(*status==0)
+	      {
+		read_next_oi_vis2(fptr, &vis2, status);
+		fits_get_hdu_num(fptr, &phu);
+		read_oi_wavelength(fptr, vis2.insname, &wave, status);
+		fits_movabs_hdu(fptr,phu,NULL,status);
+		
+		if(*status==0)
+		  {
+		    if(vis2.record[0].target_id == usersel->target_id)
+		      {
+			for(i=0; i<vis2.numrec; i++)
+			  {
+			    for(k=0; k<vis2.nwave; k++)
+			      {
+				if(((wave.eff_wave[k]*billion)>usersel->minband)&&((wave.eff_wave[k]*billion)<usersel->maxband)&&(!(vis2.record[i].flag[k])))
+				  {
+				    usersel->numvis2++;
+				  }
+			      }
+			  }
+		      }
+		  }
+		/* free memory */
+		if(*status == 0)
+		  {
+		    free_oi_vis2(&vis2);
+		    free_oi_wavelength(&wave);
+		  }
+	      }
+	    *status = 0;
+	    
+	    /* bispectrum */
+	    usersel->numt3 = 0;
+	    fits_movabs_hdu(fptr,1,NULL,status);
+	    while(*status==0)
+	      {
+		read_next_oi_t3(fptr, &t3, status);
+		fits_get_hdu_num(fptr, &phu);
+		read_oi_wavelength(fptr, t3.insname, &wave, status);
+		fits_movabs_hdu(fptr,phu,NULL,status);
+		
+		if(*status==0)
 			{
-			  if(((wave.eff_wave[k]*billion)>usersel->minband)&&((wave.eff_wave[k]*billion)<usersel->maxband)&&(!(vis2.record[i].flag[k])))
+			  if(t3.record[0].target_id == usersel->target_id)
 			    {
-			      usersel->numvis2++;
+			      for(i=0; i<t3.numrec; i++)
+				{
+				  for(k=0; k<t3.nwave; k++)
+				    {
+				      if( ((wave.eff_wave[k]*billion)>usersel->minband)
+					  &&((wave.eff_wave[k]*billion)<usersel->maxband)
+					  && (!(t3.record[i].flag[k]))  )
+					{
+					  usersel->numt3++;
+							}
+				    }
+				}
 			    }
 			}
-		    }
-		}
-	    }
-	  /* free memory */
-	  if(*status == 0)
-	    {
-	      free_oi_vis2(&vis2);
-	      free_oi_wavelength(&wave);
-	    }
-	}
-      *status = 0;
-
-      /* bispectrum */
-      usersel->numt3 = 0;
-      fits_movabs_hdu(fptr,1,NULL,status);
-      while(*status==0)
-	{
-	  read_next_oi_t3(fptr, &t3, status);
-	  fits_get_hdu_num(fptr, &phu);
-	  read_oi_wavelength(fptr, t3.insname, &wave, status);
-	  fits_movabs_hdu(fptr,phu,NULL,status);
-
-	  if(*status==0)
-	    {
-	      if(t3.record[0].target_id == usersel->target_id)
+		/* free memory */
+		if(*status == 0)
+		  {
+				free_oi_t3(&t3);
+				free_oi_wavelength(&wave);
+		  }
+	      }
+		*status = 0;
+		if((usersel->numt3==0)&&(usersel->numvis2==0))
 		{
-		  for(i=0; i<t3.numrec; i++)
-		    {
-		      for(k=0; k<t3.nwave; k++)
-			{
-			  if(((wave.eff_wave[k]*billion)>usersel->minband)&&((wave.eff_wave[k]*billion)<usersel->maxband)&&(!(t3.record[i].flag[k])))
-			    {
-			      usersel->numt3++;
-			    }
-			}
-		    }
+		  printf("Error: no data available within the selected waveband limits\n");
+		  usersel->minband= -1.;
+		  usersel->maxband= -1.;
+		  getchar();
+		  goto AGAIN2;
 		}
-	    }
-	  /* free memory */
-	  if(*status == 0)
-	    {
-	      free_oi_t3(&t3);
-	      free_oi_wavelength(&wave);
-	    }
-	}
-      *status = 0;
-      if((usersel->numt3==0)&&(usersel->numvis2==0))
-	{
-	  printf("No data available for this band!\n");
-	  goto AGAIN2;
-	}
-      printf("=====================================================================\n");
-      printf("Found %ld powerspectrum and %ld bispectrum points in the bands between\n",usersel->numvis2,usersel->numt3);
-      printf("%.0f and %.0f nm.\n",usersel->minband, usersel->maxband);
-      printf("---------------------------------------------------------------------\n");
-    }
-
-  /* CLOSE FILE */
-  fits_close_file(fptr, status);
-
-
-  
-  /* ERROR HANDLING */
-  return *status;
+		printf("Found %ld powerspectrum and %ld bispectrum points between %.0f and %.0f nm.\n\n",
+						usersel->numvis2,usersel->numt3, usersel->minband, usersel->maxband);
+		
+	  }
+	
+	/* CLOSE FILE */
+	fits_close_file(fptr, status);
+	
+	
+	
+	/* ERROR HANDLING */
+	return *status;
 }
 
 void free_oi_target(oi_target *targets)
