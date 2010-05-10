@@ -1,7 +1,7 @@
 // A kernel to compute the elements of the Gull Skilling entropy.
 // NOTE: Need to run parallel reduction on this after the computation has completed.
 __kernel void entropy_gs(
-    __local int image_width,
+    __global int * image_width,
     __global float * image,
     __global float * default_model,
     __global float * output)
@@ -20,7 +20,7 @@ __kernel void entropy_gs(
     if(t_image > 0 && t_model > 0)
         S = t_image - t_model - t_image * log(t_image / t_model);
     else
-        S = -1 * t_model[k];
+        S = -1 * t_model;
     
     output[k] = S;
 }

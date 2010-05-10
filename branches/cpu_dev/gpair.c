@@ -186,27 +186,7 @@ int main(int argc, char *argv[])
 	// TODO: Remove after testing
 	int iterations = 10000;
 
-// Only perform the CPU calculations if we are not using the GPU
-#ifndef USE_GPU
-	// #########
-	// CPU Code:
-	// #########
-
-	chi2_info i2v_info;
-	i2v_info.npow = npow;
-	i2v_info.nbis = nbis;
-	i2v_info.nuv = nuv;
-	i2v_info.data = data;
-	i2v_info.data_err = data_err;
-	i2v_info.data_phasor = data_phasor;
-	i2v_info.oifits_info = &oifits_info;
-	i2v_info.dft_x = DFT_tablex;
-	i2v_info.dft_y = DFT_tabley;
-	i2v_info.visi = visi;
-	i2v_info.mock = mock;
-	i2v_info.image_width = image_width;
-
-	// Init and copy over variables for the line search:
+	// Init variables for the line search:
 	int criterion_evals = 0;
 	int grad_evals = 0;
 	int linesearch_iteration = 0;
@@ -227,6 +207,26 @@ int main(int argc, char *argv[])
 	float entropy, hyperparameter_entropy = 1000.;
 	float criterion;
 	int gradient_method = 1;
+
+// Only perform the CPU calculations if we are not using the GPU
+#ifndef USE_GPU
+	// #########
+	// CPU Code:
+	// #########
+
+	chi2_info i2v_info;
+	i2v_info.npow = npow;
+	i2v_info.nbis = nbis;
+	i2v_info.nuv = nuv;
+	i2v_info.data = data;
+	i2v_info.data_err = data_err;
+	i2v_info.data_phasor = data_phasor;
+	i2v_info.oifits_info = &oifits_info;
+	i2v_info.dft_x = DFT_tablex;
+	i2v_info.dft_y = DFT_tabley;
+	i2v_info.visi = visi;
+	i2v_info.mock = mock;
+	i2v_info.image_width = image_width;
 
 	float * data_gradient = malloc(image_size * sizeof(float));
 	float * entropy_gradient = malloc(image_size * sizeof(float));
@@ -572,6 +572,8 @@ int main(int argc, char *argv[])
 			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
 			default_model,
 			image_size,	image_width);
+			
+	gpu_copy_image(current_image, image_width, image_width);
 
 	gpu_build_kernels(data_alloc, image_size, image_width);
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
@@ -583,41 +585,208 @@ int main(int argc, char *argv[])
 	free(gpu_bsref_sign);
 	free(gpu_dft_x);
 	free(gpu_dft_y);
+	
+	cl_mem * pFull_gradient_new = gpu_getp_fgn();
+	cl_mem * pFull_gradient = gpu_getp_fg();
+	cl_mem * pDescent_direction = gpu_getp_dd();
+	cl_mem * pTemp_gradient= gpu_getp_tg();
+	
+    printf("Entering Main CG Loop.\n");
 
-	// Do the full DFT calculation:
-/*	tick = clock();*/
-	for(ii=0; ii < iterations; ii++)
+	for (uu = 0; uu < iterations; uu++)
 	{
-		// In the final version of the code, the following lines will be iterated.
-		gpu_copy_image(current_image, image_width, image_width);
-		//gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv);
-	}
-/*	tock = clock();*/
-/*	time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
-/*	printf(SEP);*/
-/*	printf("Full DFT (GPU)\n");*/
-/*	printf(SEP);*/
-/*	printf("GPU time (s): = %f\n", time_chi2);*/
 
-	//gpu_compute_data_gradient(npow, nbis, image_width);
+		//
+		// Compute the criterion
+		//
+		chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
+		entropy = gpu_get_entropy_curr(image_width);
+		criterion = chi2 - hyperparameter_entropy * entropy;
+		criterion_evals++;
 
-	// Disabled for now, there be a bug between GPU and CPU values.
-	/*    // Now do the Atomic change to visi*/
-	/*    tick = clock();*/
-	/*    for(ii=0; ii < iterations; ii++)*/
-	/*    {*/
-	/*        gpu_update_vis_fluxchange(x_changed, y_changed, inc, image_width, nuv, data_alloc_uv);*/
-	/*        gpu_new_chi2(nuv, npow, nbis, data_alloc); */
-	/*    }       */
-	/*    tock=clock();*/
-	/*    time_chi2 = (float)(tock - tick) / (float)CLOCKS_PER_SEC;*/
-	/*    printf(SEP);*/
-	/*    printf("Atomic change (GPU)\n");*/
-	/*    printf(SEP);*/
-	/*    printf("GPU time (s): = %f\n", time_chi2);*/
+		printf("Grad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
+				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
+				hyperparameter_entropy * entropy, entropy);
 
-	// Enable for debugging purposes.
-	gpu_check_data(&chi2, nuv, visi, data_alloc, mock, image_size, data_gradient);
+		if(uu%2 == 0)
+			writefits(current_image, "!reconst.fits");
+
+		//
+		// Compute full gradient (data + entropy)
+		//
+		
+		gpu_compute_data_gradient_curr(npow, nbis, image_width);
+		gpu_compute_entropy_gradient_curr(image_width);
+        
+        // Now compute the criterion gradient:
+        gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
+		grad_evals++;
+
+		// Compute the modifier of the gradient direction depending on the method
+		if ((uu == 0) || (gradient_method == 0))
+		{
+			beta = 0.; // steepest descent
+		}
+		else
+		{
+			if (gradient_method == 1) // CG
+				beta = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) 
+				        / gpu_get_scalprod(image_width, image_width, pFull_gradient, pFull_gradient); // FR
+			if (gradient_method == 2)
+			{
+				beta = (gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) 
+				        - gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient)) // PR
+						/ gpu_get_scalprod(image_width, image_width, pFull_gradient, pFull_gradient);
+				if (beta < 0.)
+					beta = 0.;
+			}
+
+			if (gradient_method == 3) // HS
+			{
+				beta = (gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) 
+				        - gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient))
+					    / (gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new) 
+					        - gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient));
+				if (beta < 0.)
+					beta = 0.;
+			}
+
+			if (fabs(gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient) 
+			    / gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new)) > .5)
+				beta = 0.;
+		}
+
+		//
+		// Compute descent direction
+		//
+		gpu_compute_descent_dir(image_width, beta);
+
+		// Some tests on descent direction
+		// TODO: Note this hasn't been rewritten for the GPU side yet:
+	/*	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
+				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
+						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
+				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
+*/
+		//      writefits(descent_direction, "!gradient.fits");
+
+
+		//
+		// Line search algorithm begins here
+		//
+
+		// Compute quantity for Wolfe condition 1
+		wolfe_product1 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new);
+
+		// Initialize variables for line search
+		selected_steplength = 0.;
+		//if(uu > 0)
+	//		steplength = 2. * (criterion - criterion_old) / wolfe_product1 ;
+	//	else steplength = 1.;
+		steplength = 1.;
+		steplength_old = 0.;
+		steplength_max = 100.; // use a clever scheme here
+		criterion_init = criterion;
+		criterion_old = criterion;
+		linesearch_iteration = 1;
+
+		while (1)
+		{
+
+			//
+			// Evaluate criterion(steplength)
+			//
+
+			//  Step 1: compute the temporary image: I1 = I0 - coeff * descent direction
+			gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
+
+			// Step 2: Compute criterion(I1)
+		    chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
+		    entropy = gpu_get_entropy_temp(image_width);
+			criterion = chi2 - hyperparameter_entropy * entropy;
+			criterion_evals++;
+
+			if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1)) || ((criterion
+					>= criterion_old) && (linesearch_iteration > 1)))
+			{
+			    selected_steplength = gpu_linesearch_zoom(nuv, npow, nbis, data_alloc, data_alloc_uv, image_width,
+			        steplength_old, steplength, criterion_old, wolfe_product1, criterion_init,
+			        &criterion_evals, &grad_evals,
+			        pDescent_direction, pTemp_gradient,
+			        hyperparameter_entropy);
+			
+				//printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
+/*				selected_steplength = linesearch_zoom(steplength_old, steplength, criterion_old, wolfe_product1,*/
+/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
+/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
+/*						mock, &i2v_info);*/
+
+				break;
+			}
+
+			//
+			// Evaluate wolfe product 2
+			//
+
+            gpu_compute_data_gradient_temp(npow, nbis, image_width);
+			gpu_compute_entropy_gradient_temp(image_width);
+			gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
+			
+			grad_evals++;
+
+			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
+
+			if (fabs(wolfe_product2) <= -wolfe_param2 * wolfe_product1)
+			{
+				selected_steplength = steplength;
+				break;
+			}
+
+			if (wolfe_product2 >= 0.)
+			{
+				printf("Test 2\n");
+
+			    selected_steplength = gpu_linesearch_zoom(nuv, npow, nbis, data_alloc, data_alloc_uv, image_width,
+			        steplength, steplength_old, criterion, wolfe_product1, criterion_init,
+			        &criterion_evals, &grad_evals,
+			        pDescent_direction, pTemp_gradient,
+			        hyperparameter_entropy);
+
+/*				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,*/
+/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
+/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
+/*						mock, &i2v_info);*/
+
+				break;
+			}
+
+			steplength_old = steplength;
+			criterion_old = criterion;
+
+			// choose the next steplength
+			//if((linesearch_iteration > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
+			//					steplength_temp = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
+			//else 
+			steplength_temp = 10.0 * steplength;
+			
+			steplength = steplength_temp;
+			
+			if (steplength > steplength_max)
+				steplength = steplength_max;
+			
+			linesearch_iteration++;
+			printf("Steplength %f Steplength old %f\n", steplength, steplength_old);
+
+		}
+		// End of line search
+		//printf("Double check, selected_steplength = %le \n", selected_steplength); 
+		// Update image with the selected step length
+		gpu_update_image(image_width, selected_steplength, minvalue, pDescent_direction);
+
+		// Backup gradient
+		gpu_backup_gradient(image_width * image_width, pFull_gradient, pFull_gradient_new);
+
+	} // End Conjugated Gradient.
 
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();
