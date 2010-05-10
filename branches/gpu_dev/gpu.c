@@ -38,6 +38,8 @@ cl_program * pPro_entropy = NULL;
 cl_kernel * pKernel_entropy = NULL;
 cl_program * pPro_entropy_grad = NULL;
 cl_kernel * pKernel_entropy_grad = NULL;
+cl_program * pPro_criterion_grad = NULL;
+cl_kernel * pKernel_criterion_grad = NULL;
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -59,7 +61,7 @@ cl_mem * pGpu_entropy_image = NULL;     // Buffer to store the entropy of each p
 cl_mem * pGpu_entropy_grad = NULL;
 cl_mem * pGpu_full_grad = NULL;         // Buffer to store the full gradient of the image
 cl_mem * pGpu_full_grad_new = NULL;
-cl_mem * pGpu_full_grad_temp = NULL;
+cl_mem * pGpu_grad_temp = NULL;
 cl_mem * pGpu_descent_dir = NULL;
 
 cl_mem * pGpu_default_model = NULL;
@@ -346,11 +348,17 @@ void gpu_build_kernels(int data_size, int image_width, int image_size)
     pPro_entropy = &pro_entropy;
     pKernel_entropy = &kern_entropy;
     
-     static cl_program pro_entropy_grad;
+    static cl_program pro_entropy_grad;
     static cl_kernel kern_entropy_grad;
     gpu_build_kernel(&pro_entropy_grad, &kern_entropy_grad, "entropy_gs_grad", "./kernel_entropy_gs_grad.cl");
     pPro_entropy_grad = &pro_entropy_grad;
     pKernel_entropy_grad = &kern_entropy_grad;   
+    
+    static cl_program pro_criterion_grad;
+    static cl_kernel kern_criterion_grad;
+    gpu_build_kernel(&pro_criterion_grad, &kern_criterion_grad, "criterion_grad", "./kernel_criterion_grad.cl");
+    pPro_criterion_grad = &pro_criterion_grad;
+    pKernel_criterion_grad = &kern_criterion_grad; 
     
 }
 
@@ -552,6 +560,41 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
     free(gpu_data);
 }
 
+// Compute the gradient of the entropy for the image, gpu_image.  This gets stored in pGpu_entropy_grad
+void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entropy)
+{
+    int err = 0;
+    // TODO: Figure out how to determine the size of local dynamically.
+    size_t * local;
+    local = malloc(2 * sizeof(size_t));
+    local[0] = local[1] = 16;
+    
+    size_t * global;
+    global = malloc(2 * sizeof(size_t));
+    global[0] = global[1] = image_width;
+    
+    // Set the arguments for the entropy kernel:
+    err  = clSetKernelArg(*pKernel_criterion_grad, 0, sizeof(cl_mem), pGpu_data_grad);
+    err |= clSetKernelArg(*pKernel_criterion_grad, 1, sizeof(cl_mem), pGpu_entropy_grad);
+    err |= clSetKernelArg(*pKernel_criterion_grad, 2, sizeof(cl_mem), &hyperparameter_entropy);
+    err |= clSetKernelArg(*pKernel_criterion_grad, 3, sizeof(cl_mem), pGpu_image_width);  
+    err |= clSetKernelArg(*pKernel_criterion_grad, 4, sizeof(cl_mem), pGpu_grad_temp); 
+
+/*   // Get the maximum work-group size for executing the kernel on the device*/
+/*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
+/*    if (err != CL_SUCCESS)*/
+/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
+
+/*    // Round down to the nearest power of two.*/
+/*    local = pow(2, floor(log(npow) / log(2)));*/
+        
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_criterion_grad, 2, 0, global, local, 0, NULL, NULL);
+    if (err)
+        print_opencl_error("Cannot enqueue entropy kernel.", err); 
+    
+    clFinish(*pQueue);   
+}
+
 // Compute the sum of the entropy, stores it in the location specified by entropy_storage.
 void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_storage)
 {
@@ -685,6 +728,9 @@ void gpu_cleanup()
         err |= clReleaseProgram(*pPro_entropy);
     if(pPro_entropy_grad != NULL)
         err |= clReleaseProgram(*pPro_entropy_grad);
+    if(pPro_criterion_grad != NULL)
+        err |= clReleaseProgram(*pPro_criterion_grad);
+
         
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Program Memory.\n");
@@ -724,7 +770,9 @@ void gpu_cleanup()
         err |= clReleaseKernel(*pKernel_entropy);
     if(pKernel_entropy_grad != NULL)
         err |= clReleaseKernel(*pKernel_entropy_grad);
-
+    if(pKernel_criterion_grad != NULL)
+        err |= clReleaseKernel(*pKernel_criterion_grad);
+        
     
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
@@ -767,8 +815,8 @@ void gpu_cleanup()
         err |= clReleaseMemObject(*pGpu_full_grad);
     if(pGpu_full_grad_new != NULL)
         err |= clReleaseMemObject(*pGpu_full_grad_new);
-    if(pGpu_full_grad_temp != NULL)
-        err |= clReleaseMemObject(*pGpu_full_grad_temp);
+    if(pGpu_grad_temp != NULL)
+        err |= clReleaseMemObject(*pGpu_grad_temp);
     if(pGpu_descent_dir != NULL)
         err |= clReleaseMemObject(*pGpu_descent_dir);           
   
@@ -1124,7 +1172,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     pGpu_entropy_grad = &gpu_entropy_grad;
     pGpu_full_grad = &gpu_full_grad;        // Buffer to store the full gradient of the image
     pGpu_full_grad_new = &gpu_full_grad_new;
-    pGpu_full_grad_temp = &gpu_grad_temp;
+    pGpu_grad_temp = &gpu_grad_temp;
     pGpu_descent_dir = &gpu_descent_dir;
     
     pGpu_default_model = &gpu_default_model;
