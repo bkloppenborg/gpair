@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	char filename[200] = "2004contest1.oifits";
 	char modelfile[200] = "";
 	float image_pixellation = 0.15;
-	float modelwidth = 5., modelflux = 10.;
+	float modelwidth = 5., modelflux = 10., wavmin=0, wavmax=1e9;
 	int modeltype = 3;
 	
 	// Parse command line arguments:
@@ -92,6 +92,16 @@ int main(int argc, char *argv[])
 			sscanf(argv[ii + 1], "%s", modelfile);
 			printf("Model image = %s\n", modelfile);
 		}		
+		else if (strcmp(argv[ii], "-wavmin") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &wavmin);
+			printf("Low wav = %f\n", wavmin);
+		}
+		else if (strcmp(argv[ii], "-wavmax") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &wavmax);
+			printf("High wav = %f\n", wavmax);
+		}
 		
 	}
 	
