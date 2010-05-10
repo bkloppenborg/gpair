@@ -45,8 +45,11 @@ int main(int argc, char *argv[])
 	register int uu = 0;
 	image_width = 128;
 	char filename[200] = "2004contest1.oifits";
+	char modelfile[200] = "";
 	float image_pixellation = 0.15;
-
+	float modelwidth = 5., modelflux = 10.;
+	int modeltype = 3;
+	
 	// Parse command line arguments:
 	for (ii = 1; ii < argc; ii += 2)
 	{
@@ -65,8 +68,31 @@ int main(int argc, char *argv[])
 			sscanf(argv[ii + 1], "%d", &image_width);
 			printf("Pixellation = %d\n", image_width);
 		}
-	}
+		else if (strcmp(argv[ii], "-mw") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &modelwidth);
+			printf("Modelwidth = %f\n", modelwidth);
+		}
 
+		else if (strcmp(argv[ii], "-mf") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &modelflux);
+			printf("Model Flux = %f\n", modelflux);
+		}
+
+		else if (strcmp(argv[ii], "-mt") == 0)
+		{
+			sscanf(argv[ii + 1], "%d", &modeltype);
+			printf("Model Type = %d\n", modeltype);
+		}
+		if (strcmp(argv[ii], "-i") == 0)
+		{
+			sscanf(argv[ii + 1], "%s", modelfile);
+			printf("Model image = %s\n", modelfile);
+		}		
+		
+	}
+	
 	float chi2 = 0;
 
 	// read OIFITS and visibilities
@@ -118,9 +144,13 @@ int main(int argc, char *argv[])
 
 	// Init the default model:
 	float * default_model = malloc(image_width * image_width * sizeof(float));
-	set_model(image_width, image_pixellation, 3, 20.0, 10., default_model);
-	//writefits(default_model, "!model.fits");
-
+	if(strcmp(modelfile, "") == 0)
+		set_model(image_width, image_pixellation, modeltype, modelwidth, modelflux, default_model);
+	else 
+		read_fits_image(modelfile, default_model);
+	
+	writefits(default_model, "!model.fits");
+	
 	// setup initial image as 128x128 pixel, centered Dirac of flux = 1.0, pixellation of 1.0 mas/pixel
 	int image_size = image_width * image_width;
 	printf("Image Buffer Size %i \n", image_size);
@@ -180,6 +210,7 @@ int main(int argc, char *argv[])
 	float steplength = 0.0;
 	float steplength_old = 0.0;
 	float steplength_max = 0.0;
+	float steplength_temp = 0.0;
 	float selected_steplength = 0.0;
 	float beta = 0.0;
 	float minvalue = 1e-8;
@@ -190,9 +221,9 @@ int main(int argc, char *argv[])
 	float wolfe_product1 = 0.0;
 	float wolfe_product2 = 0.0;
 
-	float entropy, hyperparameter_entropy = 2000.;
+	float entropy, hyperparameter_entropy = 1000.;
 	float criterion;
-	int gradient_method = 0;
+	int gradient_method = 1;
 
 	float * data_gradient = malloc(image_size * sizeof(float));
 	float * entropy_gradient = malloc(image_size * sizeof(float));
@@ -225,7 +256,8 @@ int main(int argc, char *argv[])
 				hyperparameter_entropy * entropy, entropy);
 
 		// TODO: Re-enable this:
-		writefits(current_image, "!reconst.fits");
+		if(uu%2 == 0)
+			writefits(current_image, "!reconst.fits");
 
 		//
 		// Compute full gradient (data + entropy)
@@ -245,8 +277,6 @@ int main(int argc, char *argv[])
 			//
 			// Compute descent direction
 			//
-			for (ii = 0; ii < image_size; ii++)
-				descent_direction[ii] = -full_gradient_new[ii];
 		}
 		else
 		{
@@ -297,6 +327,9 @@ int main(int argc, char *argv[])
 
 		// Initialize variables for line search
 		selected_steplength = 0.;
+		//if(uu > 0)
+	//		steplength = 2. * (criterion - criterion_old) / wolfe_product1 ;
+	//	else steplength = 1.;
 		steplength = 1.;
 		steplength_old = 0.;
 		steplength_max = 100.; // use a clever scheme here
@@ -368,14 +401,21 @@ int main(int argc, char *argv[])
 			}
 
 			steplength_old = steplength;
+			criterion_old = criterion;
+
 			// choose the next steplength
-			steplength *= 1.05;
+			//if((linesearch_iteration > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
+			//					steplength_temp = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
+			//else 
+			steplength_temp = 10.0 * steplength;
+			
+			steplength = steplength_temp;
+			
 			if (steplength > steplength_max)
 				steplength = steplength_max;
-
-			criterion_old = criterion;
+			
 			linesearch_iteration++;
-			printf("One loop in 3.2 done \n");
+			printf("Steplength %f Steplength old %f\n", steplength, steplength_old);
 
 		}
 		// End of line search
@@ -647,6 +687,7 @@ void init_data(int do_extrapolation)
 {
 	register int ii;
 	float infinity = 1e8;
+	int warning_extrapolation = 0;
 	float pow1, powerr1, pow2, powerr2, pow3, powerr3, sqamp1, sqamp2, sqamp3, sqamperr1, sqamperr2, sqamperr3;
 	// Set elements [0, npow - 1] equal to the power spectrum
 	for (ii = 0; ii < npow; ii++)
@@ -658,8 +699,7 @@ void init_data(int do_extrapolation)
 	// Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
 	for (ii = 0; ii < nbis; ii++)
 	{
-		data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii]);
-
+		
 		if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > infinity))) // Missing triple amplitudes
 		{
 			if ((oifits_info.bsref[ii].ab.uvpnt < npow) && (oifits_info.bsref[ii].bc.uvpnt < npow)
@@ -685,6 +725,12 @@ void init_data(int do_extrapolation)
 				oifits_info.bisamp[ii] = sqrt(sqamp1 * sqamp2 * sqamp3);
 				oifits_info.bisamperr[ii] = oifits_info.bisamp[ii] * sqrt(sqamperr1 / sqamp1 + sqamperr2 / sqamp2
 						+ sqamperr3 / sqamp3);
+				if(warning_extrapolation == 0)
+				{
+					printf("*************************  Warning - Recalculating T3amp from Powerspectra  ********************\n");
+					warning_extrapolation = 1;
+				}
+				
 			}
 
 			else // missing powerspectrum points -> cannot extrapolate bispectrum
@@ -706,7 +752,10 @@ void init_data(int do_extrapolation)
 		else
 			data_err[npow + 2 * ii] = 0.;
 
-		data_err[npow + 2 * ii + 1] = 1 / (fabs(oifits_info.bisamp[ii]) * oifits_info.bisphserr[ii]);
+		data_err[npow + 2 * ii + 1] = 1 / (fabs(oifits_info.bisamp[ii] * oifits_info.bisphserr[ii] ));
+		
+		data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii]);
+		// printf("Debug phs: %f phs_err: %f\n", oifits_info.bisphs[ii], oifits_info.bisphserr[ii]);
 	}
 
 }
@@ -734,7 +783,7 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
 
 		if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
-		steplength = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
+		steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
 
 		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
 		steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
@@ -806,3 +855,39 @@ float scalprod(float * array1, float * array2)
 		total += array1[ii] * array2[ii];
 	return total;
 }
+
+void read_fits_image(char* filename, float* array)
+{
+	fitsfile *fptr;       /* pointer to the FITS file, defined in fitsio.h */
+	int error = 0;
+	int* status = &error;
+	int  nfound, anynull;
+	long naxes[2], fpixel, npixels;
+	float nullval;
+
+	if (*status==0)
+		fits_open_file(&fptr, filename, READONLY, status);
+	
+	if (*status==0)
+			fits_read_keys_lng(fptr, "NAXIS", 1, 2, naxes, &nfound, status);
+		
+	npixels  = naxes[0] * naxes[1];         /* number of pixels in the image */
+	fpixel   = 1;
+	nullval  = 0;                /* don't check for null values in the image */
+
+	if(*status==0)
+			fits_read_img(fptr, TFLOAT, fpixel, npixels, &nullval, array, &anynull, status);
+
+	if(*status==0)
+			fits_close_file(fptr, status);
+
+	if(*status != 0)
+	{
+		printf("Error reading image %s\n", filename);
+		getchar();
+	}
+}
+
+
+
+

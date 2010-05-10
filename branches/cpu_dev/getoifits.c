@@ -751,43 +751,6 @@ void free_oi_data(oi_data *data)
   free(data->bsref);
 }
 
-void read_fits_image(char* fname, float* img, int* n, int* status)
-{
-  fitsfile *fptr;       /* pointer to the FITS file, defined in fitsio.h */
-  int  nfound, anynull;
-  long naxes[2], fpixel, npixels;
-  float nullval;
-
-  if (*status==0)fits_open_file(&fptr, fname, READONLY, status);
-
-  // MODIFY so that if keys do not exist, don't crash ^^
-
-  if (*status==0)fits_read_keys_lng(fptr, "NAXIS", 1, 2, naxes, &nfound, status);
-  //  if (*status==0)fits_read_key_str(fptr, "DATAFILE", datafile, comment, status);
-  //  if (*status==0)fits_read_key_str(fptr, "TARGET", target, comment, status);
-  //  if (*status==0)fits_read_key_flt(fptr, "PIXELATION", xyint, comment, status);
-  npixels  = naxes[0] * naxes[1];         /* number of pixels in the image */
-  fpixel   = 1;
-  nullval  = 0;                /* don't check for null values in the image */
-
-  //add here a compatibility check of xyint if imported as a model
-
-
-  if(naxes[0] != naxes[1])
-    {
-      printf("Image dimension are not square.\n");
-      if(*status==0)fits_close_file(fptr, status);
-     }
-  else
-    {
-      *n = naxes[0];
-      /* Allocate enough memory outside of this routine */
-      if(*status==0)fits_read_img(fptr, TFLOAT, fpixel, npixels, &nullval, img, &anynull, status);
-      if(*status==0)fits_close_file(fptr, status);
-    }
-}
-
-
 
 
 
