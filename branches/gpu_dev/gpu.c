@@ -516,11 +516,11 @@ void gpu_check_data(float * cpu_chi2,
 
     printf(SEP);    
     printf("Comparing CPU and GPU chi2 values:\n");
-    gpu_compare_data(1, cpu_chi2, pGpu_chi2);
+    //gpu_compare_data(1, cpu_chi2, pGpu_chi2);
     
     printf(SEP);
     printf("Comparing CPU and GPU gradient values:\n");
-    gpu_compare_data(image_size, data_grad, pGpu_data_grad);
+    //gpu_compare_data(image_size, data_grad, pGpu_data_grad);
 }
 
 // Compare floating point data on the CPU and GPU.  Displays the percent error.
@@ -562,7 +562,7 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
             perr = fabs(error / cpu_data[i]);
         }
         
-        if(perr > 0.01) // Greater than 1%
+        //if(perr > 0.01) // Greater than 1%
             printf("[%i] %e %e %e %e\n", i, cpu_data[i], gpu_data[i], error, perr);
         
         if(perr > max_err)
@@ -1572,7 +1572,7 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
         printf("Computing data gradient.\n");
         
     if(gpu_image == NULL)
-        printf("Image input is NULL in gpu_compute_data_gradient", 0);
+        print_opencl_error("Image input is NULL in gpu_compute_data_gradient", 0);
         
     // Compute the current flux
     gpu_compute_flux(gpu_image, pGpu_flux0, pGpu_flux1);

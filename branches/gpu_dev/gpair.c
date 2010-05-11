@@ -180,9 +180,14 @@ int main(int argc, char *argv[])
 	int image_size = image_width * image_width;
 	printf("Image Buffer Size %i \n", image_size);
 	float * current_image = malloc(image_size * sizeof(float));
+	float * current_image2 = malloc(image_size * sizeof(float));
 	memset(current_image, 0, image_size);
+	memset(current_image2, 0, image_size);
 	for (ii = 0; ii < image_size; ii++)
+	{
 		current_image[ii] = default_model[ii];
+        current_image2[ii] = default_model[ii];
+	}
 
 	// setup precomputed DFT table
 	int dft_size = nuv * image_width;
@@ -208,7 +213,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 2;
+	int iterations = 1;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -233,7 +238,7 @@ int main(int argc, char *argv[])
 	int gradient_method = 0;
 
 // Only perform the CPU calculations if we are not using the GPU
-#ifndef USE_GPU
+//#ifndef USE_GPU
 	// #########
 	// CPU Code:
 	// #########
@@ -262,7 +267,9 @@ int main(int argc, char *argv[])
 	// Init descent direction
 	float * descent_direction = malloc(image_size * sizeof(float));
 	memset(descent_direction, 0, image_size * sizeof(float));
+    //chi2 = image2chi2(&i2v_info, current_image);
 
+#ifndef USE_GPU
 	// Test 1 : compute mock data, powerspectra + bispectra from scratch
 	//clock_t tick = clock();
 	//clock_t tock = 0;
@@ -511,22 +518,7 @@ int main(int argc, char *argv[])
 	// GPU Code:  
 	// #########
 
-	// Convert visi over to a cl_float2 in format <real, imaginary>
-	cl_float2 * gpu_visi = NULL;
-	gpu_visi = malloc(data_alloc_uv * sizeof(cl_float2));
-	int i;
-	for(i = 0; i < nuv; i++)
-	{
-		gpu_visi[i].s0 = __real__ visi[i];
-		gpu_visi[i].s1 = __imag__ visi[i];
-	}
-	// Pad the remainder
-	for(i = nuv; i < data_alloc_uv; i++)
-	{
-		gpu_visi[i].s0 = 0;
-		gpu_visi[i].s1 = 0;
-	}
-
+    int i = 0;
 	// Convert the biphasor over to a cl_float2 in format <real, imaginary>    
 	cl_float2 * gpu_phasor = NULL;
 	gpu_phasor = malloc(data_alloc_phasor * sizeof(cl_float2));
@@ -597,13 +589,12 @@ int main(int argc, char *argv[])
 			default_model,
 			image_size,	image_width);
 			
-	gpu_copy_image(current_image, image_width, image_width);
+	gpu_copy_image(current_image2, image_width, image_width);
 
-	gpu_build_kernels(data_alloc, image_size, image_width);
+	gpu_build_kernels(data_alloc, image_width, image_size);
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
 
 	// Free variables used to store values pepared for the GPU
-	free(gpu_visi);
 	free(gpu_phasor);
 	free(gpu_bsref_uvpnt);
 	free(gpu_bsref_sign);
@@ -616,6 +607,8 @@ int main(int argc, char *argv[])
 	cl_mem * pTemp_gradient= gpu_getp_tg();
 	
     printf("Entering Main CG Loop.\n");
+    
+    //chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
 
 	for (uu = 0; uu < iterations; uu++)
 	{
@@ -632,8 +625,8 @@ int main(int argc, char *argv[])
 				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
 				hyperparameter_entropy * entropy, entropy);
 
-/*		if(uu%2 == 0)*/
-/*			writefits(current_image, "!reconst.fits");*/
+		if(uu%2 == 0)
+			writefits(current_image, "!reconst.fits");
 
 		//
 		// Compute full gradient (data + entropy)
@@ -687,11 +680,11 @@ int main(int argc, char *argv[])
 
 		// Some tests on descent direction
 		// TODO: Note this hasn't been rewritten for the GPU side yet:
-	/*	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
+		printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
 				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
 						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
 				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
-*/
+
 		//      writefits(descent_direction, "!gradient.fits");
 
 
@@ -740,10 +733,10 @@ int main(int argc, char *argv[])
 			        hyperparameter_entropy);
 			
 				//printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-/*				selected_steplength = linesearch_zoom(steplength_old, steplength, criterion_old, wolfe_product1,*/
-/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
-/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
-/*						mock, &i2v_info);*/
+//				selected_steplength = linesearch_zoom(steplength_old, steplength, criterion_old, wolfe_product1,
+//						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,
+//						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,
+//						mock, &i2v_info);
 
 				break;
 			}
@@ -776,10 +769,10 @@ int main(int argc, char *argv[])
 			        pDescent_direction, pTemp_gradient,
 			        hyperparameter_entropy);
 
-/*				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,*/
-/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
-/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
-/*						mock, &i2v_info);*/
+//				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,
+//						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,
+//						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,
+//						mock, &i2v_info);
 
 				break;
 			}
@@ -811,6 +804,8 @@ int main(int argc, char *argv[])
 		gpu_backup_gradient(image_width * image_width, pFull_gradient, pFull_gradient_new);
 
 	} // End Conjugated Gradient.
+
+     //gpu_check_data(NULL, nuv, visi, data_size, mock, image_size, NULL);
 
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();
