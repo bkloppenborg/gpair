@@ -11,8 +11,8 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -726,7 +726,7 @@ void gpu_compute_descent_dir(int image_width, float beta)
 void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_storage)
 {
     if(gpu_enable_verbose || gpu_enable_debug)
-        printf("Computing Entropy.\n");
+        printf("%sComputing Entropy.\n%s", SEP, SEP);
         
     if(gpu_image == NULL || entropy_storage == NULL)
         print_opencl_error("A pointer to gpu_compute_entropy is NULL!", 0);
@@ -735,11 +735,11 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
+    local[0] = local[1] = (size_t) 16;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_entropy, 0, sizeof(cl_mem), pGpu_image_width);
@@ -754,6 +754,9 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
 
 /*    // Round down to the nearest power of two.*/
 /*    local = pow(2, floor(log(npow) / log(2)));*/
+
+    if(gpu_enable_debug || gpu_enable_verbose)
+        printf("Entropy Kernel: Global: %i Local %i \n", (int) (global[0] * global[1]), (int) (local[0] * local[1]));
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_entropy, 2, 0, global, local, 0, NULL, NULL);
     if (err)
@@ -762,7 +765,8 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
 
     // Now compute the sum of the entropy, store it in entropy_storage.
     gpu_compute_sum(pGpu_entropy_image, pGpu_flux_buffer1, pGpu_flux_buffer2, entropy_storage, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
-    clFinish(*pQueue);    
+    clFinish(*pQueue);
+      
 }
 
 // Compute the gradient of the entropy for the image, gpu_image.  This gets stored in pGpu_entropy_grad
@@ -1131,14 +1135,14 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     if(err != CL_SUCCESS)
         print_opencl_error("Could not copy summed value to/from buffers on the GPU.", err);
         
-    if(gpu_enable_debug)
+    if(gpu_enable_debug && gpu_enable_verbose)
     {
         float sum = 0;
         err = clEnqueueReadBuffer(*pQueue, *final_buffer, CL_TRUE, 0, sizeof(float), &sum, 0, NULL, NULL );
         if(err != CL_SUCCESS)
             print_opencl_error("Could not read back GPU SUM value.", err);
-        
-        printf("GPU Val: %f (copied value on GPU)\n", sum);
+    
+        printf("Sum: %f (copied value on GPU)\n", sum);
     }    
     
     clFinish(*pQueue);    
@@ -1302,7 +1306,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
         print_opencl_error("Cannot write Gradient data to the GPU.", err); 
     
     // Image buffers:
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_default_model, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_default_model, CL_FALSE, 0, sizeof(float) * image_size, default_model, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_image_temp, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("Cannot write Image data to the GPU.", err); 
