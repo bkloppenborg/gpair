@@ -1121,7 +1121,9 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
             print_opencl_error("Could not read back GPU SUM value.", err);
         
         printf("GPU Val: %f (copied value on GPU)\n", sum);
-    }        
+    }    
+    
+    clFinish(*pQueue);    
 }
 
 // Init memory locations and copy data over to the GPU.
@@ -1390,7 +1392,7 @@ void gpu_copy_image(float * image, int x_size, int y_size)
     if(pGpu_image == NULL)
     {
         static cl_mem gpu_image;
-        gpu_image = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, size, NULL, NULL);
+        gpu_image = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, size, NULL, NULL);
         pGpu_image = &gpu_image;
         
         // Assign the global image size variable to this value:
@@ -1468,7 +1470,7 @@ void gpu_data2chi2(int data_size)
     
     // Now start up the partial sum kernel:
     gpu_compute_sum(pGpu_chi2_buffer0, pGpu_chi2_buffer1, pGpu_chi2_buffer2, pGpu_chi2, pGpu_chi2_kernels, Chi2_pass_count, Chi2_group_counts, Chi2_work_item_counts, Chi2_operation_counts, Chi2_entry_counts);
-
+    clFinish(*pQueue);
 }
 
 void gpu_device_stats(cl_device_id device_id)
@@ -1949,7 +1951,8 @@ void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * 
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_visi, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
         print_opencl_error("Could not enqueue scalar product kernel.", err);  
-    
+
+    clFinish(*pQueue);
     
     // And now we need to run a parallel sum:
     gpu_compute_sum(pGpu_scaprod_buffer0, pGpu_scaprod_buffer1, pGpu_scaprod_buffer2, final_output, pGpu_scaprod_kernels, Scaprod_pass_count, Scaprod_group_counts, Scaprod_work_item_counts, Scaprod_operation_counts, Scaprod_entry_counts);
@@ -1973,6 +1976,11 @@ float gpu_get_scalprod(int data_width, int data_height, cl_mem * array1, cl_mem 
     return value;     
 }
 
+void gpu_shutdown()
+{
+    clFinish(*pQueue);
+    gpu_cleanup();
+}
 
 void gpu_update_vis_fluxchange(int x, int y, float new_pixel_flux, int image_width, int nuv, int data_alloc_uv)
 {

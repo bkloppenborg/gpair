@@ -101,6 +101,8 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
 
 void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * array2, cl_mem * output);
 
+void gpu_shutdown();
+
 void gpu_update_image(int image_width, float steplength, float minval, cl_mem * descent_direction);
 void gpu_update_tempimage(int image_width, float steplength, float minval, cl_mem * descent_direction);
 

@@ -1,6 +1,7 @@
 #include "gpair.h"
 #include <time.h>
 #include "cpu.h"
+#include <signal.h>
 
 #ifndef GETOIFITS_H
 #include "getoifits.h"
@@ -11,7 +12,7 @@
 #endif
 
 // Preprocessor directive for the GPU:
-#undef USE_GPU
+#define USE_GPU
 
 #ifdef USE_GPU
 #include "gpu.h"
@@ -41,8 +42,31 @@ int nbis = 0;
 int nuv = 0;
 int ndof = 0;
 
+void sighandler(int signal)
+{
+    switch(signal)
+    {
+        case SIGABRT:
+        case SIGTERM:
+        case SIGINT: 
+            printf("Received shutdown signal, please wait for the GPU to finish.\n");
+            gpu_shutdown();
+            printf("All done. So long, and thanks for all the fish!\n");
+            
+            exit(0);
+        break;
+        default:
+            printf("Received unknown signal, not doing anything.\n");
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    // Set a signal for hand
+    signal(SIGABRT, &sighandler);
+    signal(SIGTERM, &sighandler);
+	signal(SIGINT, &sighandler);
+	
 	register int ii = 0;
 	register int uu = 0;
 	image_width = 128;
@@ -184,7 +208,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 10000;
+	int iterations = 1;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
