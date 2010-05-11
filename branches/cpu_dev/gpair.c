@@ -49,9 +49,13 @@ int main(int argc, char *argv[])
 	char filename[200] = "2004contest1.oifits";
 	char modelfile[200] = "";
 	float image_pixellation = 0.15;
-	float modelwidth = 5., modelflux = 10., wavmin=0, wavmax=1e9;
+	float modelwidth = 5., modelflux = 10.;
 	int modeltype = 3;
-	
+	float hyperparameter_entropy = 1.;
+	// Init usersel
+	usersel.minband = -1;
+	usersel.minband = -1;
+
 	// Parse command line arguments:
 	for (ii = 1; ii < argc; ii += 2)
 	{
@@ -94,13 +98,18 @@ int main(int argc, char *argv[])
 		}		
 		else if (strcmp(argv[ii], "-wavmin") == 0)
 		{
-			sscanf(argv[ii + 1], "%f", &wavmin);
-			printf("Low wav = %f\n", wavmin);
+			sscanf(argv[ii + 1], "%f", &usersel.minband);
+			printf("Low wav = %f\n", usersel.minband);
 		}
 		else if (strcmp(argv[ii], "-wavmax") == 0)
 		{
-			sscanf(argv[ii + 1], "%f", &wavmax);
-			printf("High wav = %f\n", wavmax);
+			sscanf(argv[ii + 1], "%f", &usersel.maxband);
+			printf("High wav = %f\n", usersel.maxband);
+		}
+		else if (strcmp(argv[ii], "-alpha") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &hyperparameter_entropy);
+			printf("Hyperparameter alpha = %f\n", hyperparameter_entropy);
 		}
 		
 	}
@@ -214,11 +223,11 @@ int main(int argc, char *argv[])
 	float wolfe_product1 = 0.0;
 	float wolfe_product2 = 0.0;
 
-	float entropy, hyperparameter_entropy = 1000.;
+	float entropy;
 	float criterion;
-	int gradient_method = 1;
+	int gradient_method = 2;
 
-// Only perform the CPU calculations if we are not using the GPU
+	// Only perform the CPU calculations if we are not using the GPU
 #ifndef USE_GPU
 	// #########
 	// CPU Code:
@@ -323,11 +332,11 @@ int main(int argc, char *argv[])
 			descent_direction[ii] = beta * descent_direction[ii] - full_gradient_new[ii];
 
 		// Some tests on descent direction
-	/*	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
+		/*	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
 				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
 						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
 				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
-*/
+		*/
 		//      writefits(descent_direction, "!gradient.fits");
 
 
@@ -343,7 +352,7 @@ int main(int argc, char *argv[])
 		//if(uu > 0)
 	//		steplength = 2. * (criterion - criterion_old) / wolfe_product1 ;
 	//	else steplength = 1.;
-		steplength = 1.;
+		steplength = 1.0;
 		steplength_old = 0.;
 		steplength_max = 100.; // use a clever scheme here
 		criterion_init = criterion;
@@ -418,7 +427,7 @@ int main(int argc, char *argv[])
 
 			// choose the next steplength
 			//if((linesearch_iteration > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
-			//					steplength_temp = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
+			// 	steplength_temp = wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) );
 			//else 
 			steplength_temp = 10.0 * steplength;
 			
@@ -428,7 +437,7 @@ int main(int argc, char *argv[])
 				steplength = steplength_max;
 			
 			linesearch_iteration++;
-			printf("Steplength %f Steplength old %f\n", steplength, steplength_old);
+			printf("Criterion %8.8e Steplength %8.8e Steplength old %8.8e -- Bracket\n", criterion, steplength, steplength_old);
 
 		}
 		// End of line search
@@ -493,6 +502,7 @@ int main(int argc, char *argv[])
 
 // Use the GPU if specified.
 #ifdef USE_GPU
+	/*
 	// #########
 	// GPU Code:  
 	// #########
@@ -628,8 +638,8 @@ int main(int argc, char *argv[])
 		gpu_compute_data_gradient_curr(npow, nbis, image_width);
 		gpu_compute_entropy_gradient_curr(image_width);
         
-        // Now compute the criterion gradient:
-        gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
+		// Now compute the criterion gradient:
+		gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
 		grad_evals++;
 
 		// Compute the modifier of the gradient direction depending on the method
@@ -673,11 +683,11 @@ int main(int argc, char *argv[])
 
 		// Some tests on descent direction
 		// TODO: Note this hasn't been rewritten for the GPU side yet:
-	/*	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
-				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
-						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
-				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
-*/
+	//	printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
+	//			-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
+	//					* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
+	//			full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
+
 		//      writefits(descent_direction, "!gradient.fits");
 
 
@@ -726,10 +736,10 @@ int main(int argc, char *argv[])
 			        hyperparameter_entropy);
 			
 				//printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-/*				selected_steplength = linesearch_zoom(steplength_old, steplength, criterion_old, wolfe_product1,*/
-/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
-/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
-/*						mock, &i2v_info);*/
+//				selected_steplength = linesearch_zoom(steplength_old, steplength, criterion_old, wolfe_product1,
+	//						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,
+	//						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,
+	//						mock, &i2v_info);
 
 				break;
 			}
@@ -738,7 +748,7 @@ int main(int argc, char *argv[])
 			// Evaluate wolfe product 2
 			//
 
-            gpu_compute_data_gradient_temp(npow, nbis, image_width);
+			gpu_compute_data_gradient_temp(npow, nbis, image_width);
 			gpu_compute_entropy_gradient_temp(image_width);
 			gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
 			
@@ -762,10 +772,10 @@ int main(int argc, char *argv[])
 			        pDescent_direction, pTemp_gradient,
 			        hyperparameter_entropy);
 
-/*				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,*/
-/*						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,*/
-/*						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,*/
-/*						mock, &i2v_info);*/
+				//				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,
+	//						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,
+	//						temp_gradient, data_gradient, entropy_gradient, visi, default_model, hyperparameter_entropy,
+	//						mock, &i2v_info);
 
 				break;
 			}
@@ -800,7 +810,7 @@ int main(int argc, char *argv[])
 
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();
-
+	*/
 #endif  // End of ifdef USE_GPU
 
 	free(mock);
@@ -884,7 +894,7 @@ void init_data(int do_extrapolation)
 	// Let j = npow, set elements [j, j + nbis - 1] to the powerspectrum data.
 	for (ii = 0; ii < nbis; ii++)
 	{
-	  if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > 1e3))) // Missing triple amplitudes
+	  if ((do_extrapolation == 1) && ((oifits_info.bisamperr[ii] <= 0.) || (oifits_info.bisamperr[ii] > 1e4))) // Missing triple amplitudes
 	    {
 	      if ((oifits_info.bsref[ii].ab.uvpnt < npow) && (oifits_info.bsref[ii].bc.uvpnt < npow)
 		  && (oifits_info.bsref[ii].ca.uvpnt < npow))
@@ -935,7 +945,7 @@ void init_data(int do_extrapolation)
 	  data_err[npow + 2 * ii] = 1. / oifits_info.bisamperr[ii];
 	  data_err[npow + 2 * ii + 1] = 1. / fabs(oifits_info.bisamp[ii] * oifits_info.bisphserr[ii] * PI / 180. );	  
 	  data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii] * PI / 180.);
-	  printf("ii %d err1 %f err2 %f \n ", ii, data_err[npow + 2 * ii], data_err[npow + 2 * ii + 1]);
+	  //	  printf("ii %d err1 %f err2 %f \n ", ii, data_err[npow + 2 * ii], data_err[npow + 2 * ii + 1]);
 	}
 	
 }
@@ -960,13 +970,13 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 
 		// Interpolation - for the moment by bisection (simple for now)
 		//steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
-		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
+	  	
+		if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
+		 	steplength = fabs(wolfe_product1 * steplength_old * steplength_old
+				  / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
 
-		//	if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
-		//	steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
-
-		//		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
-		steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
+			if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
+	       	steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
 
 		if( fabs( steplength_high - steplength_low ) < 1e-14)
 		{
@@ -986,7 +996,9 @@ float linesearch_zoom( float steplength_low, float steplength_high, float criter
 		entropy = GullSkilling_entropy(image_width, temp_image, default_model);
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		*criterion_evals++;
+		printf("Criterion %8.8e Steplength %8.8le Low %8.8le High %8.8le Counter %d -- Zoom \n", criterion, steplength, steplength_low, steplength_high, counter);
 
+	
 		//printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
 		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
 		{

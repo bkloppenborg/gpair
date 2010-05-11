@@ -131,7 +131,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 					{
 						for(k=0; k<vis2.nwave; k++)
 						{
-							if(((wave.eff_wave[k]*billion)> usersel->minband)&&((wave.eff_wave[k]*billion)
+						  //						  printf("%f %f %f \n", wave.eff_wave[k]*billion, usersel->minband, usersel->maxband );
+						  if(((wave.eff_wave[k]*billion)> usersel->minband)&&((wave.eff_wave[k]*billion)
 										      < usersel->maxband)&&(!(vis2.record[i].flag[k])))
 							{
 								data->pow[data->npow] = (float)vis2.record[i].vis2data[k];
