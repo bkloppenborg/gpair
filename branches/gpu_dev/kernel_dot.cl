@@ -1,7 +1,7 @@
 // A dot product kernel, need to run parallel reduce afterward
 __kernel void dot(
-    __local int row_width,
-    __local int row_height,
+    __private int row_width,
+    __private int row_height,
     __global float * array1,
     __global float * array2,
     __global float * output)

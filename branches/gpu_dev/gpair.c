@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 1;
+	int iterations = 2;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
 
 	float entropy, hyperparameter_entropy = 1000.;
 	float criterion;
-	int gradient_method = 1;
+	int gradient_method = 0;
 
 // Only perform the CPU calculations if we are not using the GPU
 #ifndef USE_GPU
@@ -632,8 +632,8 @@ int main(int argc, char *argv[])
 				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
 				hyperparameter_entropy * entropy, entropy);
 
-		if(uu%2 == 0)
-			writefits(current_image, "!reconst.fits");
+/*		if(uu%2 == 0)*/
+/*			writefits(current_image, "!reconst.fits");*/
 
 		//
 		// Compute full gradient (data + entropy)
