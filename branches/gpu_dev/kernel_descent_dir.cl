@@ -7,8 +7,8 @@ __kernel void descent_dir(
 {
     int i = get_global_id(0);
     int j = get_global_id(1);
-/*    */
-/*    int k = image_width[0] * i + j;*/
-/*    */
-/*    descent_direction[k] = beta * descent_direction[k] - full_grad[k];*/
+    
+    int k = image_width[0] * i + j;
+    
+    descent_direction[k] = beta * descent_direction[k] - full_grad[k];
 }

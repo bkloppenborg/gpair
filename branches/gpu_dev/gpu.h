@@ -70,6 +70,7 @@ float * gpu_get_image(int size, float * cpu_buffer, cl_mem * gpu_image);
 
 float gpu_get_scalprod(int data_width, int data_height, cl_mem * array1, cl_mem * array2);
 
+cl_mem * gpu_getp_ci();
 cl_mem * gpu_getp_fgn();
 cl_mem * gpu_getp_fg();
 cl_mem * gpu_getp_dd();

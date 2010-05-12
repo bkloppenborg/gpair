@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 1;
+	int iterations = 10;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -611,6 +611,7 @@ int main(int argc, char *argv[])
 	cl_mem * pFull_gradient = gpu_getp_fg();
 	cl_mem * pDescent_direction = gpu_getp_dd();
 	cl_mem * pTemp_gradient= gpu_getp_tg();
+	cl_mem * pCurr_image = gpu_getp_ci();
 	
     printf("Entering Main CG Loop.\n");
     
@@ -618,7 +619,7 @@ int main(int argc, char *argv[])
 
 	for (uu = 0; uu < iterations; uu++)
 	{
-
+        printf("\nStarting new iteration of main loop.\n\n");
 		//
 		// Compute the criterion
 		//
@@ -628,12 +629,17 @@ int main(int argc, char *argv[])
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		criterion_evals++;
 
-		printf("Grad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
-				grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
+		printf("%sGrad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
+				SEP, grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
 				hyperparameter_entropy * entropy, entropy);
 
 		if(uu%2 == 0)
-			writefits(current_image, "!reconst.fits");
+		{
+		    temp_image = gpu_get_image(image_size, temp_image, pCurr_image);
+		    writefits(temp_image, "!temp.fits");
+		    //getchar();
+		}
+
 
 		//
 		// Compute full gradient (data + entropy)
@@ -641,16 +647,11 @@ int main(int argc, char *argv[])
 		
 		gpu_compute_data_gradient_curr(npow, nbis, image_width);
 		gpu_compute_entropy_gradient_curr(image_width);
-		
-		temp_image = gpu_get_image(image_size, temp_image, NULL);
-		//if(uu%2 == 0)
-			writefits(temp_image, "!temp.fits");
-		break;
         
         // Now compute the criterion gradient:
         gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
 		grad_evals++;
-
+		
 		// Compute the modifier of the gradient direction depending on the method
 		if ((uu == 0) || (gradient_method == 0))
 		{
@@ -723,6 +724,7 @@ int main(int argc, char *argv[])
 
 		while (1)
 		{
+		    printf("Entering Second Control Loop\nEvaluating the criterion (steplength).\n");
 
 			//
 			// Evaluate criterion(steplength)
@@ -766,6 +768,8 @@ int main(int argc, char *argv[])
 			grad_evals++;
 
 			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
+			
+			printf("\nWolfe Product 2: %e\n\n", wolfe_product2);
 
 			if (fabs(wolfe_product2) <= -wolfe_param2 * wolfe_product1)
 			{

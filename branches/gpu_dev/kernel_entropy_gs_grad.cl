@@ -17,7 +17,7 @@ __kernel void entropy_gs_grad(
     float t_model = default_model[k];
     float dS = output[k];
     
-    //if ((t_image > 0.) && (t_model > 0.))
+    if ((t_image > 0.) && (t_model > 0.))
         dS = -1 * log(t_image / t_model);
         
     output[k] = dS;
