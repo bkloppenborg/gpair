@@ -235,7 +235,11 @@ int main(int argc, char *argv[])
 
 	float entropy, hyperparameter_entropy = 1000.;
 	float criterion;
-	int gradient_method = 0;
+	int gradient_method = 2;
+	
+	float * temp_image;
+	
+	// Buffer for storing the temporary image (also used to read back data from the GPU)
 
 // Only perform the CPU calculations if we are not using the GPU
 //#ifndef USE_GPU
@@ -262,7 +266,7 @@ int main(int argc, char *argv[])
 	float * full_gradient = malloc(image_size * sizeof(float));
 	float * full_gradient_new = malloc(image_size * sizeof(float));
 	float * temp_gradient = malloc(image_size * sizeof(float));
-	float * temp_image = malloc(image_size * sizeof(float));
+	temp_image = malloc(image_size * sizeof(float));
 
 	// Init descent direction
 	float * descent_direction = malloc(image_size * sizeof(float));
@@ -449,7 +453,7 @@ int main(int argc, char *argv[])
 				steplength = steplength_max;
 			
 			linesearch_iteration++;
-			printf("Steplength %f Steplength old %f\n", steplength, steplength_old);
+            printf("Criterion %8.8e Steplength %8.8e Steplength old %8.8e -- Bracket\n", criterion, steplength, steplength_old);
 
 		}
 		// End of line search
@@ -601,6 +605,8 @@ int main(int argc, char *argv[])
 	free(gpu_dft_x);
 	free(gpu_dft_y);
 	
+	temp_image = malloc(image_size * sizeof(float));
+	
 	cl_mem * pFull_gradient_new = gpu_getp_fgn();
 	cl_mem * pFull_gradient = gpu_getp_fg();
 	cl_mem * pDescent_direction = gpu_getp_dd();
@@ -618,6 +624,7 @@ int main(int argc, char *argv[])
 		//
 		chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
 		entropy = gpu_get_entropy_curr(image_width);
+		//printf("Entropy: %e\n", entropy);
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		criterion_evals++;
 
@@ -634,6 +641,11 @@ int main(int argc, char *argv[])
 		
 		gpu_compute_data_gradient_curr(npow, nbis, image_width);
 		gpu_compute_entropy_gradient_curr(image_width);
+		
+		temp_image = gpu_get_image(image_size, temp_image, NULL);
+		//if(uu%2 == 0)
+			writefits(temp_image, "!temp.fits");
+		break;
         
         // Now compute the criterion gradient:
         gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
@@ -680,10 +692,10 @@ int main(int argc, char *argv[])
 
 		// Some tests on descent direction
 		// TODO: Note this hasn't been rewritten for the GPU side yet:
-		printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(
-				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)
-						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,
-				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));
+/*		printf("Angle descent direction/gradient %f \t Descent direction / previous descent direction : %f \n", acos(*/
+/*				-scalprod(descent_direction, full_gradient_new) / sqrt(scalprod(full_gradient_new, full_gradient_new)*/
+/*						* scalprod(descent_direction, descent_direction))) / PI * 180., fabs(scalprod(full_gradient,*/
+/*				full_gradient_new)) / scalprod(full_gradient_new, full_gradient_new));*/
 
 		//      writefits(descent_direction, "!gradient.fits");
 
@@ -694,6 +706,8 @@ int main(int argc, char *argv[])
 
 		// Compute quantity for Wolfe condition 1
 		wolfe_product1 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new);
+
+		printf("\WolfeProd1: %e\n\n", wolfe_product1);
 
 		// Initialize variables for line search
 		selected_steplength = 0.;
@@ -792,7 +806,7 @@ int main(int argc, char *argv[])
 				steplength = steplength_max;
 			
 			linesearch_iteration++;
-			printf("Steplength %f Steplength old %f\n", steplength, steplength_old);
+			printf("Criterion %8.8e Steplength %8.8e Steplength old %8.8e -- Bracket\n", criterion, steplength, steplength_old);
 
 		}
 		// End of line search
@@ -818,6 +832,7 @@ int main(int argc, char *argv[])
 	free( data_phasor);
 	free( visi);
 	free(current_image);
+	free(temp_image);
 	free( DFT_tablex);
 	free( DFT_tabley);
 

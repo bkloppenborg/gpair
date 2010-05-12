@@ -66,7 +66,7 @@ float gpu_get_entropy();
 float gpu_get_entropy_curr(int image_width);
 float gpu_get_entropy_temp(int image_width);
 
-float * gpu_get_image(int size, cl_mem * gpu_image);
+float * gpu_get_image(int size, float * cpu_buffer, cl_mem * gpu_image);
 
 float gpu_get_scalprod(int data_width, int data_height, cl_mem * array1, cl_mem * array2);
 

@@ -17,8 +17,11 @@ __kernel void entropy_gs(
     float t_model = default_model[k];
     float S = 0;
     
+    // NOTE: the log below is broken up as follows:
+    //  log(A/B) = log(A) - log(B)
+    // due to precision problems on the GPU.
     if(t_image > 0 && t_model > 0)
-        S = t_image - t_model - t_image * log(t_image / t_model);
+        S = t_image - t_model - t_image * (log(t_image) - log(t_model));
     else
         S = -1 * t_model;
     

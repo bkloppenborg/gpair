@@ -11,7 +11,7 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
+int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
 int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
@@ -788,10 +788,12 @@ void gpu_compute_entropy_gradient(int image_width, cl_mem * gpu_image)
     global = malloc(2 * sizeof(size_t));
     global[0] = global[1] = image_width;
     
+    gpu_image = pGpu_image;
+    
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_entropy_grad, 0, sizeof(cl_mem), pGpu_image_width);
     err |= clSetKernelArg(*pKernel_entropy_grad, 1, sizeof(cl_mem), gpu_image);
-    err |= clSetKernelArg(*pKernel_entropy_grad, 2, sizeof(cl_mem), pGpu_default_model);
+    err |= clSetKernelArg(*pKernel_entropy_grad, 2, sizeof(cl_mem), gpu_image);
     err |= clSetKernelArg(*pKernel_entropy_grad, 3, sizeof(cl_mem), pGpu_entropy_grad);  
 
 /*   // Get the maximum work-group size for executing the kernel on the device*/
@@ -1430,10 +1432,7 @@ void gpu_copy_image(float * image, int x_size, int y_size)
 
 // Compute the chi2 of the data using a GPU
 void gpu_data2chi2(int data_size)
-{
-    if(gpu_enable_verbose || gpu_enable_debug)
-        printf("Computing chi2 from data.\n");
-        
+{       
     int err;                          // error code returned from api calls
 
     size_t global;                    // global domain size for our calculation
@@ -1764,6 +1763,33 @@ float gpu_get_entropy_temp(int image_width)
     return gpu_get_entropy(image_width, pGpu_image_temp);
 }
 
+// Returns a pointer to an array of floats of size image_size from gpu buffer gpu_image.
+// this is a blocking call
+float * gpu_get_image(int size, float * cpu_buffer, cl_mem * gpu_image)
+{
+    if(gpu_enable_verbose || gpu_enable_debug)
+        printf("Getting image buffer from GPU.\n");
+        
+    int err = 0;
+    // zero out the cpu buffer (just in case)
+    memset(cpu_buffer, -1, sizeof(float) * size);
+    
+    if(cpu_buffer == NULL)
+    {
+        printf("Warning: Allocating buffer for storing image read-back from GPU. Be sure to free memory!\n");
+        float * cpu_buffer;
+        cpu_buffer = malloc(sizeof(float) * size);
+    }
+    
+    gpu_image = pGpu_entropy_grad;
+    
+    err = clEnqueueReadBuffer(*pQueue, *gpu_image, CL_TRUE, 0, sizeof(float) * size, cpu_buffer, 0, NULL, NULL );
+    if (err != CL_SUCCESS)
+        print_opencl_error("Could not read back image from the GPU!", err);   
+    
+    return cpu_buffer;
+}
+
 // Get a pointer to pGpu_full_gradient_new
 cl_mem * gpu_getp_fgn()
 {
@@ -1874,17 +1900,17 @@ float gpu_linesearch_zoom(
 
 		// Interpolation - for the moment by bisection (simple for now)
 		//steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
-		printf("Steplength %8.8le Low %8.8le High %8.8le \n", steplength, steplength_low, steplength_high);
 
-		if((counter > 0) && (criterion_old - criterion_init - wolfe_product1 * steplength_old) != 0.)
-		    steplength = fabs(wolfe_product1 * steplength_old * steplength_old / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
+		if((counter > 0) && ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) != 0.)
+		 	steplength = fabs(wolfe_product1 * steplength_old * steplength_old
+				  / (2. * ( criterion_old - criterion_init - wolfe_product1 * steplength_old ) ));
 
-		if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
-		    steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
+			if((counter == 0) || (steplength < steplength_low ) || ( steplength > steplength_high))
+	       	steplength = ( steplength_high - steplength_low ) / 2. + steplength_low;
 
-		if(fabs( steplength_high - steplength_low ) < 1e-14)
+		if( fabs( steplength_high - steplength_low ) < 1e-14)
 		{
-			selected_steplength = steplength_low;
+			selected_steplength=steplength_low;
 			break;
 		}
 
@@ -1895,6 +1921,8 @@ float gpu_linesearch_zoom(
 		entropy = gpu_get_entropy_temp(image_width);
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		*criterion_evals++;
+		printf("Criterion %8.8e Steplength %8.8le Low %8.8le High %8.8le Counter %d -- Zoom \n", criterion, steplength, steplength_low, steplength_high, counter);
+
 
 		//printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
 		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
