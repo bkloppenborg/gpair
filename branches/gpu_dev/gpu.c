@@ -630,7 +630,7 @@ void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entrop
     err |= clSetKernelArg(*pKernel_criterion_grad, 1, sizeof(cl_mem), pGpu_entropy_grad);
     err |= clSetKernelArg(*pKernel_criterion_grad, 2, sizeof(float), &hyperparameter_entropy);
     err |= clSetKernelArg(*pKernel_criterion_grad, 3, sizeof(cl_mem), pGpu_image_width);  
-    err |= clSetKernelArg(*pKernel_criterion_grad, 4, sizeof(cl_mem), pGpu_grad_temp); 
+    err |= clSetKernelArg(*pKernel_criterion_grad, 4, sizeof(cl_mem), pGpu_full_grad_new); 
 
 /*   // Get the maximum work-group size for executing the kernel on the device*/
 /*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
@@ -1614,7 +1614,7 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
 /*    if(gpu_enable_debug && gpu_enable_verbose)*/
 /*        printf("Powerspectrum Kernel: Global: %i Local %i \n", (int)global, (int)local);*/
         
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);
+    //err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);
     if (err)
         print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
     
@@ -1637,7 +1637,7 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
       
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_bis, 2, 0, global, local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
+        print_opencl_error("Cannot enqueue bispectrum gradient kernel.", err); 
         
     // Let the queue finish out
     clFinish(*pQueue);
@@ -1827,6 +1827,11 @@ cl_mem * gpu_getp_dd()
 cl_mem * gpu_getp_tg()
 {
     return pGpu_grad_temp;
+}
+
+cl_mem * gpu_getp_eg()
+{
+    return pGpu_entropy_grad;
 }
 
 // Given the image copied onto the GPU's buffer
