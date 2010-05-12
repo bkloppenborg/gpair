@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 
 	float entropy, hyperparameter_entropy = 1000.;
 	float criterion;
-	int gradient_method = 2;
+	int gradient_method = 0;
 	
 	float * temp_image;
 	
