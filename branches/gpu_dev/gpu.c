@@ -609,7 +609,7 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
 }
 
 // Compute the gradient of the entropy for the image, gpu_image.  This gets stored in pGpu_entropy_grad
-void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entropy)
+void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entropy, cl_mem * gradient_buffer)
 {
     if(gpu_enable_verbose || gpu_enable_debug)
         printf("%sComputing Criterion Gradient.\n%s", SEP, SEP);
@@ -629,7 +629,7 @@ void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entrop
     err |= clSetKernelArg(*pKernel_criterion_grad, 1, sizeof(cl_mem), pGpu_entropy_grad);
     err |= clSetKernelArg(*pKernel_criterion_grad, 2, sizeof(float), &hyperparameter_entropy);
     err |= clSetKernelArg(*pKernel_criterion_grad, 3, sizeof(cl_mem), pGpu_image_width);  
-    err |= clSetKernelArg(*pKernel_criterion_grad, 4, sizeof(cl_mem), pGpu_full_grad_new); 
+    err |= clSetKernelArg(*pKernel_criterion_grad, 4, sizeof(cl_mem), gradient_buffer); 
 
 /*   // Get the maximum work-group size for executing the kernel on the device*/
 /*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
@@ -644,6 +644,22 @@ void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entrop
         print_opencl_error("Cannot enqueue entropy kernel.", err); 
     
     clFinish(*pQueue);   
+}
+
+void gpu_compute_criterion_gradient_curr(int image_width, float hyperparameter_entropy)
+{
+    if(gpu_enable_verbose || gpu_enable_debug)
+        printf("%sComputing Criterion Gradient on Current Image.\n%s", SEP, SEP);
+        
+    gpu_compute_criterion_gradient(image_width,hyperparameter_entropy, pGpu_full_grad_new);
+}
+
+void gpu_compute_criterion_gradient_temp(int image_width, float hyperparameter_entropy)
+{
+    if(gpu_enable_verbose || gpu_enable_debug)
+        printf("%sComputing Criterion Gradient on Temp Image.\n%s", SEP, SEP);
+        
+    gpu_compute_criterion_gradient(image_width,hyperparameter_entropy, pGpu_grad_temp);
 }
 
 void gpu_compute_criterion_step(int image_width, float steplength, float minvalue)
@@ -1944,10 +1960,16 @@ float gpu_linesearch_zoom(
 			gpu_compute_data_gradient_temp(npow, nbis, image_width);
 			gpu_compute_entropy_gradient_temp(image_width);
 			
-			gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
+			gpu_compute_criterion_gradient_temp(image_width, hyperparameter_entropy);
 
 			*grad_evals++;
 			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
+			
+			// Enable for debugging:
+			temp_image = gpu_get_image(image_size, temp_image, pDescent_direction);
+			writefits(temp_image, "!dd.fits");
+			temp_image = gpu_get_image(image_size, temp_image, pTemp_gradient);
+            writefits(temp_image, "!tg.fits");
 
 			printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
 			if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 ) || ( counter > 10 ))

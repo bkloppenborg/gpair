@@ -16,7 +16,7 @@
 #endif
 
 // Preprocessor directive for the GPU:
-#undef USE_GPU
+#define USE_GPU
 
 #ifdef USE_GPU
 #include "gpu.h"
@@ -659,7 +659,7 @@ int main(int argc, char *argv[])
 	    //writefits(temp_image, "!eg.fits");
         
         // Now compute the criterion gradient:
-        gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
+        gpu_compute_criterion_gradient_curr(image_width, hyperparameter_entropy);
         
         // Enable for debugging, good to compare against the cpu.
         //temp_image = gpu_get_image(image_size, temp_image, pFull_gradient_new);
@@ -792,7 +792,7 @@ int main(int argc, char *argv[])
 
 			gpu_compute_data_gradient_temp(npow, nbis, image_width);
 			gpu_compute_entropy_gradient_temp(image_width);
-			gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
+			gpu_compute_criterion_gradient_temp(image_width, hyperparameter_entropy);
 			
 			grad_evals++;
 

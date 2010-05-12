@@ -23,7 +23,10 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data);
 
 void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data);
 
-void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entropy);
+void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entropy, cl_mem * gradient_buffer);
+void gpu_compute_criterion_gradient_curr(int image_width, float hyperparameter_entropy);
+void gpu_compute_criterion_gradient_temp(int image_width, float hyperparameter_entropy);
+
 void gpu_compute_criterion_step(int image_width, float steplength, float minvalue);
 
 void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_storage);
