@@ -612,6 +612,14 @@ int main(int argc, char *argv[])
 	cl_mem * pDescent_direction = gpu_getp_dd();
 	cl_mem * pTemp_gradient= gpu_getp_tg();
 	cl_mem * pCurr_image = gpu_getp_ci();
+	cl_mem * pTemp_image = gpu_getp_ti();
+	
+	
+    temp_image = gpu_get_image(image_size, temp_image, pCurr_image);
+    writefits(temp_image, "!currA.fits");
+    
+    temp_image = gpu_get_image(image_size, temp_image, pTemp_image);
+    writefits(temp_image, "!tempA.fits");
 	
     printf("Entering Main CG Loop.\n");
     
@@ -708,7 +716,7 @@ int main(int argc, char *argv[])
 		// Compute quantity for Wolfe condition 1
 		wolfe_product1 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new);
 
-		printf("\WolfeProd1: %e\n\n", wolfe_product1);
+		printf("WolfeProd1: %e\n\n", wolfe_product1);
 
 		// Initialize variables for line search
 		selected_steplength = 0.;
@@ -738,6 +746,22 @@ int main(int argc, char *argv[])
 		    entropy = gpu_get_entropy_temp(image_width);
 			criterion = chi2 - hyperparameter_entropy * entropy;
 			criterion_evals++;
+			
+			printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n wolfe_param1 %1f wolfe_prod1 %1f\n", criterion , criterion_init, criterion_old, wolfe_param1, wolfe_product1);
+			
+			// TODO: Temporary, just for debugging
+		    if(criterion != criterion_init)
+		    {
+	            temp_image = gpu_get_image(image_size, temp_image, pCurr_image);
+	            writefits(temp_image, "!currB.fits");
+	            
+	            temp_image = gpu_get_image(image_size, temp_image, pTemp_image);
+	            writefits(temp_image, "!tempB.fits");	
+	            
+	            	    
+		        goto after_loop;
+		    }
+			
 
 			if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1)) || ((criterion
 					>= criterion_old) && (linesearch_iteration > 1)))
@@ -825,6 +849,7 @@ int main(int argc, char *argv[])
 
      //gpu_check_data(NULL, nuv, visi, data_size, mock, image_size, NULL);
 
+    after_loop:
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();
 

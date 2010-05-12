@@ -21,7 +21,7 @@ __kernel void entropy_gs(
     //  log(A/B) = log(A) - log(B)
     // due to precision problems on the GPU.
     if(t_image > 0 && t_model > 0)
-        S = t_image - t_model - t_image * (log(t_image) - log(t_model));
+        S = t_image - t_model - t_image * log(t_image/t_model);
     else
         S = -1 * t_model;
     

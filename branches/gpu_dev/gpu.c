@@ -74,6 +74,7 @@ cl_mem * pGpu_grad_temp = NULL;
 cl_mem * pGpu_descent_dir = NULL;
 
 cl_mem * pGpu_default_model = NULL;
+cl_mem * pGpu_image = NULL;
 cl_mem * pGpu_image_temp = NULL;
 
 cl_mem * pGpu_chi2 = NULL;             // Buffer for storing the (single summed) chi2 value.
@@ -83,7 +84,6 @@ cl_mem * pGpu_chi2_buffer2 = NULL;       // Used as partial sum buffer
 
 cl_mem * pGpu_dft_x = NULL;         // Pointer to Memory for x-DFT table
 cl_mem * pGpu_dft_y = NULL;         // Pointer to Memory for y-DFT table
-cl_mem * pGpu_image = NULL;
 
 cl_mem * pGpu_flux0 = NULL;         // Buffer storing the (single, summed) flux value.
 cl_mem * pGpu_flux1 = NULL;         // Buffer for storing 1/flux
@@ -94,8 +94,6 @@ cl_mem * pGpu_flux_buffer2 = NULL;  // Used as partial sum buffer
 cl_mem * pGpu_visi0 = NULL;          // Used to store on-gpu visibilities.
 cl_mem * pGpu_visi1 = NULL;
 cl_mem * pGpu_image_width = NULL;   // Stores the size of the image.
-
-int image_size = 1;
 
 // Variables for the parallel sum in the chi2 (again, globals... urgh).
 int Chi2_pass_count = 0;
@@ -1190,6 +1188,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     
     // Image and model pointers:
     static cl_mem gpu_default_model;
+    static cl_mem gpu_image;
     static cl_mem gpu_image_temp;
     
     static cl_mem gpu_chi2;
@@ -1216,12 +1215,12 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     memset(mock_data, 0, data_size);
     
     float * temp;   // Filler for chi2 buffers
-    temp = malloc(data_size * sizeof(float));   
-    memset(temp, 0, data_size);
+    temp = malloc(sizeof(float) * data_size);   
+    memset(temp, 0, sizeof(float) * data_size);
  
     float * zero_flux;  // Filler for image flux buffers
-    zero_flux = malloc(image_size * sizeof(float));
-    memset(zero_flux, 0, image_size);
+    zero_flux = malloc(sizeof(float) * image_size);
+    memset(zero_flux, 0, sizeof(float) * image_size);
 
     cl_float2 * visi;   // Filler for visi buffer
     visi = malloc(data_size_uv * sizeof(cl_float2));
@@ -1261,6 +1260,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     
     // Image and model buffers:
     gpu_default_model = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(float) * image_size, NULL, NULL);
+    gpu_image = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);      
     gpu_image_temp = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);    
     
     gpu_chi2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
@@ -1315,6 +1315,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     
     // Image buffers:
     err |= clEnqueueWriteBuffer(*pQueue, gpu_default_model, CL_FALSE, 0, sizeof(float) * image_size, default_model, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, gpu_image, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_image_temp, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("Cannot write Image data to the GPU.", err); 
@@ -1365,6 +1366,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     pGpu_descent_dir = &gpu_descent_dir;
     
     pGpu_default_model = &gpu_default_model;
+    pGpu_image = &gpu_image;
     pGpu_image_temp = &gpu_image_temp;
     
     pGpu_chi2 = &gpu_chi2;
@@ -1418,16 +1420,6 @@ void gpu_copy_image(float * image, int x_size, int y_size)
 {
     int size = x_size * y_size * sizeof(float);
     int err;
-    
-    if(pGpu_image == NULL)
-    {
-        static cl_mem gpu_image;
-        gpu_image = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, size, NULL, NULL);
-        pGpu_image = &gpu_image;
-        
-        // Assign the global image size variable to this value:
-        image_size = size;
-    }
     
     // Copy the data over, do this as a blocking call.
     err = clEnqueueWriteBuffer(*pQueue, *pGpu_image, CL_TRUE, 0, size, image, 0, NULL, NULL);
@@ -1806,6 +1798,11 @@ float * gpu_get_image(int size, float * cpu_buffer, cl_mem * gpu_image)
 cl_mem * gpu_getp_ci()
 {
     return pGpu_image;
+}
+
+cl_mem * gpu_getp_ti()
+{
+    return pGpu_image_temp;
 }
 
 // Get a pointer to pGpu_full_gradient_new
