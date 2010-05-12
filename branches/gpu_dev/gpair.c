@@ -703,8 +703,8 @@ int main(int argc, char *argv[])
 		gpu_compute_descent_dir(image_width, beta);
 		
 		// Enable for debugging, useful to compare against the CPU
-		temp_image = gpu_get_image(image_size, temp_image, pDescent_direction);
-	    writefits(temp_image, "!dd.fits");
+		//temp_image = gpu_get_image(image_size, temp_image, pDescent_direction);
+	    //writefits(temp_image, "!dd.fits");
 
 		// Some tests on descent direction
 		// TODO: Note this hasn't been rewritten for the GPU side yet:
@@ -759,7 +759,7 @@ int main(int argc, char *argv[])
 			criterion_evals++;
 
             printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-            printf("Test 1\t chi2 %1f entropy %1f\n", chi2, entropy);
+            printf("Test 1\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
 
 			if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1)) || ((criterion
 					>= criterion_old) && (linesearch_iteration > 1)))

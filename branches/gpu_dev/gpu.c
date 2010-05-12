@@ -1721,12 +1721,12 @@ float gpu_get_chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_u
     gpu_image2chi2(nuv, npow, nbis, data_alloc, data_alloc_uv, gpu_image);
     clFinish(*pQueue);
 
+    // Now read back the chi2.
     int err = 0;
     float chi2 = 0;
-    
     err = clEnqueueReadBuffer(*pQueue, *pGpu_chi2, CL_TRUE, 0, sizeof(float), &chi2, 0, NULL, NULL );
     if (err != CL_SUCCESS)
-        print_opencl_error("Could not read back Entropy from the GPU!", err);
+        print_opencl_error("Could not read back chi2 from the GPU!", err);
         
     return chi2;   
 }
@@ -1931,12 +1931,19 @@ float gpu_linesearch_zoom(
 		}
 
 		// Evaluate criterion(steplength)
-        gpu_compute_criterion_step(image_width, steplength, minvalue);
+		
+		// Start by updating the image:
+        gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
 
 		chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
 		entropy = gpu_get_entropy_temp(image_width);
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		*criterion_evals++;
+		
+        printf("LSZoom\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
+        printf("LSZoom 1\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
+
+		
 		printf("Criterion %8.8e Steplength %8.8le Low %8.8le High %8.8le Counter %d -- Zoom \n", criterion, steplength, steplength_low, steplength_high, counter);
 
 
