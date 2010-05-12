@@ -54,6 +54,8 @@ typedef struct _uv
 {
   float u;
   float v;
+  float bandwidth;
+  float wavelength;
 }oi_uv;
 
 typedef struct _data

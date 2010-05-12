@@ -16,7 +16,7 @@
 #endif
 
 // Preprocessor directive for the GPU:
-#define USE_GPU
+#undef USE_GPU
 
 #ifdef USE_GPU
 #include "gpu.h"
@@ -790,7 +790,7 @@ int main(int argc, char *argv[])
 			// Evaluate wolfe product 2
 			//
 
-            gpu_compute_data_gradient_temp(npow, nbis, image_width);
+			gpu_compute_data_gradient_temp(npow, nbis, image_width);
 			gpu_compute_entropy_gradient_temp(image_width);
 			gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
 			
