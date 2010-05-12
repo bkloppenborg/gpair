@@ -747,10 +747,10 @@ int main(int argc, char *argv[])
 
 			//  Step 1: compute the temporary image: I1 = I0 - coeff * descent direction
             gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
-            temp_image = gpu_get_image(image_size, temp_image, pTemp_image);
-            writefits(temp_image, "!ti.fits");			
             
-            goto abort;
+            // TODO: Useful to enable while debugging.
+            //temp_image = gpu_get_image(image_size, temp_image, pTemp_image);
+            //writefits(temp_image, "!ti.fits");			
 
 			// Step 2: Compute criterion(I1)
 		    chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
