@@ -3,6 +3,10 @@
 #include "cpu.h"
 #include <signal.h>
 
+#ifndef GPAIR
+#define GPAIR
+#endif
+
 #ifndef GETOIFITS_H
 #include "getoifits.h"
 #endif
@@ -213,7 +217,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 10;
+	int iterations = 2;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -696,6 +700,8 @@ int main(int argc, char *argv[])
 			    / gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new)) > .5)
 				beta = 0.;
 		}
+		
+		printf("BETA: %1f\n", beta);
 
 		//
 		// Compute descent direction
@@ -758,12 +764,13 @@ int main(int argc, char *argv[])
 			criterion = chi2 - hyperparameter_entropy * entropy;
 			criterion_evals++;
 
-            printf("Test 1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-            printf("Test 1\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
+            printf("PreTest1\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
+            printf("PreTest1\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
 
 			if ((criterion > (criterion_init + wolfe_param1 * steplength * wolfe_product1)) || ((criterion
 					>= criterion_old) && (linesearch_iteration > 1)))
 			{
+			    printf("Entering Test 1\n");
 			    selected_steplength = gpu_linesearch_zoom(nuv, npow, nbis, data_alloc, data_alloc_uv, image_width,
 			        steplength_old, steplength, criterion_old, wolfe_product1, criterion_init,
 			        &criterion_evals, &grad_evals,

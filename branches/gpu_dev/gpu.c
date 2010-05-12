@@ -6,13 +6,17 @@
 #include <sys/stat.h>
 #include <complex.h>
 
+#ifndef GPAIR
+#include "gpair.h"
+#endif
+
 #define MAX_GROUPS      (64)
 #define MAX_WORK_ITEMS  (64)
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -48,7 +52,8 @@ cl_program * pPro_update_image = NULL;
 cl_kernel * pKernel_update_image = NULL;
 cl_program * pPro_update_tempimage = NULL;
 cl_kernel * pKernel_update_tempimage = NULL;
-
+cl_program * pPro_scalarprod = NULL;
+cl_kernel * pKernel_scalarprod = NULL;
 
 // Pointers for data stored on the GPU
 cl_mem * pGpu_data = NULL;             // OIFITS Data
@@ -61,9 +66,6 @@ cl_mem * pGpu_mock_data = NULL;        // Mock data (current "image")
 
 cl_mem * pGpu_entropy = NULL;           // Buffer for storing the (summed) entropy
 cl_mem * pGpu_scaprod = NULL;           // Buffer for storing the (summed) scalar product
-cl_mem * pGpu_scaprod_buffer0 = NULL;   // Temporary buffers for scalar products, size image_width wide
-cl_mem * pGpu_scaprod_buffer1 = NULL;
-cl_mem * pGpu_scaprod_buffer2 = NULL;  
 cl_mem * pGpu_data_grad = NULL;
 
 cl_mem * pGpu_entropy_image = NULL;     // Buffer to store the entropy of each pixel in the image
@@ -111,14 +113,6 @@ int * Flux_operation_counts = NULL;
 int * Flux_entry_counts = NULL;
 cl_program * pGpu_flux_programs = NULL;
 cl_kernel * pGpu_flux_kernels = NULL;
-
-int Scaprod_pass_count = 0;
-size_t * Scaprod_group_counts = NULL;
-size_t * Scaprod_work_item_counts = NULL;
-int * Scaprod_operation_counts = NULL;
-int * Scaprod_entry_counts = NULL;
-cl_program * pGpu_scaprod_programs = NULL;
-cl_kernel * pGpu_scaprod_kernels = NULL;
 
 void create_reduction_pass_counts(
     int count, 
@@ -335,7 +329,6 @@ void gpu_build_kernels(int data_size, int image_width, int image_size)
     // Now build the reduction kernels
     gpu_build_reduction_kernels(data_size, &pGpu_chi2_programs, &pGpu_chi2_kernels, &Chi2_pass_count, &Chi2_group_counts, &Chi2_work_item_counts, &Chi2_operation_counts, &Chi2_entry_counts);
     gpu_build_reduction_kernels(image_size, &pGpu_flux_programs, &pGpu_flux_kernels, &Flux_pass_count, &Flux_group_counts, &Flux_work_item_counts, &Flux_operation_counts, &Flux_entry_counts);
-    gpu_build_reduction_kernels(image_width, &pGpu_scaprod_programs, &pGpu_scaprod_kernels, &Scaprod_pass_count, &Scaprod_group_counts, &Scaprod_work_item_counts, &Scaprod_operation_counts, &Scaprod_entry_counts);
 
     // Build the DFT (visi) kernel
     static cl_program pro_visi;
@@ -406,6 +399,12 @@ void gpu_build_kernels(int data_size, int image_width, int image_size)
     gpu_build_kernel(&pro_update_tempimage, &kern_update_tempimage, "update_tempimage", "./kernel_update_tempimage.cl");
     pPro_update_tempimage = &pro_update_tempimage;
     pKernel_update_tempimage = &kern_update_tempimage; 
+    
+    static cl_program pro_scalarprod;
+    static cl_kernel kern_scalarprod;
+    gpu_build_kernel(&pro_scalarprod, &kern_scalarprod, "scalarprod", "./kernel_scalarprod.cl");
+    pPro_scalarprod = &pro_scalarprod;
+    pKernel_scalarprod = &kern_scalarprod;
 }
 
 void gpu_build_reduction_kernels(int data_size, cl_program ** pPrograms, cl_kernel ** pKernels, 
@@ -873,11 +872,6 @@ void gpu_cleanup()
         for(i = 0; i < Flux_pass_count; i++)
             err |= clReleaseProgram(pGpu_flux_programs[i]);
     }
-    if(pGpu_scaprod_programs != NULL)
-    {
-        for(i = 0; i < Scaprod_pass_count; i++)
-            err |= clReleaseProgram(pGpu_scaprod_programs[i]);        
-    }
     if(pPro_visi != NULL)
         err |= clReleaseProgram(*pPro_visi);
     if(pPro_u_vis_flux != NULL)
@@ -900,7 +894,9 @@ void gpu_cleanup()
         err |= clReleaseProgram(*pPro_update_image);
     if(pPro_update_tempimage != NULL)
         err |= clReleaseProgram(*pPro_update_tempimage);
-        
+    if(pPro_scalarprod != NULL)
+        err |= clReleaseProgram(*pPro_scalarprod);
+
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Program Memory.\n");
     
@@ -921,11 +917,6 @@ void gpu_cleanup()
     {
         for(i = 0; i < Flux_pass_count; i++)
             err |= clReleaseKernel(pGpu_flux_kernels[i]);
-    }
-    if(pGpu_scaprod_kernels != NULL)
-    {
-        for(i = 0; i < Scaprod_pass_count; i++)
-            err |= clReleaseKernel(pGpu_scaprod_kernels[i]);
     }
     if(pKernel_visi != NULL)
         err |= clReleaseKernel(*pKernel_visi);
@@ -949,7 +940,9 @@ void gpu_cleanup()
         err |= clReleaseKernel(*pKernel_update_image); 
     if(pKernel_update_tempimage != NULL)
         err |= clReleaseKernel(*pKernel_update_tempimage);
-    
+    if(pKernel_scalarprod != NULL)
+        err |= clReleaseKernel(*pKernel_scalarprod);
+
     if(err != CL_SUCCESS)
         printf("Failed to Free GPU Kernel Memory.\n");
 
@@ -973,12 +966,6 @@ void gpu_cleanup()
     // Free up scalar product buffers:
     if(pGpu_scaprod != NULL)
         err |= clReleaseMemObject(*pGpu_scaprod);
-    if(pGpu_scaprod_buffer0 != NULL)
-        err |= clReleaseMemObject(*pGpu_scaprod_buffer0);
-    if(pGpu_scaprod_buffer1 != NULL)
-        err |= clReleaseMemObject(*pGpu_scaprod_buffer1);
-    if(pGpu_scaprod_buffer2 != NULL)
-        err |= clReleaseMemObject(*pGpu_scaprod_buffer2);
 
     // Free up gradient buffers:
     if(pGpu_data_grad != NULL)
@@ -1064,11 +1051,6 @@ void gpu_cleanup()
     free(Flux_work_item_counts);
     free(Flux_operation_counts);
     free(Flux_entry_counts);
-
-    free(Scaprod_group_counts);
-    free(Scaprod_work_item_counts);
-    free(Scaprod_operation_counts);
-    free(Scaprod_entry_counts);
 }
 
 void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * partial_sum_buffer, cl_mem * final_buffer, 
@@ -1173,9 +1155,6 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     static cl_mem gpu_mock_data;    // Mock Data
     
     static cl_mem gpu_scaprod;          // Buffer to store the (summed) scalar product
-    static cl_mem gpu_scaprod_buffer0;          // Buffer to store partial sums
-    static cl_mem gpu_scaprod_buffer1;          // Buffer to store partial sums
-    static cl_mem gpu_scaprod_buffer2;          // Buffer to store partial sums
 
     // Buffers for Gradients, entropy
     static cl_mem gpu_data_grad;
@@ -1245,9 +1224,6 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     
     // Buffers for scalar products of size image_width wide
     gpu_scaprod = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
-    gpu_scaprod_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_width, NULL, NULL);
-    gpu_scaprod_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_width, NULL, NULL);
-    gpu_scaprod_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_width, NULL, NULL);
 
     // Buffers for Gradients, entropy, for the line search.
     gpu_data_grad = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
@@ -1298,10 +1274,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
  
     // Scalar product buffers:    
     err |= clEnqueueWriteBuffer(*pQueue, gpu_scaprod, CL_FALSE, 0, sizeof(float), &zero, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_scaprod_buffer0, CL_FALSE, 0, sizeof(float) * image_width, zero_flux, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_scaprod_buffer1, CL_FALSE, 0, sizeof(float) * image_width, zero_flux, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(*pQueue, gpu_scaprod_buffer2, CL_FALSE, 0, sizeof(float) * image_width, zero_flux, 0, NULL, NULL);
-     
+
     // Gradient buffers
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_grad, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_entropy_image, CL_FALSE, 0, sizeof(float) * image_size, zero_flux, 0, NULL, NULL);
@@ -1353,9 +1326,6 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     pGpu_mock_data = &gpu_mock_data;
     
     pGpu_scaprod = &gpu_scaprod;
-    pGpu_scaprod_buffer0 = &gpu_scaprod_buffer0;
-    pGpu_scaprod_buffer1 = &gpu_scaprod_buffer1;
-    pGpu_scaprod_buffer2 = &gpu_scaprod_buffer2;
     
     pGpu_data_grad = &gpu_data_grad;
     pGpu_entropy_image = &gpu_entropy_image;    // Buffer to store the entropy of each pixel in the image
@@ -1908,6 +1878,10 @@ float gpu_linesearch_zoom(
 	int counter = 0;
 	float minvalue = 1e-8;
 	float wolfe_param1 = 1e-4, wolfe_param2 = 0.1;
+	
+	// Enable for debugging purposes
+	int image_size = image_width * image_width;
+	float * temp_image = malloc(image_size * sizeof(float));
 
 	//printf("Entering zoom algorithm \n");
 
@@ -1933,21 +1907,32 @@ float gpu_linesearch_zoom(
 		// Evaluate criterion(steplength)
 		
 		// Start by updating the image:
+/*		temp_image = gpu_get_image(image_size, temp_image, pGpu_image_temp);*/
+/*	    writefits(temp_image, "!ti0.fits");*/
+/*	    printf("ti0: %i\n", pGpu_image_temp);*/
+		
         gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
+/*		temp_image = gpu_get_image(image_size, temp_image, pGpu_image_temp);*/
+/*	    writefits(temp_image, "!ti1.fits");*/
+/*        printf("ti1: %i\n", pGpu_image_temp);  */
 
 		chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
 		entropy = gpu_get_entropy_temp(image_width);
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		*criterion_evals++;
-		
-        printf("LSZoom\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-        printf("LSZoom 1\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
 
-		
+/*		temp_image = gpu_get_image(image_size, temp_image, pGpu_image_temp);*/
+/*	    writefits(temp_image, "!ti2.fits");*/
+/*	    printf("ti2: %i\n", pGpu_image_temp);*/
+/*	    printf("Waiting\n");*/
+/*	    getchar();*/
+/*		*/
+        printf("LSZoom\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
+        printf("LSZoom\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
 		printf("Criterion %8.8e Steplength %8.8le Low %8.8le High %8.8le Counter %d -- Zoom \n", criterion, steplength, steplength_low, steplength_high, counter);
 
 
-		//printf("Test 1\t criterion %lf criterion_init %lf second member wolfe1 %lf \n", criterion , criterion_init,  criterion_init + wolfe_param1 * steplength * wolfe_product1);
+		printf("Test 1\t criterion %lf criterion_init %lf second member wolfe_param1 %1f wolfe_product1 %1f\n", criterion , criterion_init,  wolfe_param1, wolfe_product1);
 		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
 		{
 			steplength_high = steplength;
@@ -1964,7 +1949,7 @@ float gpu_linesearch_zoom(
 			*grad_evals++;
 			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
 
-			//printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
+			printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
 			if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 ) || ( counter > 10 ))
 			{
 				selected_steplength = steplength;
@@ -1998,39 +1983,38 @@ void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * 
     if(final_output == NULL || array1 == NULL || array2 == NULL)
         print_opencl_error("Pointer to gpu_sclar_prod is NULL!", 0);
         
-    size_t global = data_width;
+    size_t global = data_width * data_height;
     size_t local = 0;
     int err = 0;
 
-    // Now we compute the dot product
-    err  = clSetKernelArg(*pKernel_visi, 0, sizeof(int), &data_width);
-    err |= clSetKernelArg(*pKernel_visi, 1, sizeof(int), pGpu_dft_x);
-    err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), array1);
-    err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), array2);
-    // TODO: figure out where to put this last set of data.
-    err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_scaprod_buffer0);    
-
+    // Now we compute the scalarprod product
+    err  = clSetKernelArg(*pKernel_scalarprod, 0, sizeof(cl_mem), array1);
+    err |= clSetKernelArg(*pKernel_scalarprod, 1, sizeof(cl_mem), array2);
+    err |= clSetKernelArg(*pKernel_scalarprod, 2, sizeof(cl_mem), pGpu_flux_buffer0);    
 
    // Get the maximum work-group size for executing the kernel on the device
-    err = clGetKernelWorkGroupInfo(*pKernel_visi, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+    err = clGetKernelWorkGroupInfo(*pKernel_scalarprod, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
     // Round down to the nearest power of two.
     // TODO: Un-fix this value:
-    local = 32; //pow(2, floor(log(local) / log(2)));
-    
-    if(gpu_enable_debug && gpu_enable_verbose)
-      printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);
+    err = clGetKernelWorkGroupInfo(*pKernel_visi, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("clGetKernelWorkGroupInfo", err);
+
+    // Round down to the nearest power of two.
+    local = pow(2, floor(log(local) / log(2)));
         
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_visi, 1, NULL, &global, &local, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_scalarprod, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
         print_opencl_error("Could not enqueue scalar product kernel.", err);  
 
     clFinish(*pQueue);
     
-    // And now we need to run a parallel sum:
-    gpu_compute_sum(pGpu_scaprod_buffer0, pGpu_scaprod_buffer1, pGpu_scaprod_buffer2, final_output, pGpu_scaprod_kernels, Scaprod_pass_count, Scaprod_group_counts, Scaprod_work_item_counts, Scaprod_operation_counts, Scaprod_entry_counts);
+    // And now we need to run a parallel sum
+    // Note, we just need to sum up the scalar product values, so the flux kernels work fine here.
+    gpu_compute_sum(pGpu_flux_buffer0, pGpu_flux_buffer1, pGpu_flux_buffer2, final_output, pGpu_flux_kernels, Flux_pass_count, Flux_group_counts, Flux_work_item_counts, Flux_operation_counts, Flux_entry_counts);
 
     clFinish(*pQueue);
 }
@@ -2041,9 +2025,10 @@ float gpu_get_scalprod(int data_width, int data_height, cl_mem * array1, cl_mem 
         printf("%sComputing Scalar Product from the GPU.\n%s", SEP, SEP);
         
     gpu_scalar_prod(data_width, data_height, array1, array2, pGpu_scaprod);
+    
+    // Read back the value from the GPU:
     int err = 0;
     float value = 0;
-    
     err = clEnqueueReadBuffer(*pQueue, *pGpu_scaprod, CL_TRUE, 0, sizeof(float), &value, 0, NULL, NULL );
     if (err != CL_SUCCESS)
         print_opencl_error("Could not read back scalar product value from GPU!", err);
