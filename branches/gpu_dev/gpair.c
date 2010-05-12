@@ -650,18 +650,16 @@ int main(int argc, char *argv[])
 		gpu_compute_data_gradient_curr(npow, nbis, image_width);
 		gpu_compute_entropy_gradient_curr(image_width);
 		
-		// TODO: Enable for debugging
-		temp_image = gpu_get_image(image_size, temp_image, pEntropy_grad);
-	    writefits(temp_image, "!eg.fits");
+		// Enable for debugging, good to compare against the cpu.
+		//temp_image = gpu_get_image(image_size, temp_image, pEntropy_grad);
+	    //writefits(temp_image, "!eg.fits");
         
         // Now compute the criterion gradient:
         gpu_compute_criterion_gradient(image_width, hyperparameter_entropy);
         
-        // TODO: Enable for debugging
-        temp_image = gpu_get_image(image_size, temp_image, pFull_gradient_new);
-	    writefits(temp_image, "!cg.fits");
-	    
-	    goto abort;
+        // Enable for debugging, good to compare against the cpu.
+        //temp_image = gpu_get_image(image_size, temp_image, pFull_gradient_new);
+	    //writefits(temp_image, "!cg.fits");
         
 		grad_evals++;
 		
@@ -703,8 +701,9 @@ int main(int argc, char *argv[])
 		// Compute descent direction
 		//
 		gpu_compute_descent_dir(image_width, beta);
-
-	    temp_image = gpu_get_image(image_size, temp_image, pDescent_direction);
+		
+		// Enable for debugging, useful to compare against the CPU
+		temp_image = gpu_get_image(image_size, temp_image, pDescent_direction);
 	    writefits(temp_image, "!dd.fits");
 
 		// Some tests on descent direction
@@ -747,7 +746,11 @@ int main(int argc, char *argv[])
 			//
 
 			//  Step 1: compute the temporary image: I1 = I0 - coeff * descent direction
-			gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
+            gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
+            temp_image = gpu_get_image(image_size, temp_image, pTemp_image);
+            writefits(temp_image, "!ti.fits");			
+            
+            goto abort;
 
 			// Step 2: Compute criterion(I1)
 		    chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
@@ -842,8 +845,9 @@ int main(int argc, char *argv[])
 
 	} // End Conjugated Gradient.
 
-     //gpu_check_data(NULL, nuv, visi, data_size, mock, image_size, NULL);
     abort:
+
+    //gpu_check_data(NULL, nuv, visi, data_size, mock, image_size, NULL);
     
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();

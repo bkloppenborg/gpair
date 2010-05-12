@@ -11,5 +11,5 @@ __kernel void criterion_grad(
     
     int k = image_width[0] * i + j;
     
-    full_grad_new[k] = data_gradient[k]; // - h_entropy * entropy_grad[k];
+    full_grad_new[k] = data_gradient[k] - h_entropy * entropy_grad[k];
 }

@@ -1614,7 +1614,7 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
 /*    if(gpu_enable_debug && gpu_enable_verbose)*/
 /*        printf("Powerspectrum Kernel: Global: %i Local %i \n", (int)global, (int)local);*/
         
-    //err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);
     if (err)
         print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
     
