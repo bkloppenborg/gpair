@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 2;
+	int iterations = 3;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
 				steplength = steplength_max;
 			
 			linesearch_iteration++;
-            printf("Criterion %8.8e Steplength %8.8e Steplength old %8.8e -- Bracket\n", criterion, steplength, steplength_old);
+            //printf("Criterion %8.8e Steplength %8.8e Steplength old %8.8e -- Bracket\n", criterion, steplength, steplength_old);
 
 		}
 		// End of line search
@@ -620,13 +620,13 @@ int main(int argc, char *argv[])
 	cl_mem * pCurr_image = gpu_getp_ci();
 	//cl_mem * pTemp_image = gpu_getp_ti();
 	
-    printf("Entering Main CG Loop.\n");
+    //printf("Entering Main CG Loop.\n");
     
     //chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
 
 	for (uu = 0; uu < iterations; uu++)
 	{
-        printf("\nStarting new iteration of main loop.\n\n");
+        //printf("\nStarting new iteration of main loop.\n\n");
 		//
 		// Compute the criterion
 		//
@@ -702,7 +702,7 @@ int main(int argc, char *argv[])
 				beta = 0.;
 		}
 		
-		printf("BETA: %1f\n", beta);
+		//printf("BETA: %1f\n", beta);
 
 		//
 		// Compute descent direction
@@ -730,7 +730,7 @@ int main(int argc, char *argv[])
 		// Compute quantity for Wolfe condition 1
 		wolfe_product1 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new);
 
-		printf("WolfeProd1: %e\n\n", wolfe_product1);
+		//printf("WolfeProd1: %e\n\n", wolfe_product1);
 
 		// Initialize variables for line search
 		selected_steplength = 0.;
@@ -746,7 +746,7 @@ int main(int argc, char *argv[])
 
 		while (1)
 		{
-		    printf("Entering Second Control Loop\nEvaluating the criterion (steplength).\n");
+		    //printf("Entering Second Control Loop\nEvaluating the criterion (steplength).\n");
 
 			//
 			// Evaluate criterion(steplength)
@@ -993,7 +993,7 @@ void init_data(int do_extrapolation)
 	  data_err[npow + 2 * ii] = 1. / oifits_info.bisamperr[ii];
 	  data_err[npow + 2 * ii + 1] = 1. / fabs(oifits_info.bisamp[ii] * oifits_info.bisphserr[ii] * PI / 180. );	  
 	  data_phasor[ii] = cexp(-I * oifits_info.bisphs[ii] * PI / 180.);
-	  printf("ii %d err1 %f err2 %f \n ", ii, data_err[npow + 2 * ii], data_err[npow + 2 * ii + 1]);
+	  //printf("ii %d err1 %f err2 %f \n ", ii, data_err[npow + 2 * ii], data_err[npow + 2 * ii + 1]);
 	}
 	
 }

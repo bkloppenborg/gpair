@@ -1943,12 +1943,14 @@ float gpu_linesearch_zoom(
 /*	    printf("Waiting\n");*/
 /*	    getchar();*/
 /*		*/
-        printf("LSZoom\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
-        printf("LSZoom\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
-		printf("Criterion %8.8e Steplength %8.8le Low %8.8le High %8.8le Counter %d -- Zoom \n", criterion, steplength, steplength_low, steplength_high, counter);
 
-
-		printf("Test 1\t criterion %lf criterion_init %lf second member wolfe_param1 %1f wolfe_product1 %1f\n", criterion , criterion_init,  wolfe_param1, wolfe_product1);
+        if(gpu_enable_verbose && gpu_enable_debug)
+        {
+            printf("LSZoom\t criterion %lf criterion_init %lf criterion_old %lf \n", criterion , criterion_init, criterion_old );
+            printf("LSZoom\t chi2 %1f entropy %1f hyperparameter_entropy %1f\n", chi2, entropy, hyperparameter_entropy);
+		    printf("Criterion %8.8e Steplength %8.8le Low %8.8le High %8.8le Counter %d -- Zoom \n", criterion, steplength, steplength_low, steplength_high, counter);
+		    printf("Test 1\t criterion %lf criterion_init %lf second member wolfe_param1 %1f wolfe_product1 %1f\n", criterion , criterion_init,  wolfe_param1, wolfe_product1);
+		}
 		if ( (criterion > ( criterion_init + wolfe_param1 * steplength * wolfe_product1 ) ) || ( criterion >= criterion_steplength_low ) )
 		{
 			steplength_high = steplength;
@@ -1971,7 +1973,9 @@ float gpu_linesearch_zoom(
 			temp_image = gpu_get_image(image_size, temp_image, pTemp_gradient);
             writefits(temp_image, "!tg.fits");
 
-			printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
+            if(gpu_enable_verbose && gpu_enable_debug)
+	    		printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
+	
 			if( ( wolfe_product2 >= wolfe_param2 * wolfe_product1 ) || ( counter > 10 ))
 			{
 				selected_steplength = steplength;
