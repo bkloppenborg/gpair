@@ -265,6 +265,8 @@ int main(int argc, char *argv[])
 	i2v_info.mock = mock;
 	i2v_info.image_width = image_width;
 
+#ifndef USE_GPU
+
 	float * data_gradient = malloc(image_size * sizeof(float));
 	float * entropy_gradient = malloc(image_size * sizeof(float));
 	float * full_gradient = malloc(image_size * sizeof(float));
@@ -277,7 +279,6 @@ int main(int argc, char *argv[])
 	memset(descent_direction, 0, image_size * sizeof(float));
     //chi2 = image2chi2(&i2v_info, current_image);
 
-#ifndef USE_GPU
 	// Test 1 : compute mock data, powerspectra + bispectra from scratch
 	//clock_t tick = clock();
 	//clock_t tock = 0;
@@ -851,8 +852,6 @@ int main(int argc, char *argv[])
 		gpu_backup_gradient(image_width * image_width, pFull_gradient, pFull_gradient_new);
 
 	} // End Conjugated Gradient.
-
-    abort:
 
     //gpu_check_data(NULL, nuv, visi, data_size, mock, image_size, NULL);
     
