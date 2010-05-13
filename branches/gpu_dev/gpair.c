@@ -126,6 +126,16 @@ int main(int argc, char *argv[])
 			sscanf(argv[ii + 1], "%f", &hyperparameter_entropy);
 			printf("Hyperparameter entropy = %f\n", hyperparameter_entropy);
 		}
+	        else if (strcmp(argv[ii], "-wavmin") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &usersel.minband);
+			printf("Low wav = %f\n", usersel.minband);
+		}
+		else if (strcmp(argv[ii], "-wavmax") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &usersel.maxband);
+			printf("High wav = %f\n", usersel.maxband);
+		}
 		
 	}
 	
@@ -223,7 +233,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 10;
+	int iterations = 200;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
