@@ -79,6 +79,7 @@ cl_mem * gpu_getp_fgn();
 cl_mem * gpu_getp_fg();
 cl_mem * gpu_getp_dd();
 cl_mem * gpu_getp_tg();
+cl_mem * gpu_getp_eg();
 
 void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image);
 

@@ -615,9 +615,9 @@ int main(int argc, char *argv[])
 	cl_mem * pFull_gradient = gpu_getp_fg();
 	cl_mem * pDescent_direction = gpu_getp_dd();
 	cl_mem * pTemp_gradient = gpu_getp_tg();
-	cl_mem * pEntropy_grad = gpu_getp_eg();
+	//cl_mem * pEntropy_grad = gpu_getp_eg();
 	cl_mem * pCurr_image = gpu_getp_ci();
-	cl_mem * pTemp_image = gpu_getp_ti();
+	//cl_mem * pTemp_image = gpu_getp_ti();
 	
     printf("Entering Main CG Loop.\n");
     
