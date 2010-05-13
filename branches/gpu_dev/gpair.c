@@ -79,7 +79,8 @@ int main(int argc, char *argv[])
 	float image_pixellation = 0.15;
 	float modelwidth = 5., modelflux = 10.;
 	int modeltype = 3;
-	
+	float hyperparameter_entropy = 1000.;
+
 	// Parse command line arguments:
 	for (ii = 1; ii < argc; ii += 2)
 	{
@@ -119,7 +120,12 @@ int main(int argc, char *argv[])
 		{
 			sscanf(argv[ii + 1], "%s", modelfile);
 			printf("Model image = %s\n", modelfile);
-		}		
+		}
+		else if (strcmp(argv[ii], "-a") == 0)
+		{
+			sscanf(argv[ii + 1], "%f", &hyperparameter_entropy);
+			printf("Hyperparameter entropy = %f\n", hyperparameter_entropy);
+		}
 		
 	}
 	
@@ -217,7 +223,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 3;
+	int iterations = 50;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -237,7 +243,7 @@ int main(int argc, char *argv[])
 	float wolfe_product1 = 0.0;
 	float wolfe_product2 = 0.0;
 
-	float entropy, hyperparameter_entropy = 1000.;
+	float entropy;
 	float criterion;
 	int gradient_method = 0;
 	
