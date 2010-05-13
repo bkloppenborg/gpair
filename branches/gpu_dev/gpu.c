@@ -1968,10 +1968,10 @@ float gpu_linesearch_zoom(
 			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
 			
 			// Enable for debugging:
-			temp_image = gpu_get_image(image_size, temp_image, pDescent_direction);
-			writefits(temp_image, "!dd.fits");
-			temp_image = gpu_get_image(image_size, temp_image, pTemp_gradient);
-            writefits(temp_image, "!tg.fits");
+/*			temp_image = gpu_get_image(image_size, temp_image, pDescent_direction);*/
+/*			writefits(temp_image, "!dd.fits");*/
+/*			temp_image = gpu_get_image(image_size, temp_image, pTemp_gradient);*/
+/*          writefits(temp_image, "!tg.fits");*/
 
             if(gpu_enable_verbose && gpu_enable_debug)
 	    		printf("Wolfe products: %le %le Second member wolfe2 %le \n", wolfe_product1, wolfe_product2, - wolfe_param2 * wolfe_product1);
