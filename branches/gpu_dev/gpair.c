@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 50;
+	int iterations = 10;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 
 	float entropy;
 	float criterion;
-	int gradient_method = 0;
+	int gradient_method = 2;
 	
 	float * temp_image;
 	
@@ -626,6 +626,8 @@ int main(int argc, char *argv[])
 	cl_mem * pCurr_image = gpu_getp_ci();
 	//cl_mem * pTemp_image = gpu_getp_ti();
 	
+	float temp_a, temp_b, temp_c;
+	
     //printf("Entering Main CG Loop.\n");
     
     //chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
@@ -707,6 +709,12 @@ int main(int argc, char *argv[])
 			    / gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new)) > .5)
 				beta = 0.;
 		}
+		
+		temp_a = gpu_get_scalprod(image_width, image_width, pFull_gradient, pFull_gradient);
+		temp_b = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) ;
+		temp_c = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient);
+		
+		printf("temp_a %1f temp_b %1f temp_c %1f\n", temp_a, temp_b, temp_c);
 		
 		//printf("BETA: %1f\n", beta);
 
@@ -855,7 +863,7 @@ int main(int argc, char *argv[])
 		gpu_update_image(image_width, selected_steplength, minvalue, pDescent_direction);
 
 		// Backup gradient
-		gpu_backup_gradient(image_width * image_width, pFull_gradient, pFull_gradient_new);
+		gpu_backup_gradient(image_width * image_width, pFull_gradient_new, pFull_gradient);
 
 	} // End Conjugated Gradient.
 
