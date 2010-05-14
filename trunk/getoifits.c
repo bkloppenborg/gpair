@@ -140,8 +140,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 								data->uv[data->nuv].u = (float)(vis2.record[i].ucoord / wave.eff_wave[k]);
 								data->uv[data->nuv].v = (float)(vis2.record[i].vcoord / wave.eff_wave[k]);
 								//printf("%d %e %e %e\n", k,  wave.eff_wave[k], wave.eff_band[k], wave.eff_band[k] / wave.eff_wave[k]);
-								//data->uv[data->nuv].wavelength = wave.eff_wave[k];
-								//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+								data->uv[data->nuv].wavelength = wave.eff_wave[k];
+								data->uv[data->nuv].bandwidth = wave.eff_band[k];
 								
 								/* flip into +u half plane */
 								if(data->uv[data->nuv].u<0.0)
@@ -185,7 +185,9 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 						for(k=0; k<t3.nwave; k++)
 						{
 
-							if(((wave.eff_wave[k]*billion)>usersel->minband)&&((wave.eff_wave[k]*billion)<usersel->maxband)&&(!(t3.record[i].flag[k])))
+						  if(((wave.eff_wave[k]*billion)>usersel->minband)
+						     &&((wave.eff_wave[k]*billion)<usersel->maxband)
+						     &&(!(t3.record[i].flag[k])))
 							{
 								/* Trick to use closure data without available bis amplitudes */
 								if(isnan(t3.record[i].t3amp[k]))
@@ -201,7 +203,6 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 
 								data->bisphs[data->nbis] = (float)(t3.record[i].t3phi[k]);
 								data->bisphserr[data->nbis] = (float)(t3.record[i].t3phierr[k]);
-
 								// data->bistime[data->nbis] = t3.time;
 
 								/* Read UV coords and check if they exist. If do not exist -> update UV.
@@ -220,7 +221,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 								uvexists = 0;
 								for(l=0; l<data->nuv; l++)
 								{
-									if((npve = compare_uv(puv1, data->uv[l], uv_threshold)))
+								  npve = compare_uv(puv1, data->uv[l], uv_threshold);								  
+								  if(  (npve != 0 ) && (wave.eff_wave[k] == data->uv[l].wavelength ) )
 									{
 										data->bsref[data->nbis].ab.uvpnt = l;
 										data->bsref[data->nbis].ab.sign = 1;
@@ -239,8 +241,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 									/* create new uv point */
 									data->uv[data->nuv].u = puv1.u;
 									data->uv[data->nuv].v = puv1.v;
-									//data->uv[data->nuv].wavelength = wave.eff_wave[k];
-									//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+									data->uv[data->nuv].wavelength = wave.eff_wave[k];
+									data->uv[data->nuv].bandwidth = wave.eff_band[k];
 									data->bsref[data->nbis].ab.uvpnt = l;
 									data->bsref[data->nbis].ab.sign = 1;
 
@@ -258,7 +260,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 								uvexists = 0;
 								for(l=0; l<data->nuv; l++)
 								{
-									if((npve = compare_uv(puv2, data->uv[l], uv_threshold)))
+								  npve = compare_uv(puv2, data->uv[l], uv_threshold);
+								  if(  (npve != 0 ) && (wave.eff_wave[k] == data->uv[l].wavelength ) )
 									{
 										data->bsref[data->nbis].bc.uvpnt = l;
 										data->bsref[data->nbis].bc.sign = 1;
@@ -278,8 +281,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 									/* create new uv point */
 									data->uv[data->nuv].u = puv2.u;
 									data->uv[data->nuv].v = puv2.v;
-									//data->uv[data->nuv].wavelength = wave.eff_wave[k];
-									//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+									data->uv[data->nuv].wavelength = wave.eff_wave[k];
+									data->uv[data->nuv].bandwidth = wave.eff_band[k];
 									data->bsref[data->nbis].bc.uvpnt = l;
 									data->bsref[data->nbis].bc.sign = 1;
 
@@ -297,7 +300,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 								uvexists = 0;
 								for(l=0; l<data->nuv; l++)
 								{
-									if((npve = compare_uv(puv3, data->uv[l], uv_threshold)))
+								  npve = compare_uv(puv3, data->uv[l], uv_threshold);
+								  if(  (npve != 0 ) && (wave.eff_wave[k] == data->uv[l].wavelength ) )
 									{
 										data->bsref[data->nbis].ca.uvpnt = l;
 										data->bsref[data->nbis].ca.sign = 1;
@@ -317,8 +321,8 @@ int get_oi_fits_data(oi_usersel* usersel, oi_data* data, int* status)
 									/* create new uv point */
 									data->uv[data->nuv].u = puv3.u;
 									data->uv[data->nuv].v = puv3.v;
-									//data->uv[data->nuv].wavelength = wave.eff_wave[k];
-									//data->uv[data->nuv].bandwidth = wave.eff_band[k];
+									data->uv[data->nuv].wavelength = wave.eff_wave[k];
+									data->uv[data->nuv].bandwidth = wave.eff_band[k];
 									data->bsref[data->nbis].ca.uvpnt = l;
 									data->bsref[data->nbis].ca.sign = 1;
 

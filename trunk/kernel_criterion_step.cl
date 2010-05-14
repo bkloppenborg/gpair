@@ -7,9 +7,9 @@ __kernel void criterion_step(
     __global float * temp_image)
 {
     int i = get_global_id(0);
-/*    int j = get_global_id(1);*/
-/*    */
-/*    int k = image_width[0] * i + j;*/
+    int j = get_global_id(1);
     
-/*    temp_image[k] = current_image[k] + steplength * descent_direction[k];*/
+    int k = image_width[0] * i + j;
+    
+    temp_image[k] = current_image[k] + steplength * descent_direction[k];
 }

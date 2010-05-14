@@ -18,7 +18,7 @@ __kernel void entropy_gs(
     float S = 0;
     
     if(t_image > 0 && t_model > 0)
-        S = t_image - t_model - t_image * log(t_image / t_model);
+        S = t_image - t_model - t_image * log(t_image/t_model);
     else
         S = -1 * t_model;
     

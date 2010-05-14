@@ -9,11 +9,12 @@ __kernel void update_tempimage(
 {
     int i = get_global_id(0);
     int j = get_global_id(1);
-    
     int k = image_width[0] * i + j;
     
-    temp_image[k] += current_image[k] + steplength * descent_direction[k];
+    float temp = current_image[k] + steplength * descent_direction[k];
     
-    if (current_image[k] < minvalue)
-        current_image[k] = minvalue;
+    if (temp < minvalue)
+        temp = minvalue;
+        
+    temp_image[k] = temp;
 }

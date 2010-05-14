@@ -455,7 +455,9 @@ void image2vis(int image_width, int nuv,
 	float zeroflux = 0.; // zeroflux 
 
 	for(ii=0; ii < image_width * image_width; ii++)
-	zeroflux += image[ii];
+	    zeroflux += image[ii];
+	
+    printf("CPU Flux: %f\n", zeroflux);
 
 	for(uu=0; uu < nuv; uu++)
 	{
@@ -779,11 +781,11 @@ void vis2data(int npow, int nbis,
 		vbc = visi[ oifits_info.bsref[ii].bc.uvpnt ];
 		vca = visi[ oifits_info.bsref[ii].ca.uvpnt ];
 		if( oifits_info.bsref[ii].ab.sign < 0)
-		vab = conj(vab);
+		    vab = conj(vab);
 		if( oifits_info.bsref[ii].bc.sign < 0)
-		vbc = conj(vbc);
+		    vbc = conj(vbc);
 		if( oifits_info.bsref[ii].ca.sign < 0)
-		vca = conj(vca);
+		    vca = conj(vca);
 
 		t3 = ( vab * vbc * vca ) * data_phasor[ii];
 		mock[ npow + 2 * ii ] = creal(t3);

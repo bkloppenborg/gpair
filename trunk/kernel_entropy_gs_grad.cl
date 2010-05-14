@@ -13,5 +13,12 @@ __kernel void entropy_gs_grad(
     // The location in the input data array		
     int k = image_width[0] * i + j;
     
-    output[k] = -log(image[k] / default_model[k]);
+    float t_image = image[k];
+    float t_model = default_model[k];
+    float dS = output[k];
+    
+    if ((t_image > 0.) && (t_model > 0.))
+        dS = -1 * log(t_image / t_model);
+        
+    output[k] = dS;
 }

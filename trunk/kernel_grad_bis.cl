@@ -88,7 +88,7 @@ __kernel void grad_bis(
     float data_grad = 0;
     
     int k = 0;
-    for(k = 0; k < 2; k++)
+    for(k = 0; k < nbis; k++)
     {
         uvpnt = data_uvpnt[k];
         vab = visi[uvpnt.s0];
@@ -128,5 +128,5 @@ __kernel void grad_bis(
         data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[npow + 2 * k + 1] * mock[ npow + 2 * k + 1] * t3der.s1;	   					
     }
 
-    data_gradient[j * image_width + i] = data_grad;
+    data_gradient[j * image_width + i] += data_grad;
 }
