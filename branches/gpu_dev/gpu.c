@@ -618,11 +618,11 @@ void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entrop
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
+    local[0] = local[1] = (size_t) 16;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_criterion_grad, 0, sizeof(cl_mem), pGpu_data_grad);
@@ -641,7 +641,7 @@ void gpu_compute_criterion_gradient(int image_width, float hyperparameter_entrop
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_criterion_grad, 2, 0, global, local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Cannot enqueue entropy kernel.", err); 
+        print_opencl_error("Cannot enqueue Criterion Gradient kernel.", err); 
     
     clFinish(*pQueue);   
 }
@@ -671,11 +671,11 @@ void gpu_compute_criterion_step(int image_width, float steplength, float minvalu
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
+    local[0] = local[1] = (size_t) 16;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_criterion_step, 0, sizeof(cl_mem), pGpu_image);
@@ -708,11 +708,11 @@ void gpu_compute_descent_dir(int image_width, float beta)
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
+    local[0] = local[1] = (size_t) 16;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_descent_dir, 0, sizeof(cl_mem), pGpu_descent_dir);
@@ -730,7 +730,7 @@ void gpu_compute_descent_dir(int image_width, float beta)
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_descent_dir, 2, 0, global, local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Cannot enqueue entropy kernel.", err); 
+        print_opencl_error("Descent Direction Kernel.", err); 
     
     clFinish(*pQueue);   
 }
@@ -749,6 +749,7 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
     size_t * local;
     local = malloc(2 * sizeof(size_t));
     local[0] = local[1] = (size_t) 16;
+    size_t l_suggested = 0;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
@@ -760,13 +761,19 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
     err |= clSetKernelArg(*pKernel_entropy, 2, sizeof(cl_mem), pGpu_default_model);
     err |= clSetKernelArg(*pKernel_entropy, 3, sizeof(cl_mem), pGpu_entropy_image);  
 
-/*   // Get the maximum work-group size for executing the kernel on the device*/
-/*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
+   // Get the maximum work-group size for executing the kernel on the device
+    err = clGetKernelWorkGroupInfo(*pKernel_entropy, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &l_suggested, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("Cannot", err);
 
-/*    // Round down to the nearest power of two.*/
-/*    local = pow(2, floor(log(npow) / log(2)));*/
+    if(l_suggested < local[0] * local[1])
+    {
+        printf("Warning: Decreasing Kernel size for Entropy kernel.\n");
+        // Round down to the nearest power of two.
+        l_suggested = floor(log(l_suggested) / log(2));
+        local[0] = l_suggested;
+        local[1] = l_suggested;
+    }
 
     if(gpu_enable_debug || gpu_enable_verbose)
         printf("Entropy Kernel: Global: %i Local %i \n", (int) (global[0] * global[1]), (int) (local[0] * local[1]));
@@ -792,31 +799,42 @@ void gpu_compute_entropy_gradient(int image_width, cl_mem * gpu_image)
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
+    local[0] = local[1] = (size_t) 8;
+    int l_suggested = 0;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
     
     gpu_image = pGpu_image;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_entropy_grad, 0, sizeof(cl_mem), pGpu_image_width);
     err |= clSetKernelArg(*pKernel_entropy_grad, 1, sizeof(cl_mem), gpu_image);
-    err |= clSetKernelArg(*pKernel_entropy_grad, 2, sizeof(cl_mem), gpu_image);
+    err |= clSetKernelArg(*pKernel_entropy_grad, 2, sizeof(cl_mem), pGpu_default_model);
     err |= clSetKernelArg(*pKernel_entropy_grad, 3, sizeof(cl_mem), pGpu_entropy_grad);  
 
-/*   // Get the maximum work-group size for executing the kernel on the device*/
-/*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
+   // Get the maximum work-group size for executing the kernel on the device
+    err = clGetKernelWorkGroupInfo(*pKernel_entropy_grad, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &l_suggested, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("Cannot determine local size for entropy gradient kernel.", err);
 
-/*    // Round down to the nearest power of two.*/
-/*    local = pow(2, floor(log(npow) / log(2)));*/
+    if(l_suggested < local[0] * local[1])
+    {
+        printf("Warning: Decreasing Kernel size for Entropy kernel.\n");
+        // Round down to the nearest power of two.
+        l_suggested = floor(log(l_suggested) / log(2));
+        local[0] = l_suggested;
+        local[1] = l_suggested;
+    }
+
+    if(gpu_enable_debug || gpu_enable_verbose)
+        printf("Entropy Gradient Kernel: Global: %i, %i Local %i, %i\n", (int)global[0], (int)global[1], (int)local[0], (int)local[1]);
+    
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_entropy_grad, 2, 0, global, local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Cannot enqueue entropy kernel.", err); 
+        print_opencl_error("Cannot enqueue entropy gradient kernel.", err); 
     
     clFinish(*pQueue);   
 }
@@ -1297,7 +1315,7 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
         
 
     // Copy the data over to the device.  (note, non-blocking cals)
-    err = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
+    err  = clEnqueueWriteBuffer(*pQueue, gpu_data, CL_FALSE, 0, sizeof(float) * data_size, data, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_err, CL_FALSE, 0, sizeof(float) * data_size, data_err, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_data_phasor, CL_FALSE, 0, sizeof(cl_float2) * phasor_size, data_phasor, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, gpu_pow_size, CL_FALSE, 0, sizeof(int), &pow_size, 0, NULL, NULL);
@@ -1586,11 +1604,11 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 8;
+    local[0] = local[1] = (size_t) 8;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
 
     if(gpu_enable_debug || gpu_enable_verbose)
         printf("Data Gradient Kernels: Global: %i, %i Local %i, %i\n", (int)global[0], (int)global[1], (int)local[0], (int)local[1]);
@@ -2219,11 +2237,11 @@ void gpu_update_image(int image_width, float steplength, float minval, cl_mem * 
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
+    local[0] = local[1] = (size_t) 16;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_update_image, 0, sizeof(cl_mem), pGpu_image);
@@ -2259,11 +2277,11 @@ void gpu_update_tempimage(int image_width, float steplength, float minval, cl_me
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = 16;
+    local[0] = local[1] = (size_t) 16;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
-    global[0] = global[1] = image_width;
+    global[0] = global[1] = (size_t) image_width;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_update_tempimage, 0, sizeof(cl_mem), pGpu_image);

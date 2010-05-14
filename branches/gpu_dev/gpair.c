@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
 
 	float entropy;
 	float criterion;
-	int gradient_method = 2;
+	int gradient_method = 0;
 	
 	float * temp_image;
 	
@@ -646,7 +646,7 @@ int main(int argc, char *argv[])
 
 	for (uu = 0; uu < iterations; uu++)
 	{
-        //printf("\nStarting new iteration of main loop.\n\n");
+        printf("\nStarting new iteration of main loop.\n\n");
 		//
 		// Compute the criterion
 		//
@@ -663,7 +663,7 @@ int main(int argc, char *argv[])
 		if(uu%5 == 0)
 		{
 		    temp_image = gpu_get_image(image_size, temp_image, pCurr_image);
-		    writefits(temp_image, "!temp.fits");
+		    writefits(temp_image, "!reconst.fits");
 		    //getchar();
 		}
 
@@ -728,7 +728,7 @@ int main(int argc, char *argv[])
 /*		*/
 /*		printf("temp_a %1f temp_b %1f temp_c %1f\n", temp_a, temp_b, temp_c);*/
 		
-		//printf("BETA: %1f\n", beta);
+		printf("BETA: %1f\n", beta);
 
 		//
 		// Compute descent direction
