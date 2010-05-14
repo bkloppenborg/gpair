@@ -1161,6 +1161,9 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
 {
     int err = 0;
     int i;
+    
+    int data_impact = 0;            // For internal use, keeps track of number of bytes required.
+    int fsize = sizeof(float);
 
     static cl_mem gpu_data;         // Data
     static cl_mem gpu_data_err;     // Data Error
@@ -1238,8 +1241,12 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     gpu_data_sign = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(cl_short4) * bsref_size, NULL, NULL);
     gpu_mock_data = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     
+    data_impact += 3 * data_size * fsize +  2 * phasor_size * fsize + sizeof(int) 
+        + 4 * sizeof(long) * bsref_size + 4* sizeof(short) * bsref_size;
+    
     // Buffers for scalar products of size image_width wide
     gpu_scaprod = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
+    data_impact += fsize;
 
     // Buffers for Gradients, entropy, for the line search.
     gpu_data_grad = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
@@ -1250,15 +1257,21 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     gpu_grad_temp = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_descent_dir = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     
+    data_impact += 6 * image_size * fsize;
+    
     // Image and model buffers:
     gpu_default_model = clCreateBuffer(*pContext, CL_MEM_READ_ONLY, sizeof(float) * image_size, NULL, NULL);
     gpu_image = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);      
     gpu_image_temp = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);    
+
+    data_impact += 3 * image_size * fsize;
     
     gpu_chi2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
     gpu_chi2_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_chi2_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
     gpu_chi2_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * data_size, NULL, NULL);
+    
+    data_impact += 3 * data_size * fsize;
     
     // Buffers for the entropy, and partial sums of the entropy.  
     gpu_entropy = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
@@ -1267,6 +1280,8 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
     gpu_flux_buffer0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_flux_buffer1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
     gpu_flux_buffer2 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(float) * image_size, NULL, NULL);
+    
+    data_impact += 3 * fsize + 3 * image_size * fsize;
     
     gpu_visi0 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(cl_float2) * data_size_uv, NULL, NULL);
     gpu_visi1 = clCreateBuffer(*pContext, CL_MEM_READ_WRITE, sizeof(cl_float2) * data_size_uv, NULL, NULL);
@@ -1277,6 +1292,8 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
 
     if(gpu_enable_verbose || gpu_enable_debug)
         printf("Copying data to device. \n");
+        
+    printf("Total memory needed on GPU: %i bytes.\n", data_impact);
         
 
     // Copy the data over to the device.  (note, non-blocking cals)
@@ -1574,6 +1591,9 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
     size_t * global;
     global = malloc(2 * sizeof(size_t));
     global[0] = global[1] = image_width;
+
+    if(gpu_enable_debug || gpu_enable_verbose)
+        printf("Data Gradient Kernels: Global: %i, %i Local %i, %i\n", (int)global[0], (int)global[1], (int)local[0], (int)local[1]);
     
     // Start with the chi2
     err  = clSetKernelArg(*pKernel_grad_pow, 0, sizeof(cl_mem), pGpu_data);
@@ -1602,9 +1622,7 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_pow, 2, 0, global, local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Cannot enqueue v2 gradient kernel.", err); 
-    
-    clFinish(*pQueue);    
+        print_opencl_error("Cannot enqueue powerspectrum gradient kernel.", err);     
      
     err  = clSetKernelArg(*pKernel_grad_bis, 0, sizeof(cl_mem), pGpu_data);
     err |= clSetKernelArg(*pKernel_grad_bis, 1, sizeof(cl_mem), pGpu_data_err);
@@ -1867,13 +1885,13 @@ void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image)
     err |= clSetKernelArg(*pKernel_visi, 8, local * sizeof(cl_float2), NULL);
     
     // Execute the kernel over the entire range of the data set        
-    global = data_alloc_uv;
-    if(gpu_enable_debug && gpu_enable_verbose)
-      printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);
+    global = (size_t) data_alloc_uv;
+    if(gpu_enable_debug || gpu_enable_verbose)
+        printf("Visi Kernel: Global: %i Local %i \n", (int)global, (int)local);
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_visi, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("clEnqueueNDRangeKernel visi", err);  
+        print_opencl_error("Cannot Enqueue visi kernel.", err);  
         
     clFinish(*pQueue);
 }
@@ -2132,17 +2150,15 @@ void gpu_vis2data(cl_mem * gpu_visi, int nuv, int npow, int nbis)
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);    
  
-
-   // Get the maximum work-group size for executing the kernel on the device
-    err = clGetKernelWorkGroupInfo(*pKernel_powspec, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
-    if (err != CL_SUCCESS)
-        print_opencl_error("clGetKernelWorkGroupInfo", err);
+/*   // Get the maximum work-group size for executing the kernel on the device*/
+/*    err = clGetKernelWorkGroupInfo(*pKernel_powspec, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
+/*    if (err != CL_SUCCESS)*/
+/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
 
     // Execute the kernel over the entire range of the data set        
-    global = npow;
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, NULL, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("clEnqueueNDRangeKernel vis", err);   
+        print_opencl_error("Could not enqueue powerspectrum visi kernel.", err);   
         
     clFinish(*pQueue);
         
@@ -2167,7 +2183,7 @@ void gpu_vis2data(cl_mem * gpu_visi, int nuv, int npow, int nbis)
     global = nbis;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_bispec, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
-        print_opencl_error("clEnqueueNDRangeKernel vis", err);   
+        print_opencl_error("Could not enqueue bispectrum visi kernel.", err);   
 
     clFinish(*pQueue);
 }
@@ -2226,7 +2242,7 @@ void gpu_update_image(int image_width, float steplength, float minval, cl_mem * 
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_update_image, 2, 0, global, local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Cannot enqueue entropy kernel.", err); 
+        print_opencl_error("Cannot enqueue image update kernel.", err); 
     
     clFinish(*pQueue);   
 }
@@ -2267,7 +2283,7 @@ void gpu_update_tempimage(int image_width, float steplength, float minval, cl_me
         
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_update_tempimage, 2, 0, global, local, 0, NULL, NULL);
     if (err)
-        print_opencl_error("Cannot enqueue entropy kernel.", err); 
+        print_opencl_error("Cannot temp image update kernel.", err); 
     
     clFinish(*pQueue);   
 }

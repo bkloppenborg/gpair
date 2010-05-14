@@ -157,14 +157,16 @@ int main(int argc, char *argv[])
 	// First thing we do is make all data occupy memory elements that are powers of two.  This makes
 	// the GPU code much easier to speed up.
 	int data_size = npow + 2 * nbis;
-	int data_alloc = pow(2, ceil(log(data_size) / log(2))); // Arrays are allocated to be powers of 2
+	//int data_alloc = pow(2, ceil(log(data_size) / log(2))); // Arrays are allocated to be powers of 2
 	int data_alloc_uv = pow(2, ceil(log(nuv) / log(2)));
-	int data_alloc_phasor = pow(2, ceil(log(nbis) / log(2)));
+	int data_alloc_pow = pow(2, ceil(log(npow) / log(2)));
+	int data_alloc_bis = pow(2, ceil(log(nbis) / log(2)));
+	int data_alloc = data_alloc_pow + data_alloc_bis;
 
 	// Allocate memory for the data, error, and mock arrays:
 	data = malloc(data_alloc * sizeof(float));
 	data_err = malloc(data_alloc * sizeof(float));
-	data_phasor = malloc(data_alloc_phasor * sizeof( float complex ));
+	data_phasor = malloc(data_alloc_bis * sizeof( float complex ));
 	init_data(1);
 
 	// Pad the arrays with zeros and ones after the data (for opencl)
@@ -174,7 +176,7 @@ int main(int argc, char *argv[])
 		data_err[ii] = 0.;
 	}
 	
-	for (ii = nbis; ii < data_alloc_phasor ; ii++)
+	for (ii = nbis; ii < data_alloc_bis ; ii++)
 		data_phasor[ii] = 0.;
 
 
@@ -229,11 +231,11 @@ int main(int argc, char *argv[])
 	printf("Data Size: %i, Data Allocation: %i \n", data_size, data_alloc);
 	printf("UV Size: %i, Allocation: %i \n", nuv, data_alloc_uv);
 	printf("POW Size: %i \n", npow);
-	printf("BIS Size: %i, Allocation: %i \n", nbis, data_alloc_phasor);
+	printf("BIS Size: %i, Allocation: %i \n", nbis, data_alloc_bis);
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 200;
+	int iterations = 2;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -546,14 +548,14 @@ int main(int argc, char *argv[])
     int i = 0;
 	// Convert the biphasor over to a cl_float2 in format <real, imaginary>    
 	cl_float2 * gpu_phasor = NULL;
-	gpu_phasor = malloc(data_alloc_phasor * sizeof(cl_float2));
+	gpu_phasor = malloc(data_alloc_bis * sizeof(cl_float2));
 	for(i = 0; i < nbis; i++)
 	{
 		gpu_phasor[i].s0 = creal(data_phasor[i]);
 		gpu_phasor[i].s1 = cimag(data_phasor[i]);
 	}
 	// Pad the remainder
-	for(i = nbis; i < data_alloc_phasor; i++)
+	for(i = nbis; i < data_alloc_bis; i++)
 	{
 		gpu_phasor[i].s0 = 0;
 		gpu_phasor[i].s1 = 0;
@@ -564,7 +566,7 @@ int main(int argc, char *argv[])
 	// coalesced loads on the GPU.
 	cl_long4 * gpu_bsref_uvpnt = NULL;
 	cl_short4 * gpu_bsref_sign = NULL;
-	int data_alloc_bsref = data_alloc_phasor; // TODO: Update code below for this.
+	int data_alloc_bsref = data_alloc_bis; // TODO: Update code below for this.
 	gpu_bsref_uvpnt = malloc(data_alloc_bsref * sizeof(cl_long4));
 	gpu_bsref_sign = malloc(data_alloc_bsref * sizeof(cl_short4));
 	for(i = 0; i < nbis; i++)
@@ -609,7 +611,7 @@ int main(int argc, char *argv[])
 	// Initalize the GPU, copy data, and build the kernels.
 	gpu_init();
 
-	gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_phasor,
+	gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_bis,
 			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
 			default_model,
 			image_size,	image_width);
@@ -658,7 +660,7 @@ int main(int argc, char *argv[])
 				SEP, grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
 				hyperparameter_entropy * entropy, entropy);
 
-		if(uu%2 == 0)
+		if(uu%5 == 0)
 		{
 		    temp_image = gpu_get_image(image_size, temp_image, pCurr_image);
 		    writefits(temp_image, "!temp.fits");
@@ -720,11 +722,11 @@ int main(int argc, char *argv[])
 				beta = 0.;
 		}
 		
-		temp_a = gpu_get_scalprod(image_width, image_width, pFull_gradient, pFull_gradient);
-		temp_b = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) ;
-		temp_c = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient);
-		
-		printf("temp_a %1f temp_b %1f temp_c %1f\n", temp_a, temp_b, temp_c);
+/*		temp_a = gpu_get_scalprod(image_width, image_width, pFull_gradient, pFull_gradient);*/
+/*		temp_b = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient_new) ;*/
+/*		temp_c = gpu_get_scalprod(image_width, image_width, pFull_gradient_new, pFull_gradient);*/
+/*		*/
+/*		printf("temp_a %1f temp_b %1f temp_c %1f\n", temp_a, temp_b, temp_c);*/
 		
 		//printf("BETA: %1f\n", beta);
 
