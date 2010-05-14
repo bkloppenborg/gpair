@@ -27,6 +27,7 @@ __kernel void visi(
     __global float * image,
     __global float2 * dft_x,
     __global float2 * dft_y,
+    __private int nuv,
     __global int * image_size,
     __global float * inv_flux,
     __global float2 * output,
@@ -38,34 +39,30 @@ __kernel void visi(
     visi.s0 = 0;
     visi.s1 = 0;
     
-    int image_width = image_size[0];
-    
     float2 A;
     float2 B;
     float2 C;
     
-    int h = get_global_id(0);
+    int image_width = image_size[0];    
+    int uv_pnt = get_global_id(0);
     int i = 0;
     int j = 0;
-    
-    int offset = image_width * h;
  
     for(j=0; j < image_width; j++)
     {
-        C = dft_y[offset +  j];
+        C = dft_y[nuv * j + uv_pnt];
         
-        for(i=0; i < image_width; i++)
+        for(i=0; i < image_width; i ++)
         {
-            B = dft_x[offset +  i];
+            B = dft_x[nuv * i + uv_pnt];
             A.s0 = image[image_width * j + i];
             A.s1 = 0;
-            
             visi += MultComplex3Special(A, B, C);
         }
     }
     
     // Write the result to the output array
-    output[h] = visi * inv_flux[0];
+    output[uv_pnt] = visi * inv_flux[0];
 }
 
 

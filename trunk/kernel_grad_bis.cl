@@ -61,9 +61,10 @@ __kernel void grad_bis(
     __global float2 * dft_y,
     __global float2 * visi,
     __global float * flux_inv,
-    __private int image_width,
+    __private int nuv,
     __private int nbis,
     __private int npow,
+    __private int image_width,
     __global float * data_gradient)
 {
     int i = get_global_id(0);
@@ -96,9 +97,13 @@ __kernel void grad_bis(
         vca = visi[uvpnt.s2]; 
     
         // Compute the errors in the visibilities from the DFT matricies.
-        vabderr = MultComplex2(dft_x[uvpnt.s0 * image_width + i], dft_y[uvpnt.s0 * image_width + j]);
-        vbcderr = MultComplex2(dft_x[uvpnt.s1 * image_width + i], dft_y[uvpnt.s1 * image_width + j]);
-        vcaderr = MultComplex2(dft_x[uvpnt.s2 * image_width + i], dft_y[uvpnt.s2 * image_width + j]);
+/*        vabderr = MultComplex2(dft_x[uvpnt.s0 * image_width + i], dft_y[uvpnt.s0 * image_width + j]);*/
+/*        vbcderr = MultComplex2(dft_x[uvpnt.s1 * image_width + i], dft_y[uvpnt.s1 * image_width + j]);*/
+/*        vcaderr = MultComplex2(dft_x[uvpnt.s2 * image_width + i], dft_y[uvpnt.s2 * image_width + j]);*/
+
+        vabderr = MultComplex2(dft_x[uvpnt.s0 + nuv * i], dft_y[uvpnt.s0 + nuv * j]);
+        vbcderr = MultComplex2(dft_x[uvpnt.s1 + nuv * i], dft_y[uvpnt.s1 + nuv * j]);
+        vcaderr = MultComplex2(dft_x[uvpnt.s2 + nuv * i], dft_y[uvpnt.s2 + nuv * j]);
         
         // Take the conjugate when necessary:
         sign = data_sign[k];
