@@ -63,8 +63,9 @@ __kernel void grad_pow(
     __global float2 * dft_y,
     __global float2 * visi,
     __global float * inv_flux,
-    __private int image_width,
+    __private int nuv,
     __private int npow,
+    __private int image_width,
     __global float * data_gradient)
 {
     // Load indicies:
@@ -91,7 +92,7 @@ __kernel void grad_pow(
         // The complex portion requires the real part of this expansion:
         // (A0 - %i*A1)*(B0 + %i*B1)*(C0 + %i*C1)
         
-        temp = MultComplex2(dft_x[image_width * k + i], dft_y[image_width * k + j]) - visi[k];
+        temp = MultComplex2(dft_x[k + i * nuv], dft_y[k + j * nuv]) - visi[k];
         temp = MultComplex2(conj(visi[k]), temp);
         
         data_grad += 4.0 * data_err[k] * data_err[k] * invflux * (mock[k] - data[k]) * creal(temp);    

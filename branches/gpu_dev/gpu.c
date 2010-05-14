@@ -1588,7 +1588,7 @@ void gpu_device_stats(cl_device_id device_id)
 	printf("\n");
 }
 
-void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image_width)
+void gpu_compute_data_gradient(cl_mem * gpu_image, int nuv, int npow, int nbis, int image_width)
 {               
     if(gpu_image == NULL)
         print_opencl_error("Image input is NULL in gpu_compute_data_gradient", 0);
@@ -1621,9 +1621,10 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
     err |= clSetKernelArg(*pKernel_grad_pow, 4, sizeof(cl_mem), pGpu_dft_y);
     err |= clSetKernelArg(*pKernel_grad_pow, 5, sizeof(cl_mem), pGpu_visi0);
     err |= clSetKernelArg(*pKernel_grad_pow, 6, sizeof(cl_mem), pGpu_flux1); 
-    err |= clSetKernelArg(*pKernel_grad_pow, 7, sizeof(int), &image_width);
+    err |= clSetKernelArg(*pKernel_grad_pow, 7, sizeof(int), &nuv);
     err |= clSetKernelArg(*pKernel_grad_pow, 8, sizeof(int), &npow);
-    err |= clSetKernelArg(*pKernel_grad_pow, 9, sizeof(cl_mem), pGpu_data_grad);  
+    err |= clSetKernelArg(*pKernel_grad_pow, 9, sizeof(int), &image_width);
+    err |= clSetKernelArg(*pKernel_grad_pow, 10, sizeof(cl_mem), pGpu_data_grad);  
 
 /*   // Get the maximum work-group size for executing the kernel on the device*/
 /*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
@@ -1652,10 +1653,11 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
     err |= clSetKernelArg(*pKernel_grad_bis, 7, sizeof(cl_mem), pGpu_dft_y);
     err |= clSetKernelArg(*pKernel_grad_bis, 8, sizeof(cl_mem), pGpu_visi0);
     err |= clSetKernelArg(*pKernel_grad_bis, 9, sizeof(cl_mem), pGpu_flux1); 
-    err |= clSetKernelArg(*pKernel_grad_bis, 10, sizeof(int), &image_width);
+    err |= clSetKernelArg(*pKernel_grad_bis, 10, sizeof(int), &nuv);
     err |= clSetKernelArg(*pKernel_grad_bis, 11, sizeof(int), &nbis);
     err |= clSetKernelArg(*pKernel_grad_bis, 12, sizeof(int), &npow);
-    err |= clSetKernelArg(*pKernel_grad_bis, 13, sizeof(cl_mem), pGpu_data_grad);
+    err |= clSetKernelArg(*pKernel_grad_bis, 13, sizeof(int), &image_width);
+    err |= clSetKernelArg(*pKernel_grad_bis, 14, sizeof(cl_mem), pGpu_data_grad);
       
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_bis, 2, 0, global, local, 0, NULL, NULL);
     if (err)
@@ -1665,20 +1667,20 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image
     clFinish(*pQueue);
 }
 
-void gpu_compute_data_gradient_curr(int npow, int nbis, int image_width)
+void gpu_compute_data_gradient_curr(int nuv, int npow, int nbis, int image_width)
 {
     if(gpu_enable_verbose || gpu_enable_debug)
         printf("%sComputing data gradient on current image.\n%s", SEP, SEP);
     
-    gpu_compute_data_gradient(pGpu_image, npow, nbis, image_width);
+    gpu_compute_data_gradient(pGpu_image, nuv, npow, nbis, image_width);
 }
 
-void gpu_compute_data_gradient_temp(int npow, int nbis, int image_width)
+void gpu_compute_data_gradient_temp(int nuv, int npow, int nbis, int image_width)
 {
     if(gpu_enable_verbose || gpu_enable_debug)
         printf("%sComputing data gradient on temporary image.\n%s", SEP, SEP);
     
-    gpu_compute_data_gradient(pGpu_image_temp, npow, nbis, image_width);
+    gpu_compute_data_gradient(pGpu_image_temp, nuv, npow, nbis, image_width);
 }
 
 void gpu_init()
@@ -1862,12 +1864,12 @@ void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_
     if(gpu_image == NULL)
         print_opencl_error("Image for computing image2chi2 is NULL!", 0);
         
-    gpu_image2vis(data_alloc_uv, gpu_image);
+    gpu_image2vis(nuv, data_alloc_uv, gpu_image);
     gpu_vis2data(pGpu_visi0, nuv, npow, nbis);
     gpu_data2chi2(data_alloc);
 }
 
-void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image)
+void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image)
 { 
     // Do a quick error check, make sure gpu_image is not null
     if(gpu_image == NULL)
@@ -1886,21 +1888,22 @@ void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image)
    // Get the maximum work-group size for executing the kernel on the device
     err = clGetKernelWorkGroupInfo(*pKernel_visi, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
     if (err != CL_SUCCESS)
-        print_opencl_error("clGetKernelWorkGroupInfo", err);
+        print_opencl_error("Cannot get work group size information for Visi kernel!", err);
 
     // Round down to the nearest power of two.
-    local = pow(2, floor(log(local) / log(2)));
+    local = 16; //pow(2, floor(log(local) / log(2)));
 
     // Now we compute the DFT
     err  = clSetKernelArg(*pKernel_visi, 0, sizeof(cl_mem), gpu_image);
     err |= clSetKernelArg(*pKernel_visi, 1, sizeof(cl_mem), pGpu_dft_x);
     err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), pGpu_dft_y);
-    err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), pGpu_image_width);
-    err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_flux1);    
-    err |= clSetKernelArg(*pKernel_visi, 5, sizeof(cl_mem), pGpu_visi0);
-    err |= clSetKernelArg(*pKernel_visi, 6, local * sizeof(cl_float2), NULL);
+    err |= clSetKernelArg(*pKernel_visi, 3, sizeof(int), &nuv);
+    err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_image_width);   
+    err |= clSetKernelArg(*pKernel_visi, 5, sizeof(cl_mem), pGpu_flux1);    
+    err |= clSetKernelArg(*pKernel_visi, 6, sizeof(cl_mem), pGpu_visi0);
     err |= clSetKernelArg(*pKernel_visi, 7, local * sizeof(cl_float2), NULL);
     err |= clSetKernelArg(*pKernel_visi, 8, local * sizeof(cl_float2), NULL);
+    err |= clSetKernelArg(*pKernel_visi, 9, local * sizeof(cl_float2), NULL);
     
     // Execute the kernel over the entire range of the data set        
     global = (size_t) data_alloc_uv;
@@ -1995,7 +1998,7 @@ float gpu_linesearch_zoom(
 		{
 
 			// Evaluate wolfe product 2
-			gpu_compute_data_gradient_temp(npow, nbis, image_width);
+			gpu_compute_data_gradient_temp(nuv, npow, nbis, image_width);
 			gpu_compute_entropy_gradient_temp(image_width);
 			
 			gpu_compute_criterion_gradient_temp(image_width, hyperparameter_entropy);

@@ -41,9 +41,9 @@ void gpu_compute_sum(cl_mem * input_buffer, cl_mem * output_buffer, cl_mem * par
     int pass_count, size_t * group_counts, size_t * work_item_counts, 
     int * operation_counts, int * entry_counts);
 
-void gpu_compute_data_gradient(cl_mem * gpu_image, int npow, int nbis, int image_width);
-void gpu_compute_data_gradient_curr(int npow, int nbis, int image_width);
-void gpu_compute_data_gradient_temp(int npow, int nbis, int image_width);
+void gpu_compute_data_gradient(cl_mem * gpu_image, int nuv, int npow, int nbis, int image_width);
+void gpu_compute_data_gradient_curr(int nuv, int npow, int nbis, int image_width);
+void gpu_compute_data_gradient_temp(int nuv, int npow, int nbis, int image_width);
 
 void gpu_compute_descent_dir(int image_width, float beta);
 
@@ -83,7 +83,7 @@ cl_mem * gpu_getp_eg();
 
 void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image);
 
-void gpu_image2vis(int data_alloc_uv, cl_mem * gpu_image);
+void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image);
 
 void gpu_init();
 

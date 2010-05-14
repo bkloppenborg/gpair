@@ -546,6 +546,7 @@ int main(int argc, char *argv[])
 	// #########
 
     int i = 0;
+    int j = 0;
 	// Convert the biphasor over to a cl_float2 in format <real, imaginary>    
 	cl_float2 * gpu_phasor = NULL;
 	gpu_phasor = malloc(data_alloc_bis * sizeof(cl_float2));
@@ -587,15 +588,17 @@ int main(int argc, char *argv[])
 	cl_float2 * gpu_dft_y = NULL;
 	gpu_dft_x = malloc(dft_alloc * sizeof(cl_float2));
 	gpu_dft_y = malloc(dft_alloc * sizeof(cl_float2));
-	for(uu=0; uu < nuv; uu++)
-	{
-		for(ii=0; ii < image_width; ii++)
-		{
-			i = image_width * uu + ii;
-			gpu_dft_x[i].s0 = __real__ DFT_tablex[i];
-			gpu_dft_x[i].s1 = __imag__ DFT_tablex[i];
-			gpu_dft_y[i].s0 = __real__ DFT_tabley[i];
-			gpu_dft_y[i].s1 = __imag__ DFT_tabley[i];
+    for(uu=0; uu < nuv; uu++)
+    {
+        for(ii=0; ii < image_width; ii++)
+        {
+			i = nuv * ii + uu;   // Destination for the data
+			j = image_width * uu + ii;   // Source of the data
+
+			gpu_dft_x[i].s0 = __real__ DFT_tablex[j];
+			gpu_dft_x[i].s1 = __imag__ DFT_tablex[j];
+			gpu_dft_y[i].s0 = __real__ DFT_tabley[j];
+			gpu_dft_y[i].s1 = __imag__ DFT_tabley[j];
 		}
 	}
 
@@ -672,7 +675,7 @@ int main(int argc, char *argv[])
 		// Compute full gradient (data + entropy)
 		//
 		
-		gpu_compute_data_gradient_curr(npow, nbis, image_width);
+		gpu_compute_data_gradient_curr(nuv, npow, nbis, image_width);
 		gpu_compute_entropy_gradient_curr(image_width);
 		
 		// Enable for debugging, good to compare against the cpu.
@@ -817,7 +820,7 @@ int main(int argc, char *argv[])
 			// Evaluate wolfe product 2
 			//
 
-			gpu_compute_data_gradient_temp(npow, nbis, image_width);
+			gpu_compute_data_gradient_temp(nuv, npow, nbis, image_width);
 			gpu_compute_entropy_gradient_temp(image_width);
 			gpu_compute_criterion_gradient_temp(image_width, hyperparameter_entropy);
 			
