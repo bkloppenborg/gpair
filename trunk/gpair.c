@@ -212,18 +212,19 @@ int main(int argc, char *argv[])
 	memset(current_image, 0, image_size);
 	//	memset(current_image2, 0, image_size);
 
-	if(strcmp(initfile, "") == 0)
-	  {
-	    for (ii = 0; ii < image_size; ii++)
-	      {
-		current_image[ii] = default_model[ii];
-		//	current_image2[ii] = default_model[ii];
-	      }
-	  }
-	else
-	  {
-	    read_fits_image(initfile, current_image);
-	  }
+    if(strcmp(initfile, "") == 0)
+    {
+        for (ii = 0; ii < image_size; ii++)
+        {
+            current_image[ii] = default_model[ii];
+            if(current_image[ii] < 1e-8)
+                current_image[ii] = 1e-8;
+        }
+    }
+    else
+    {
+        read_fits_image(initfile, current_image);
+    }
 
 	// setup precomputed DFT table
 	int dft_size = nuv * image_width;
