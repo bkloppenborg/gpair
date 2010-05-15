@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
 	image_width = 128;
 	char filename[200] = "2004contest1.oifits";
 	char modelfile[200] = "";
+	char initfile[200] = "";
 	float image_pixellation = 0.15;
 	float modelwidth = 5., modelflux = 10.;
 	int modeltype = 3;
@@ -116,10 +117,15 @@ int main(int argc, char *argv[])
 			sscanf(argv[ii + 1], "%d", &modeltype);
 			printf("Model Type = %d\n", modeltype);
 		}
-		if (strcmp(argv[ii], "-i") == 0)
+		if (strcmp(argv[ii], "-m") == 0)
 		{
 			sscanf(argv[ii + 1], "%s", modelfile);
 			printf("Model image = %s\n", modelfile);
+		}
+		if (strcmp(argv[ii], "-i") == 0)
+		{
+			sscanf(argv[ii + 1], "%s", initfile);
+			printf("Init image = %s\n", initfile);
 		}
 		else if (strcmp(argv[ii], "-a") == 0)
 		{
@@ -202,14 +208,22 @@ int main(int argc, char *argv[])
 	int image_size = image_width * image_width;
 	printf("Image Buffer Size %i \n", image_size);
 	float * current_image = malloc(image_size * sizeof(float));
-	float * current_image2 = malloc(image_size * sizeof(float));
+	//	float * current_image2 = malloc(image_size * sizeof(float));
 	memset(current_image, 0, image_size);
-	memset(current_image2, 0, image_size);
-	for (ii = 0; ii < image_size; ii++)
-	{
+	//	memset(current_image2, 0, image_size);
+
+	if(strcmp(initfile, "") == 0)
+	  {
+	    for (ii = 0; ii < image_size; ii++)
+	      {
 		current_image[ii] = default_model[ii];
-        current_image2[ii] = default_model[ii];
-	}
+		//	current_image2[ii] = default_model[ii];
+	      }
+	  }
+	else
+	  {
+	    read_fits_image(initfile, current_image);
+	  }
 
 	// setup precomputed DFT table
 	int dft_size = nuv * image_width;
@@ -235,7 +249,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 200;
+	int iterations = 1000;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -623,7 +637,7 @@ int main(int argc, char *argv[])
 			
 	
     printf("Copying starting image to GPU.\n");			
-	gpu_copy_image(current_image2, image_width, image_width);
+	gpu_copy_image(current_image, image_width, image_width);
 
     printf("Copying DFT tables to GPU.\n");
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
@@ -903,6 +917,7 @@ int main(int argc, char *argv[])
 	free( data_phasor);
 	free( visi);
 	free(current_image);
+	//	free(current_image2);
 	free(temp_image);
 	free( DFT_tablex);
 	free( DFT_tabley);
