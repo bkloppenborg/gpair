@@ -712,7 +712,7 @@ void set_model(int image_width, float image_pixellation, int modeltype, float mo
 			for (j = 0; j < image_width; j++)
 			{
 				default_model[j * image_width + i] = exp(-(square((float) image_width / 2 - i) + square(
-						(float) image_width / 2 - j)) / (2. * square(sigma / image_pixellation)));
+						(float) image_width / 2 - j - 80)) / (2. * square(sigma / image_pixellation)));
 				// Fix problem with support at zero
 				//if ( default_model[ j*image_width+i ]<1e-8 ) default_model[ j*image_width+i ]=1e-8;
 				flux += default_model[j * image_width + i];
