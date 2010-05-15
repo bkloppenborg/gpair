@@ -611,18 +611,26 @@ int main(int argc, char *argv[])
 		gpu_dft_y[i].s1 = 0;
 	}
 
+    printf("Initalizing the GPU.\n");
 	// Initalize the GPU, copy data, and build the kernels.
 	gpu_init();
 
+    printf("Copying data to GPU.\n");
 	gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_bis,
 			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
 			default_model,
 			image_size,	image_width);
 			
+	
+    printf("Copying starting image to GPU.\n");			
 	gpu_copy_image(current_image2, image_width, image_width);
 
-	gpu_build_kernels(data_alloc, image_width, image_size);
+    printf("Copying DFT tables to GPU.\n");
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
+
+    printf("Building kernels to GPU.\n");
+	gpu_build_kernels(data_alloc, image_width, image_size);
+	
 
 	// Free variables used to store values pepared for the GPU
 	free(gpu_phasor);
@@ -643,7 +651,7 @@ int main(int argc, char *argv[])
 	
 	float temp_a, temp_b, temp_c;
 	
-    //printf("Entering Main CG Loop.\n");
+    printf("Initalization done, starting main loop.\n");
     
     //chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
 
