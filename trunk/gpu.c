@@ -2206,7 +2206,7 @@ void gpu_vis2data(cl_mem * gpu_visi, int nuv, int npow, int nbis)
     
 
     // Execute the kernel over the entire range of the data set        
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, &local, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("Could not enqueue powerspectrum visi kernel.", err);   
         
