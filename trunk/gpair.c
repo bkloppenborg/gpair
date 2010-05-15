@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 2;
+	int iterations = 11;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -649,7 +649,7 @@ int main(int argc, char *argv[])
 
 	for (uu = 0; uu < iterations; uu++)
 	{
-        printf("\nStarting new iteration of main loop.\n\n");
+        //printf("\nStarting new iteration of main loop.\n\n");
 		//
 		// Compute the criterion
 		//
@@ -659,11 +659,11 @@ int main(int argc, char *argv[])
 		criterion = chi2 - hyperparameter_entropy * entropy;
 		criterion_evals++;
 
-		printf("%sGrad evals: %d J evals: %d Selected coeff %e Beta %e, J = %f, chi2r = %f chi2 = %lf alpha*entropy = %e entropy = %e \n",
+		printf("%sGrad evals: %d J evals: %d Selected coeff %e Beta %e, \nJ = %f, chi2r = %f chi2 = %lf \nalpha*entropy = %e entropy = %e \n",
 				SEP, grad_evals, criterion_evals, selected_steplength, beta, criterion, chi2 / (float) ndof, chi2,
 				hyperparameter_entropy * entropy, entropy);
 
-		if(uu%5 == 0)
+		if(uu % 5 == 0)
 		{
 		    temp_image = gpu_get_image(image_size, temp_image, pCurr_image);
 		    writefits(temp_image, "!reconst.fits");
@@ -731,7 +731,7 @@ int main(int argc, char *argv[])
 /*		*/
 /*		printf("temp_a %1f temp_b %1f temp_c %1f\n", temp_a, temp_b, temp_c);*/
 		
-		printf("BETA: %1f\n", beta);
+		//printf("BETA: %1f\n", beta);
 
 		//
 		// Compute descent direction

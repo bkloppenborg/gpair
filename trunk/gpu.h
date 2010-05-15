@@ -61,6 +61,8 @@ void gpu_cleanup();
 
 void gpu_data2chi2(int data_size);
 
+int gpu_error_callback(char * error);
+
 float gpu_get_chi2_curr(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv);
 float gpu_get_chi2_temp(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv);
 float gpu_get_chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, cl_mem * gpu_image);
@@ -86,6 +88,8 @@ void gpu_image2chi2(int nuv, int npow, int nbis, int data_alloc, int data_alloc_
 void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image);
 
 void gpu_init();
+
+void gpu_kernel_workgroup_info(cl_kernel * kernel, char * kernel_name);
 
 float gpu_linesearch_zoom(
     int nuv, int npow, int nbis, int data_alloc, int data_alloc_uv, int image_width,

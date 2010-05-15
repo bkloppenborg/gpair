@@ -271,7 +271,7 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
 {   
     int err = 0;
     if(gpu_enable_verbose || gpu_enable_debug)
-        printf("Loading and compiling program '%s'\n\n", filename);
+        printf("\nLoading and compiling program '%s'\n", filename);
     
     // Load the kernel source:
     char * kernel_source = LoadProgramSourceFromFile(filename);
@@ -298,6 +298,9 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
     *kernel = clCreateKernel(*program, kernel_name, &err);
     if (!kernel || err != CL_SUCCESS)
         print_opencl_error("clCreateKernel", err); 
+        
+    if(gpu_enable_debug || gpu_enable_verbose)    
+        gpu_kernel_workgroup_info(kernel, kernel_name);
 }
 
 void gpu_build_kernels(int data_size, int image_width, int image_size)
@@ -776,8 +779,8 @@ void gpu_compute_entropy(int image_width, cl_mem * gpu_image, cl_mem * entropy_s
     }
 
     if(gpu_enable_debug || gpu_enable_verbose)
-        printf("Entropy Kernel: Global: %i Local %i \n", (int) (global[0] * global[1]), (int) (local[0] * local[1]));
-        
+        printf("Entropy Kernel: Global: %i, %i Local %i, %i\n", (int)global[0], (int)global[1], (int)local[0], (int)local[1]);
+    
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_entropy, 2, 0, global, local, 0, NULL, NULL);
     if (err)
         print_opencl_error("Cannot enqueue entropy kernel.", err); 
@@ -799,14 +802,12 @@ void gpu_compute_entropy_gradient(int image_width, cl_mem * gpu_image)
     // TODO: Figure out how to determine the size of local dynamically.
     size_t * local;
     local = malloc(2 * sizeof(size_t));
-    local[0] = local[1] = (size_t) 8;
+    local[0] = local[1] = (size_t) 16;
     int l_suggested = 0;
     
     size_t * global;
     global = malloc(2 * sizeof(size_t));
     global[0] = global[1] = (size_t) image_width;
-    
-    gpu_image = pGpu_image;
     
     // Set the arguments for the entropy kernel:
     err  = clSetKernelArg(*pKernel_entropy_grad, 0, sizeof(cl_mem), pGpu_image_width);
@@ -1513,6 +1514,12 @@ void gpu_data2chi2(int data_size)
     clFinish(*pQueue);
 }
 
+int gpu_error_callback(char * error)
+{
+    printf("Callback function called!\n %s", error);
+    return 0;
+}
+
 void gpu_device_stats(cl_device_id device_id)
 {	
 	int err;
@@ -1709,7 +1716,7 @@ void gpu_init()
         gpu_device_stats(device_id);                                  
 
     // Create a context                                           
-    context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
+    context = clCreateContext(0, 1, &device_id, (void*) (gpu_error_callback), NULL, &err);
     if(err != CL_SUCCESS)
         print_opencl_error("Unable to create OpenCL context", err);      
 
@@ -1915,6 +1922,26 @@ void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image)
         print_opencl_error("Cannot Enqueue visi kernel.", err);  
         
     clFinish(*pQueue);
+}
+
+void gpu_kernel_workgroup_info(cl_kernel * kernel, char * kernel_name)
+{
+    int err = 0;
+    size_t param_value_size = 0;
+    size_t wg_size = 0;
+    size_t compile_wg_size[3];
+    cl_ulong mem_size = 0;
+    
+    
+    err = clGetKernelWorkGroupInfo(*kernel, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE, param_value_size, &wg_size, NULL);
+    err = clGetKernelWorkGroupInfo(*kernel, *pDevice_id, CL_KERNEL_COMPILE_WORK_GROUP_SIZE, param_value_size, &compile_wg_size, NULL);
+    err = clGetKernelWorkGroupInfo(*kernel, *pDevice_id, CL_KERNEL_LOCAL_MEM_SIZE, param_value_size, &mem_size, NULL); 
+ 
+    printf("%sKernel Requirements:\n%s", SEP, SEP);
+    printf("%s\n", kernel_name);
+    printf("Workgroup Size: %i\n", (int) wg_size);
+    printf("Compiled WG Sizes: %i %i %i\n", (int) compile_wg_size[0], (int) compile_wg_size[1], (int) compile_wg_size[2]); 
+    printf("Reqired Memory: %li (bytes)\n", mem_size);
 }
 
 float gpu_linesearch_zoom(
@@ -2308,3 +2335,4 @@ void gpu_update_tempimage(int image_width, float steplength, float minval, cl_me
     
     clFinish(*pQueue);   
 }
+
