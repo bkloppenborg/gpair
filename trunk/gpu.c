@@ -1477,7 +1477,7 @@ void gpu_data2chi2(int data_size)
         
     // Execute the kernel over the entire range of the data set        
     global = data_size;
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_chi2, 1, NULL, &global, &local, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_chi2, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("clEnqueueNDRangeKernel chi2", err);
     
