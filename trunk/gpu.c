@@ -2198,10 +2198,12 @@ void gpu_vis2data(cl_mem * gpu_visi, int nuv, int npow, int nbis)
     if (err != CL_SUCCESS)
         print_opencl_error("clSetKernelArg", err);    
  
-/*   // Get the maximum work-group size for executing the kernel on the device*/
-/*    err = clGetKernelWorkGroupInfo(*pKernel_powspec, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
-/*    if (err != CL_SUCCESS)*/
-/*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
+    // Get the maximum work-group size for executing the kernel on the device
+    global = (size_t) npow;
+    err = clGetKernelWorkGroupInfo(*pKernel_powspec, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("clGetKernelWorkGroupInfo", err);
+    
 
     // Execute the kernel over the entire range of the data set        
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, &local, 0, NULL, NULL);
@@ -2228,7 +2230,7 @@ void gpu_vis2data(cl_mem * gpu_visi, int nuv, int npow, int nbis)
         print_opencl_error("clGetKernelWorkGroupInfo", err);
 
     // Execute the kernel over the entire range of the data set        
-    global = nbis;
+    global = (size_t) nbis;
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_bispec, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("Could not enqueue bispectrum visi kernel.", err);   
