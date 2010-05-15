@@ -1609,6 +1609,8 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int nuv, int npow, int nbis, 
     size_t * global;
     global = malloc(2 * sizeof(size_t));
     global[0] = global[1] = (size_t) image_width;
+    
+    size_t shared_size = local[0] * local[1];
 
     if(gpu_enable_debug || gpu_enable_verbose)
         printf("Data Gradient Kernels: Global: %i, %i Local %i, %i\n", (int)global[0], (int)global[1], (int)local[0], (int)local[1]);
@@ -1624,7 +1626,11 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int nuv, int npow, int nbis, 
     err |= clSetKernelArg(*pKernel_grad_pow, 7, sizeof(int), &nuv);
     err |= clSetKernelArg(*pKernel_grad_pow, 8, sizeof(int), &npow);
     err |= clSetKernelArg(*pKernel_grad_pow, 9, sizeof(int), &image_width);
-    err |= clSetKernelArg(*pKernel_grad_pow, 10, sizeof(cl_mem), pGpu_data_grad);  
+    err |= clSetKernelArg(*pKernel_grad_pow, 10, shared_size * sizeof(float), NULL);
+    err |= clSetKernelArg(*pKernel_grad_pow, 11, shared_size * sizeof(float), NULL);
+    err |= clSetKernelArg(*pKernel_grad_pow, 12, shared_size * sizeof(float), NULL);
+    err |= clSetKernelArg(*pKernel_grad_pow, 13, shared_size * sizeof(cl_float2), NULL);    
+    err |= clSetKernelArg(*pKernel_grad_pow, 14, sizeof(cl_mem), pGpu_data_grad);  
 
 /*   // Get the maximum work-group size for executing the kernel on the device*/
 /*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
@@ -1891,7 +1897,7 @@ void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image)
         print_opencl_error("Cannot get work group size information for Visi kernel!", err);
 
     // Round down to the nearest power of two.
-    local = 16; //pow(2, floor(log(local) / log(2)));
+    local = 128; //pow(2, floor(log(local) / log(2)));
 
     // Now we compute the DFT
     err  = clSetKernelArg(*pKernel_visi, 0, sizeof(cl_mem), gpu_image);
@@ -1901,9 +1907,9 @@ void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image)
     err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_image_width);   
     err |= clSetKernelArg(*pKernel_visi, 5, sizeof(cl_mem), pGpu_flux1);    
     err |= clSetKernelArg(*pKernel_visi, 6, sizeof(cl_mem), pGpu_visi0);
-    err |= clSetKernelArg(*pKernel_visi, 7, local * sizeof(cl_float2), NULL);
-    err |= clSetKernelArg(*pKernel_visi, 8, local * sizeof(cl_float2), NULL);
-    err |= clSetKernelArg(*pKernel_visi, 9, local * sizeof(cl_float2), NULL);
+    err |= clSetKernelArg(*pKernel_visi, 7, local * sizeof(cl_float2), NULL);   // A
+    err |= clSetKernelArg(*pKernel_visi, 8, 8*local * sizeof(cl_float2), NULL);   // B
+    //err |= clSetKernelArg(*pKernel_visi, 9, local * sizeof(cl_float2), NULL);   // C
     
     // Execute the kernel over the entire range of the data set        
     global = (size_t) data_alloc_uv;
