@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 11;
+	int iterations = 200;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
