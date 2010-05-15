@@ -94,12 +94,7 @@ __kernel void grad_bis(
         uvpnt = data_uvpnt[k];
         vab = visi[uvpnt.s0];
         vbc = visi[uvpnt.s1];
-        vca = visi[uvpnt.s2]; 
-    
-        // Compute the errors in the visibilities from the DFT matricies.
-/*        vabderr = MultComplex2(dft_x[uvpnt.s0 * image_width + i], dft_y[uvpnt.s0 * image_width + j]);*/
-/*        vbcderr = MultComplex2(dft_x[uvpnt.s1 * image_width + i], dft_y[uvpnt.s1 * image_width + j]);*/
-/*        vcaderr = MultComplex2(dft_x[uvpnt.s2 * image_width + i], dft_y[uvpnt.s2 * image_width + j]);*/
+        vca = visi[uvpnt.s2];  
 
         vabderr = MultComplex2(dft_x[uvpnt.s0 + nuv * i], dft_y[uvpnt.s0 + nuv * j]);
         vbcderr = MultComplex2(dft_x[uvpnt.s1 + nuv * i], dft_y[uvpnt.s1 + nuv * j]);

@@ -581,6 +581,8 @@ int main(int argc, char *argv[])
 		gpu_bsref_sign[i].s1 = oifits_info.bsref[i].bc.sign;
 		gpu_bsref_sign[i].s2 = oifits_info.bsref[i].ca.sign;
 		gpu_bsref_sign[i].s3 = 0;
+		
+		printf("UV Points: %li %li %li\n", gpu_bsref_uvpnt[i].s0, gpu_bsref_uvpnt[i].s1, gpu_bsref_uvpnt[i].s2);
 	}
 
 	// Copy the DFT table over to a GPU-friendly format:
