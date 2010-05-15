@@ -465,7 +465,7 @@ int main(int argc, char *argv[])
 
 			if (wolfe_product2 >= 0.)
 			{
-				printf("Test 2\n");
+				//printf("Test 2\n");
 
 				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,
 						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,
@@ -850,7 +850,7 @@ int main(int argc, char *argv[])
 
 			wolfe_product2 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pTemp_gradient);
 			
-			printf("\nWolfe Product 2: %e\n\n", wolfe_product2);
+			//printf("\nWolfe Product 2: %e\n\n", wolfe_product2);
 
 			if (fabs(wolfe_product2) <= -wolfe_param2 * wolfe_product1)
 			{
