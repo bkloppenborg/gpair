@@ -2135,7 +2135,7 @@ void gpu_new_chi2(int nuv, int npow, int nbis, int data_alloc)
 void gpu_scalar_prod(int data_width, int data_height, cl_mem * array1, cl_mem * array2, cl_mem * final_output)
 {       
     if(final_output == NULL || array1 == NULL || array2 == NULL)
-        print_opencl_error("Pointer to gpu_sclar_prod is NULL!", 0);
+        print_opencl_error("Pointer to gpu_scalar_prod is NULL!", 0);
         
     size_t global = data_width * data_height;
     size_t local = 0;
@@ -2266,7 +2266,7 @@ void gpu_vis2data(cl_mem * gpu_visi, int nuv, int npow, int nbis)
 /*        print_opencl_error("clGetKernelWorkGroupInfo", err);*/
 
     // Execute the kernel over the entire range of the data set        
-    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, &local, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(*pQueue, *pKernel_powspec, 1, NULL, &global, NULL, 0, NULL, NULL);
     if (err)
         print_opencl_error("Could not enqueue powerspectrum visi kernel.", err);   
         

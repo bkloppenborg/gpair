@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
 
 	float entropy;
 	float criterion;
-	int gradient_method = 0;
+	int gradient_method = 2;
 	
 	float * temp_image;
 	

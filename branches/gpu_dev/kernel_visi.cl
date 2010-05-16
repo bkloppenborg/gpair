@@ -56,7 +56,6 @@ __kernel void visi(
     int i = 0;
     int j = 0;
     int m = 0;
-    int n = 0;
     
     float2 uv = uv_info[uv_pnt];
   
