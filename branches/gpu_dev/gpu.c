@@ -15,8 +15,8 @@
 #define SEP "-----------------------------------------------------------\n"
 
 // Global variable to enable/disable debugging output:
-int gpu_enable_verbose = 0;     // Turns on verbose output from GPU messages.
-int gpu_enable_debug = 0;       // Turns on debugging output, slows stuff down considerably.
+int gpu_enable_verbose = 1;     // Turns on verbose output from GPU messages.
+int gpu_enable_debug = 1;       // Turns on debugging output, slows stuff down considerably.
 
 // Global variables
 cl_device_id * pDevice_id = NULL;           // device ID
@@ -1506,8 +1506,6 @@ void gpu_copy_dft_info(int nuv, cl_float2 * gpu_uv_info, float image_pixellation
         
     clFinish(*pQueue);  
     
-    gpu_compare_float2_data(nuv, gpu_uv_info, &uv_info);
-    
     pGpu_uv_info = &uv_info;
     pGpu_pixellation = &pixellation;
 }
@@ -2056,9 +2054,9 @@ float gpu_linesearch_zoom(
 /*	    printf("ti0: %i\n", pGpu_image_temp);*/
 		
         gpu_update_tempimage(image_width, steplength, minvalue, pDescent_direction);
-/*		temp_image = gpu_get_image(image_size, temp_image, pGpu_image_temp);*/
-/*	    writefits(temp_image, "!ti1.fits");*/
-/*        printf("ti1: %i\n", pGpu_image_temp);  */
+		temp_image = gpu_get_image(image_size, temp_image, pGpu_image_temp);
+	    writefits(temp_image, "!ti1.fits");
+        printf("ti1: %i\n", pGpu_image_temp);  
 
 		chi2 = gpu_get_chi2_temp(nuv, npow, nbis, data_alloc, data_alloc_uv);
 		entropy = gpu_get_entropy_temp(image_width);
@@ -2122,6 +2120,9 @@ float gpu_linesearch_zoom(
 
 		counter++;
 	}
+	
+	// Enable when debugging
+	free(temp_image);
 
 	return selected_steplength;
 }
@@ -2186,7 +2187,10 @@ float gpu_get_scalprod(int data_width, int data_height, cl_mem * array1, cl_mem 
     err = clEnqueueReadBuffer(*pQueue, *pGpu_scaprod, CL_TRUE, 0, sizeof(float), &value, 0, NULL, NULL );
     if (err != CL_SUCCESS)
         print_opencl_error("Could not read back scalar product value from GPU!", err);
-        
+    
+    if(value != value)
+        print_opencl_error("NAN Found in resulting scalar product, stopping.", 0);
+            
     return value;     
 }
 
