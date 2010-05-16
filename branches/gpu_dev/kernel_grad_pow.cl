@@ -66,22 +66,14 @@ __kernel void grad_pow(
     __private int nuv,
     __private int npow,
     __private int image_width,
-    __local float * sData,
-    __local float * sDataErr,
-    __local float * sMock,
-    __local float2 * sVisi,
     __global float * data_gradient)
 {
     // Load indicies:
     int i = get_global_id(0);
     int j = get_global_id(1);
-    int lsize_x = get_local_size(0);
-    int lsize = lsize_x * get_local_size(1);
-    int lid = lsize_x * get_local_id(1) + get_local_id(0);
 
     // Setup counters and local variables.
     int k = 0;    
-    int l = 0;
     float data_grad = 0;
     float2 temp;
     
@@ -89,20 +81,8 @@ __kernel void grad_pow(
     float invflux = inv_flux[0];
 
     // Iterate over the powerspectrum points, adding in their gradients.
-    for(k = 0; k < npow; k += lsize)
+    for(k = 0; k < npow; k++)
     {   
-        if((k + lsize) > npow)
-            lsize = npow - k;
-            
-        if((i + lid) < npow)
-        {
-            sData[lid] = data[k + lid];
-            sDataErr[lid] = data_err[k + lid];
-            sMock[lid] = mock[k + lid];
-            sVisi[lid] = visi[k + lid];
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
-        
         // The original equation is as thus:
         // data_gradient[ii + jj * image_width] += 
         //    4. * data_err[ kk ] * data_err[ kk ] 
@@ -112,14 +92,10 @@ __kernel void grad_pow(
         // The complex portion requires the real part of this expansion:
         // (A0 - %i*A1)*(B0 + %i*B1)*(C0 + %i*C1)
         
-        for(l = 0; l < lsize; l++)
-        {
-            temp = MultComplex2(dft_x[(k + l) + i * nuv], dft_y[(k + l) + j * nuv]) - sVisi[l];
-            temp = MultComplex2(conj(visi[k]), temp);
-            
-            data_grad += 4.0 * sDataErr[l] * sDataErr[l] * invflux * (sMock[l] - sData[l]) * creal(temp);   
-        } 
-        barrier(CLK_LOCAL_MEM_FENCE);
+        temp = MultComplex2(dft_x[k + i * nuv], dft_y[k + j * nuv]) - visi[k];
+        temp = MultComplex2(conj(visi[k]), temp);
+        
+        data_grad += 4.0 * data_err[k] * data_err[k] * invflux * (mock[k] - data[k]) * creal(temp);    
     }
     
     data_gradient[image_width * j + i] = data_grad;

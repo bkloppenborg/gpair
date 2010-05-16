@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
 	image_width = 128;
 	char filename[200] = "2004contest1.oifits";
 	char modelfile[200] = "";
+	char initfile[200] = "";
 	float image_pixellation = 0.15;
 	float modelwidth = 5., modelflux = 10.;
 	int modeltype = 3;
@@ -116,10 +117,15 @@ int main(int argc, char *argv[])
 			sscanf(argv[ii + 1], "%d", &modeltype);
 			printf("Model Type = %d\n", modeltype);
 		}
-		if (strcmp(argv[ii], "-i") == 0)
+		if (strcmp(argv[ii], "-m") == 0)
 		{
 			sscanf(argv[ii + 1], "%s", modelfile);
 			printf("Model image = %s\n", modelfile);
+		}
+		if (strcmp(argv[ii], "-i") == 0)
+		{
+			sscanf(argv[ii + 1], "%s", initfile);
+			printf("Init image = %s\n", initfile);
 		}
 		else if (strcmp(argv[ii], "-a") == 0)
 		{
@@ -202,14 +208,23 @@ int main(int argc, char *argv[])
 	int image_size = image_width * image_width;
 	printf("Image Buffer Size %i \n", image_size);
 	float * current_image = malloc(image_size * sizeof(float));
-	float * current_image2 = malloc(image_size * sizeof(float));
+	//	float * current_image2 = malloc(image_size * sizeof(float));
 	memset(current_image, 0, image_size);
-	memset(current_image2, 0, image_size);
-	for (ii = 0; ii < image_size; ii++)
-	{
-		current_image[ii] = default_model[ii];
-        current_image2[ii] = default_model[ii];
-	}
+	//	memset(current_image2, 0, image_size);
+
+    if(strcmp(initfile, "") == 0)
+    {
+        for (ii = 0; ii < image_size; ii++)
+        {
+            current_image[ii] = default_model[ii];
+            if(current_image[ii] < 1e-8)
+                current_image[ii] = 1e-8;
+        }
+    }
+    else
+    {
+        read_fits_image(initfile, current_image);
+    }
 
 	// setup precomputed DFT table
 	int dft_size = nuv * image_width;
@@ -235,7 +250,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 200;
+	int iterations = 1000;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -451,7 +466,7 @@ int main(int argc, char *argv[])
 
 			if (wolfe_product2 >= 0.)
 			{
-				printf("Test 2\n");
+				//printf("Test 2\n");
 
 				selected_steplength = linesearch_zoom(steplength, steplength_old, criterion, wolfe_product1,
 						criterion_init, &criterion_evals, &grad_evals, current_image, temp_image, descent_direction,
@@ -581,8 +596,6 @@ int main(int argc, char *argv[])
 		gpu_bsref_sign[i].s1 = oifits_info.bsref[i].bc.sign;
 		gpu_bsref_sign[i].s2 = oifits_info.bsref[i].ca.sign;
 		gpu_bsref_sign[i].s3 = 0;
-		
-		//printf("UV Points: %li %li %li\n", gpu_bsref_uvpnt[i].s0, gpu_bsref_uvpnt[i].s1, gpu_bsref_uvpnt[i].s2);
 	}
 
 	// Copy the DFT table over to a GPU-friendly format:
@@ -603,14 +616,6 @@ int main(int argc, char *argv[])
 			gpu_dft_y[i].s1 = __imag__ DFT_tabley[j];
 		}
 	}
-	
-	cl_float2 * gpu_uv_info = NULL;
-	gpu_uv_info = malloc(nuv * sizeof(cl_float2));
-	for(i = 0; i < nuv; i++)
-	{
-	    gpu_uv_info[i].s0 = oifits_info.uv[i].u;
-        gpu_uv_info[i].s1 = oifits_info.uv[i].v;
-    }
 
 	// Pad out the remainder of the array with zeros:
 	for(i = nuv * image_width; i < dft_alloc; i++)
@@ -621,28 +626,43 @@ int main(int argc, char *argv[])
 		gpu_dft_y[i].s1 = 0;
 	}
 
+	cl_float2 * gpu_uv_info = NULL;
+	gpu_uv_info = malloc(nuv * sizeof(cl_float2));
+	for(i = 0; i < nuv; i++)
+	{
+	    gpu_uv_info[i].s0 = oifits_info.uv[i].u;
+        gpu_uv_info[i].s1 = oifits_info.uv[i].v;
+    }
+
+    printf("Initalizing the GPU.\n");
 	// Initalize the GPU, copy data, and build the kernels.
 	gpu_init();
 
+    printf("Copying data to GPU.\n");
 	gpu_copy_data(data, data_err, data_alloc, data_alloc_uv, gpu_phasor, data_alloc_bis,
 			npow, gpu_bsref_uvpnt, gpu_bsref_sign, data_alloc_bsref,
 			default_model,
 			image_size,	image_width);
 			
-	gpu_copy_image(current_image2, image_width, image_width);
-
-	gpu_build_kernels(data_alloc, image_width, image_size);
-	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
 	
+    printf("Copying starting image to GPU.\n");			
+	gpu_copy_image(current_image, image_width, image_width);
+
+    printf("Copying DFT tables to GPU.\n");
+	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
 	gpu_copy_dft_info(nuv, gpu_uv_info, image_pixellation);
+
+    printf("Building kernels to GPU.\n");
+	gpu_build_kernels(data_alloc, image_width, image_size);
+	
 
 	// Free variables used to store values pepared for the GPU
 	free(gpu_phasor);
 	free(gpu_bsref_uvpnt);
 	free(gpu_bsref_sign);
-	free(gpu_uv_info);
 	free(gpu_dft_x);
 	free(gpu_dft_y);
+	free(gpu_uv_info);
 	
 	temp_image = malloc(image_size * sizeof(float));
 	
@@ -657,6 +677,8 @@ int main(int argc, char *argv[])
 	float temp_a, temp_b, temp_c;
 	
     printf("Initalization done, starting main loop.\n");
+    
+    //chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
 
 	for (uu = 0; uu < iterations; uu++)
 	{
@@ -697,8 +719,8 @@ int main(int argc, char *argv[])
         gpu_compute_criterion_gradient_curr(image_width, hyperparameter_entropy);
         
         // Enable for debugging, good to compare against the cpu.
-        //temp_image = gpu_get_image(image_size, temp_image, pFull_gradient_new);
-	    //writefits(temp_image, "!cg.fits");
+        temp_image = gpu_get_image(image_size, temp_image, pFull_gradient_new);
+	    writefits(temp_image, "!cg.fits");
         
 		grad_evals++;
 		
@@ -770,7 +792,7 @@ int main(int argc, char *argv[])
 		// Compute quantity for Wolfe condition 1
 		wolfe_product1 = gpu_get_scalprod(image_width, image_width, pDescent_direction, pFull_gradient_new);
 
-		//printf("WolfeProd1: %e\n\n", wolfe_product1);
+		printf("WolfeProd1: %e\n\n", wolfe_product1);
 
 		// Initialize variables for line search
 		selected_steplength = 0.;
@@ -849,7 +871,7 @@ int main(int argc, char *argv[])
 
 			if (wolfe_product2 >= 0.)
 			{
-				//printf("Test 2\n");
+				printf("Test 2\n");
 
 			    selected_steplength = gpu_linesearch_zoom(nuv, npow, nbis, data_alloc, data_alloc_uv, image_width,
 			        steplength, steplength_old, criterion, wolfe_product1, criterion_init,
@@ -893,8 +915,8 @@ int main(int argc, char *argv[])
 
 	} // End Conjugated Gradient.
 
-    //abort:
-    //gpu_check_data(NULL, nuv, visi, NULL, NULL, NULL, NULL);
+    abort:
+    //gpu_check_data(NULL, nuv, visi, data_size, mock, image_size, NULL);
     
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();
@@ -907,6 +929,7 @@ int main(int argc, char *argv[])
 	free( data_phasor);
 	free( visi);
 	free(current_image);
+	//	free(current_image2);
 	free(temp_image);
 	free( DFT_tablex);
 	free( DFT_tabley);

@@ -28,15 +28,13 @@ float2 MultComplex3Special(float2 A, float2 B, float2 C)
 
 __kernel void visi(
     __global float * image,
-    __global float2 * dft_x,
-    __global float2 * dft_y,
     __private int nuv,
     __global int * image_size,
     __global float * inv_flux,
     __global float2 * output,
     __local float2 * sA,
     __global float2 * uv_info,
-    __global float * pixellation)
+   __global float * pixellation)
 {
     float2 visi;
     visi.s0 = 0;
