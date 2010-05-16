@@ -55,6 +55,8 @@ void gpu_copy_data(float * data, float * data_err, int data_size, int data_size_
                     
 void gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size);
 
+void gpu_copy_dft_info(int nuv, cl_float2 * gpu_uv_info, float image_pixellation);
+
 void gpu_copy_image(float * image, int x_size, int y_size);
 
 void gpu_cleanup();

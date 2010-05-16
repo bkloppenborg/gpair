@@ -603,6 +603,14 @@ int main(int argc, char *argv[])
 			gpu_dft_y[i].s1 = __imag__ DFT_tabley[j];
 		}
 	}
+	
+	cl_float2 * gpu_uv_info = NULL;
+	gpu_uv_info = malloc(nuv * sizeof(cl_float2));
+	for(i = 0; i < nuv; i++)
+	{
+	    gpu_uv_info[i].s0 = oifits_info.uv[i].u;
+        gpu_uv_info[i].s1 = oifits_info.uv[i].v;
+    }
 
 	// Pad out the remainder of the array with zeros:
 	for(i = nuv * image_width; i < dft_alloc; i++)
@@ -625,11 +633,14 @@ int main(int argc, char *argv[])
 
 	gpu_build_kernels(data_alloc, image_width, image_size);
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
+	
+	gpu_copy_dft_info(nuv, gpu_uv_info, image_pixellation);
 
 	// Free variables used to store values pepared for the GPU
 	free(gpu_phasor);
 	free(gpu_bsref_uvpnt);
 	free(gpu_bsref_sign);
+	free(gpu_uv_info);
 	free(gpu_dft_x);
 	free(gpu_dft_y);
 	
@@ -648,6 +659,7 @@ int main(int argc, char *argv[])
     //printf("Entering Main CG Loop.\n");
     
     //chi2 = gpu_get_chi2_curr(nuv, npow, nbis, data_alloc, data_alloc_uv);
+    //goto abort;
 
 	for (uu = 0; uu < iterations; uu++)
 	{
@@ -884,7 +896,8 @@ int main(int argc, char *argv[])
 
 	} // End Conjugated Gradient.
 
-    //gpu_check_data(NULL, nuv, visi, data_size, mock, image_size, NULL);
+    //abort:
+    //gpu_check_data(NULL, nuv, visi, NULL, NULL, NULL, NULL);
     
 	// Cleanup, shutdown, were're done.
 	gpu_cleanup();

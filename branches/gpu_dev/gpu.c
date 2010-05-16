@@ -87,6 +87,9 @@ cl_mem * pGpu_chi2_buffer2 = NULL;       // Used as partial sum buffer
 cl_mem * pGpu_dft_x = NULL;         // Pointer to Memory for x-DFT table
 cl_mem * pGpu_dft_y = NULL;         // Pointer to Memory for y-DFT table
 
+cl_mem * pGpu_uv_info = NULL;
+cl_mem * pGpu_pixellation = NULL;
+
 cl_mem * pGpu_flux0 = NULL;         // Buffer storing the (single, summed) flux value.
 cl_mem * pGpu_flux1 = NULL;         // Buffer for storing 1/flux
 cl_mem * pGpu_flux_buffer0 = NULL;  // Used as input buffer
@@ -523,6 +526,9 @@ void gpu_check_data(float * cpu_chi2,
 // Compare floating point data on the CPU and GPU.  Displays the percent error.
 void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
 {
+    if(cpu_data == NULL || pGpu_data == NULL)
+        return;
+        
     // TODO: It might be worthwile to replace this with something from the following page:
     //  http://www.cygnus-software.com/papers/comparingfloats/comparingfloats.htm
     int err = 0;
@@ -574,6 +580,9 @@ void gpu_compare_data(int size, float * cpu_data, cl_mem * pGpu_data)
 
 void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_data)
 {
+    if(cpu_data == NULL || pGpu_data == NULL)
+        return;
+        
     // TODO: Add in percent difference calculation.
     int err = 0;
     
@@ -604,6 +613,44 @@ void gpu_compare_complex_data(int size, float complex * cpu_data, cl_mem * pGpu_
     }   
         
     printf("Total Difference: %f \n", err_sum);
+    
+    free(gpu_data);
+}
+
+// Compare floating point data on the CPU and GPU.  Displays the percent error.
+void gpu_compare_float2_data(int size, cl_float2 * cpu_data, cl_mem * pGpu_data)
+{
+    if(cpu_data == NULL || pGpu_data == NULL)
+        return;
+        
+    // TODO: It might be worthwile to replace this with something from the following page:
+    //  http://www.cygnus-software.com/papers/comparingfloats/comparingfloats.htm
+    int err = 0;
+    
+    // Init a temporary variable for storing the data:
+    cl_float2 * gpu_data;
+    gpu_data = malloc(sizeof(cl_float2) * size);
+    memset(gpu_data, 0, sizeof(cl_float2) * size);
+    
+    err = clEnqueueReadBuffer(*pQueue, *pGpu_data, CL_TRUE, 0, sizeof(cl_float2) * size, gpu_data, 0, NULL, NULL );
+    if (err != CL_SUCCESS)
+        print_opencl_error("Could not read back GPU Data for comparision!", err);    
+        
+    int i;
+    float max_err = 0;
+    float error = 0;
+    float perr = 0;
+    for(i = 0; i < size; i++)
+    {
+        //if(perr > 0.01) // Greater than 1%
+            printf("[%i] %e %e %e %e\n", i, cpu_data[i].s0, gpu_data[i].s0, cpu_data[i].s1, gpu_data[i].s1);
+        
+        if(perr > max_err)
+            max_err = perr;    
+    }
+        
+    // Print out the maximum percent difference in the data.  Multiply by 100 so it is indeed a percent.    
+    printf("Max Difference: %f %%\n", 100 * max_err);
     
     free(gpu_data);
 }
@@ -1022,6 +1069,11 @@ void gpu_cleanup()
         err |= clReleaseMemObject(*pGpu_dft_x);
     if(pGpu_dft_y != NULL)
         err |= clReleaseMemObject(*pGpu_dft_y);
+    if(pGpu_uv_info != NULL)
+        err |= clReleaseMemObject(*pGpu_uv_info);
+    if(pGpu_pixellation != NULL)
+        err |= clReleaseMemObject(*pGpu_pixellation);      
+
     if(pGpu_image != NULL)
         err |= clReleaseMemObject(*pGpu_image);
     if(pGpu_image_temp != NULL)
@@ -1434,6 +1486,30 @@ void gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size)
     
     pGpu_dft_x = & dft_t_x;
     pGpu_dft_y = & dft_t_y;
+}
+
+void gpu_copy_dft_info(int nuv, cl_float2 * gpu_uv_info, float image_pixellation)
+{
+    int err;
+    static cl_mem uv_info;
+    static cl_mem pixellation;
+    
+    // Create buffers
+    uv_info = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * nuv, NULL, NULL);
+    pixellation = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(float), NULL, NULL);
+  
+    // Copy the data over
+    err  = clEnqueueWriteBuffer(*pQueue, uv_info, CL_FALSE, 0, sizeof(cl_float2) * nuv, gpu_uv_info, 0, NULL, NULL);
+    err |= clEnqueueWriteBuffer(*pQueue, pixellation, CL_FALSE, 0, sizeof(float), &image_pixellation, 0, NULL, NULL);
+    if (err != CL_SUCCESS)
+        print_opencl_error("Error copying DFT table to the GPU", err);
+        
+    clFinish(*pQueue);  
+    
+    gpu_compare_float2_data(nuv, gpu_uv_info, &uv_info);
+    
+    pGpu_uv_info = &uv_info;
+    pGpu_pixellation = &pixellation;
 }
 
 // Copys an image over to the GPU for analysis
@@ -1914,9 +1990,9 @@ void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image)
     err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_image_width);   
     err |= clSetKernelArg(*pKernel_visi, 5, sizeof(cl_mem), pGpu_flux1);    
     err |= clSetKernelArg(*pKernel_visi, 6, sizeof(cl_mem), pGpu_visi0);
-    err |= clSetKernelArg(*pKernel_visi, 7, local * sizeof(cl_float2), NULL);   // A
-    err |= clSetKernelArg(*pKernel_visi, 8, 8*local * sizeof(cl_float2), NULL);   // B
-    //err |= clSetKernelArg(*pKernel_visi, 9, local * sizeof(cl_float2), NULL);   // C
+    err |= clSetKernelArg(*pKernel_visi, 7, local * sizeof(cl_float2), NULL);   // A (image buffer)
+    err |= clSetKernelArg(*pKernel_visi, 8, sizeof(cl_mem), pGpu_uv_info);
+    err |= clSetKernelArg(*pKernel_visi, 9, sizeof(cl_mem), pGpu_pixellation);
     
     // Execute the kernel over the entire range of the data set        
     global = (size_t) data_alloc_uv;
