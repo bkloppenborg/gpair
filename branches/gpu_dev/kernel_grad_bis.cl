@@ -51,12 +51,12 @@ float2 MultComplex2(float2 A, float2 B)
 
 
 __kernel void grad_bis(
-    __global float * data,
-    __global float * data_err,
+    __global float2 * data,     // Notice, this is actually float
+    __global float2 * data_err, // Notice, this is actually float
     __global long4 * data_uvpnt,
     __global short4 * data_sign,
     __global float2 * data_phasor,
-    __global float * mock,
+    __global float2 * mock,     // Notice, this is actually float
     __global float2 * dft_x,
     __global float2 * dft_y,
     __global float2 * visi,
@@ -65,11 +65,20 @@ __kernel void grad_bis(
     __private int nbis,
     __private int npow,
     __private int image_width,
-    __global float * data_gradient)
+    __global float * data_gradient,
+    __local long4 * sUVPoint,
+    __local short4 * sSigns,
+    __local float2 * sData,
+    __local float2 * sDataErr,
+    __local float2 * sMock,
+    __local float2 * sPhasor)
 {
     int i = get_global_id(0);
     int j = get_global_id(1);
-    //int lid = get_local_id(); // The thread's local ID.
+    int k = 0;
+    int m = 0;
+    int lid = get_local_id(0); // The thread's local ID.
+    int lsize = get_local_size(0);
     
     float2 vab;
     float2 vbc;
@@ -78,54 +87,58 @@ __kernel void grad_bis(
     float2 vbcderr;
     float2 vcaderr;
     float2 t3der;
-    long4 uvpnt;
-    short4 sign;
-    
-    // Promote the flux to a float2.
-    float2 invflux;
-    invflux.s0 = flux_inv[0];
-    invflux.s1 = 0;
    
-    float data_grad = 0;
-    
-    int k = 0;
-    for(k = 0; k < nbis; k++)
+    float data_grad = 0; 
+
+    for(k = 0; k < nbis; k += lsize)
     {
-        uvpnt = data_uvpnt[k];
-        vab = visi[uvpnt.s0];
-        vbc = visi[uvpnt.s1];
-        vca = visi[uvpnt.s2];  
-
-        vabderr = MultComplex2(dft_x[uvpnt.s0 + nuv * i], dft_y[uvpnt.s0 + nuv * j]);
-        vbcderr = MultComplex2(dft_x[uvpnt.s1 + nuv * i], dft_y[uvpnt.s1 + nuv * j]);
-        vcaderr = MultComplex2(dft_x[uvpnt.s2 + nuv * i], dft_y[uvpnt.s2 + nuv * j]);
+        if((k + lsize) > nbis)
+            lsize = nbis - k;
+            
+        if((k + lid) < nbis)
+        {
+            sUVPoint[lid] = data_uvpnt[k + lid];
+            sSigns[lid] = data_sign[k + lid];
+            sData[lid] = data[npow + 2*(k + lid)];
+            sDataErr[lid] = data_err[npow + 2*(k + lid)];
+            sMock[lid] = mock[npow + 2*(k + lid)];
+            sPhasor[lid] = data_phasor[k + lid];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
         
-        // Take the conjugate when necessary:
-        sign = data_sign[k];
-        vab.s1 *= sign.s0;
-        vabderr.s1 *= sign.s0;
-        vbc.s1 *= sign.s1;
-        vbcderr.s1  *= sign.s1;       
-        vca.s1 *= sign.s2;
-        vcaderr.s1 *= sign.s2;
-        
-        // Now we compute T3, we have to do this in peices because of limited local memory on the GPU.
-        // We are going to use D as a temporary variable.
-        // t3der = ( (vabder - vab) * vbc * vca + vab * (vbcder - vbc) * vca + vab * vbc * (vcader - vca) ) * data_bisphasor[kk] * invflux ;
-        // Step 1: (vabder - vab) * vbc * vca
-        t3der = MultComplex3((vabderr - vab), vbc, vca);
-        // Step 2: + vab * (vbcder - vbc) * vca
-        t3der += MultComplex3(vab, (vbcderr - vbc), vca);
-        // Step 3: + vab * vbc * (vcader - vca)
-        t3der += MultComplex3(vab, vbc, (vcaderr - vca));
-        // Step 4: (stuff) * data_bip[k] * fluxinv
-        t3der = MultComplex3Special(t3der, data_phasor[k], invflux);
-
-        // Error from the real part:         
-        data_grad += 2 * data_err[npow + 2 * k] * data_err[npow + 2 * k] * ( mock[ npow + 2 * k] - data[npow + 2 * k] ) * t3der.s0;
-
-        // Error from the imaginary part:
-        data_grad += 2 * data_err[npow + 2 * k + 1] * data_err[npow + 2 * k + 1] * mock[ npow + 2 * k + 1] * t3der.s1;	   					
+        for(m = 0; m < lsize; m++)
+        {
+            vab = visi[sUVPoint[m].s0];
+            vbc = visi[sUVPoint[m].s1];
+            vca = visi[sUVPoint[m].s2]; 
+            
+            vabderr = MultComplex2(dft_x[sUVPoint[m].s0 + nuv * i], dft_y[sUVPoint[m].s0 + nuv * j]);
+            vbcderr = MultComplex2(dft_x[sUVPoint[m].s1 + nuv * i], dft_y[sUVPoint[m].s1 + nuv * j]);
+            vcaderr = MultComplex2(dft_x[sUVPoint[m].s2 + nuv * i], dft_y[sUVPoint[m].s2 + nuv * j]);
+            
+            vab.s1 *= sSigns[m].s0;
+            vabderr.s1 *= sSigns[m].s0;
+            vbc.s1 *= sSigns[m].s1;
+            vbcderr.s1  *= sSigns[m].s1;       
+            vca.s1 *= sSigns[m].s2;
+            vcaderr.s1 *= sSigns[m].s2;      
+            
+            t3der = MultComplex3((vabderr - vab), vbc, vca);
+            // Step 2: + vab * (vbcder - vbc) * vca
+            t3der += MultComplex3(vab, (vbcderr - vbc), vca);
+            // Step 3: + vab * vbc * (vcader - vca)
+            t3der += MultComplex3(vab, vbc, (vcaderr - vca));
+            // Step 4: (stuff) * data_bip[k] * fluxinv
+            t3der = MultComplex3Special(t3der, sPhasor[m], (float2) (flux_inv[0], 0));
+            
+            // Now we compute the (straight) product of (err)^2 * t3der
+            
+            t3der = sDataErr[m] * sDataErr[m] * t3der;
+            
+            data_grad += t3der.s0 * (sMock[m].s0 - sData[m].s0);
+            data_grad += t3der.s1 * sMock[m].s1;
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     data_gradient[j * image_width + i] += data_grad;

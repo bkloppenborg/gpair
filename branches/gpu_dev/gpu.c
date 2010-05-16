@@ -278,7 +278,7 @@ void gpu_build_kernel(cl_program * program, cl_kernel * kernel, char * kernel_na
     // Create the program
     *program = clCreateProgramWithSource(*pContext, 1, (const char **) & kernel_source, NULL, &err);     
     if (err != CL_SUCCESS)   
-        print_opencl_error("clCreateProgramWithSource with kernel", err);    
+        print_opencl_error("Cannot create the program from source.", err);    
         
     // Build the program executable
     err = clBuildProgram(*program, 0, NULL, NULL, NULL, NULL);
@@ -1425,7 +1425,7 @@ void gpu_copy_dft(cl_float2 * dft_x, cl_float2 * dft_y, int dft_size)
     dft_t_y = clCreateBuffer(*pContext,  CL_MEM_READ_ONLY,  sizeof(cl_float2) * dft_size, NULL, NULL);
     
     // Copy the data over
-    err = clEnqueueWriteBuffer(*pQueue, dft_t_x, CL_FALSE, 0, sizeof(cl_float2) * dft_size, dft_x, 0, NULL, NULL);
+    err  = clEnqueueWriteBuffer(*pQueue, dft_t_x, CL_FALSE, 0, sizeof(cl_float2) * dft_size, dft_x, 0, NULL, NULL);
     err |= clEnqueueWriteBuffer(*pQueue, dft_t_y, CL_FALSE, 0, sizeof(cl_float2) * dft_size, dft_y, 0, NULL, NULL);
     if (err != CL_SUCCESS)
         print_opencl_error("Error copying DFT table to the GPU", err);       
@@ -1610,7 +1610,7 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int nuv, int npow, int nbis, 
     global = malloc(2 * sizeof(size_t));
     global[0] = global[1] = (size_t) image_width;
     
-    size_t shared_size = local[0] * local[1];
+    size_t lsize = local[0] * local[1];
 
     if(gpu_enable_debug || gpu_enable_verbose)
         printf("Data Gradient Kernels: Global: %i, %i Local %i, %i\n", (int)global[0], (int)global[1], (int)local[0], (int)local[1]);
@@ -1626,11 +1626,12 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int nuv, int npow, int nbis, 
     err |= clSetKernelArg(*pKernel_grad_pow, 7, sizeof(int), &nuv);
     err |= clSetKernelArg(*pKernel_grad_pow, 8, sizeof(int), &npow);
     err |= clSetKernelArg(*pKernel_grad_pow, 9, sizeof(int), &image_width);
-    err |= clSetKernelArg(*pKernel_grad_pow, 10, shared_size * sizeof(float), NULL);
-    err |= clSetKernelArg(*pKernel_grad_pow, 11, shared_size * sizeof(float), NULL);
-    err |= clSetKernelArg(*pKernel_grad_pow, 12, shared_size * sizeof(float), NULL);
-    err |= clSetKernelArg(*pKernel_grad_pow, 13, shared_size * sizeof(cl_float2), NULL);    
-    err |= clSetKernelArg(*pKernel_grad_pow, 14, sizeof(cl_mem), pGpu_data_grad);  
+    err |= clSetKernelArg(*pKernel_grad_pow, 10, lsize * sizeof(float), NULL);
+    err |= clSetKernelArg(*pKernel_grad_pow, 11, lsize * sizeof(float), NULL);
+    err |= clSetKernelArg(*pKernel_grad_pow, 12, lsize * sizeof(float), NULL);
+    err |= clSetKernelArg(*pKernel_grad_pow, 13, lsize * sizeof(cl_float2), NULL);    
+    err |= clSetKernelArg(*pKernel_grad_pow, 14, sizeof(cl_mem), pGpu_data_grad);   
+    
 
 /*   // Get the maximum work-group size for executing the kernel on the device*/
 /*    err = clGetKernelWorkGroupInfo(*pKernel_u_vis_flux, *pDevice_id, CL_KERNEL_WORK_GROUP_SIZE , sizeof(size_t), &local, NULL);*/
@@ -1664,6 +1665,12 @@ void gpu_compute_data_gradient(cl_mem * gpu_image, int nuv, int npow, int nbis, 
     err |= clSetKernelArg(*pKernel_grad_bis, 12, sizeof(int), &npow);
     err |= clSetKernelArg(*pKernel_grad_bis, 13, sizeof(int), &image_width);
     err |= clSetKernelArg(*pKernel_grad_bis, 14, sizeof(cl_mem), pGpu_data_grad);
+    err |= clSetKernelArg(*pKernel_grad_bis, 15, lsize * sizeof(cl_long4), NULL); 
+    err |= clSetKernelArg(*pKernel_grad_bis, 16, lsize * sizeof(cl_short4), NULL); 
+    err |= clSetKernelArg(*pKernel_grad_bis, 17, lsize * sizeof(cl_float2), NULL); 
+    err |= clSetKernelArg(*pKernel_grad_bis, 18, lsize * sizeof(cl_float2), NULL); 
+    err |= clSetKernelArg(*pKernel_grad_bis, 19, lsize * sizeof(cl_float2), NULL); 
+    err |= clSetKernelArg(*pKernel_grad_bis, 20, lsize * sizeof(cl_float2), NULL);    
       
     err = clEnqueueNDRangeKernel(*pQueue, *pKernel_grad_bis, 2, 0, global, local, 0, NULL, NULL);
     if (err)
