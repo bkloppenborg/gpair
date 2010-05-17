@@ -1975,9 +1975,10 @@ void gpu_image2vis(int nuv, int data_alloc_uv, cl_mem * gpu_image)
     err |= clSetKernelArg(*pKernel_visi, 2, sizeof(cl_mem), pGpu_image_width);   
     err |= clSetKernelArg(*pKernel_visi, 3, sizeof(cl_mem), pGpu_flux1);    
     err |= clSetKernelArg(*pKernel_visi, 4, sizeof(cl_mem), pGpu_visi0);
-    err |= clSetKernelArg(*pKernel_visi, 5, local * sizeof(cl_float2), NULL);   // A (image buffer)
-    err |= clSetKernelArg(*pKernel_visi, 6, sizeof(cl_mem), pGpu_uv_info);
-    err |= clSetKernelArg(*pKernel_visi, 7, sizeof(cl_mem), pGpu_pixellation);
+    err |= clSetKernelArg(*pKernel_visi, 5, local * sizeof(float), NULL);   // A (image buffer)
+    err |= clSetKernelArg(*pKernel_visi, 6, local * sizeof(float), NULL);   // A (image buffer)
+    err |= clSetKernelArg(*pKernel_visi, 7, sizeof(cl_mem), pGpu_uv_info);
+    err |= clSetKernelArg(*pKernel_visi, 8, sizeof(cl_mem), pGpu_pixellation);
     
     // Execute the kernel over the entire range of the data set        
     global = (size_t) data_alloc_uv;
