@@ -16,7 +16,7 @@
 #endif
 
 // Preprocessor directive for the GPU:
-#define USE_GPU
+//#define USE_GPU
 
 #ifdef USE_GPU
 #include "gpu.h"
@@ -53,8 +53,10 @@ void sighandler(int signal)
         case SIGABRT:
         case SIGTERM:
         case SIGINT: 
+#ifdef USE_GPU
             printf("Received shutdown signal, please wait for the GPU to finish.\n");
             gpu_shutdown();
+#endif
             printf("All done. So long, and thanks for all the fish!\n");
             
             exit(0);
@@ -250,7 +252,7 @@ int main(int argc, char *argv[])
 	printf("DFT Size: %i , DFT Allocation: %i \n", dft_size, dft_alloc);
 
 	// TODO: Remove after testing
-	int iterations = 1000;
+	int iterations = 10;
 
 	// Init variables for the line search:
 	int criterion_evals = 0;
@@ -275,6 +277,10 @@ int main(int argc, char *argv[])
 	int gradient_method = 2;
 	
 	float * temp_image;
+
+	// TODO: Enable only when timing
+	clock_t tick = clock();
+	clock_t tock = 0;
 	
 	// Buffer for storing the temporary image (also used to read back data from the GPU)
 
@@ -310,6 +316,8 @@ int main(int argc, char *argv[])
 	// Init descent direction
 	float * descent_direction = malloc(image_size * sizeof(float));
 	memset(descent_direction, 0, image_size * sizeof(float));
+	//clock_t tick = clock();
+	//clock_t tock = 0;mage_size * sizeof(float));
     //chi2 = image2chi2(&i2v_info, current_image);
 
 	// Test 1 : compute mock data, powerspectra + bispectra from scratch
@@ -911,6 +919,11 @@ int main(int argc, char *argv[])
 	gpu_cleanup();
 
 #endif  // End of ifdef USE_GPU
+
+    tock=clock();
+    float run_time = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
+	printf("Run Time: %f", run_time);
+	
 
 	free(mock);
 	free(data);
