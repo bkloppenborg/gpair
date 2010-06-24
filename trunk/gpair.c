@@ -274,13 +274,14 @@ int main(int argc, char *argv[])
 
 	float entropy;
 	float criterion;
-	int gradient_method = 2;
+	int gradient_method = 0;
 	
 	float * temp_image;
 
 	// TODO: Enable only when timing
-	clock_t tick = clock();
-	clock_t tock = 0;
+	time_t tick;
+	time(&tick);
+	time_t tock ;
 	
 	// Buffer for storing the temporary image (also used to read back data from the GPU)
 
@@ -920,9 +921,9 @@ int main(int argc, char *argv[])
 
 #endif  // End of ifdef USE_GPU
 
-    tock=clock();
-    float run_time = (float)(tock - tick) / (float)CLOCKS_PER_SEC;
-	printf("Run Time: %f", run_time);
+	time(&tock);
+    double run_time = difftime(tock, tick);
+	printf("Run Time: %lf", run_time);
 	
 
 	free(mock);
