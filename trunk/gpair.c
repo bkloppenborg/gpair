@@ -16,7 +16,7 @@
 #endif
 
 // Preprocessor directive for the GPU:
-//#define USE_GPU
+#define USE_GPU
 
 #ifdef USE_GPU
 #include "gpu.h"
@@ -652,7 +652,7 @@ int main(int argc, char *argv[])
     printf("Copying DFT tables to GPU.\n");
 	gpu_copy_dft(gpu_dft_x, gpu_dft_y, dft_alloc);
 
-    printf("Building kernels to GPU.\n");
+    printf("Building kernels for the GPU.\n");
 	gpu_build_kernels(data_alloc, image_width, image_size);
 	
 
